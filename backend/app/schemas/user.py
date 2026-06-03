@@ -1,16 +1,17 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from app.models.user import UserStatus
+UserStatusValue = Literal["active", "inactive", "suspended", "resigned"]
 
 
 class UserBase(BaseModel):
     email: EmailStr
     full_name: str
     phone: str | None = None
-    status: str = UserStatus.ACTIVE.value
+    status: UserStatusValue = "active"
 
 
 class UserCreate(UserBase):
@@ -21,7 +22,7 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     full_name: str | None = None
     phone: str | None = None
-    status: str | None = None
+    status: UserStatusValue | None = None
     role_codes: list[str] | None = None
 
 

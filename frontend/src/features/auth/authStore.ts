@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from 'react';
+
 export type CurrentUser = {
   id: string;
   email: string;
@@ -15,19 +17,20 @@ type AuthState = {
 };
 
 const STORAGE_KEY = 'crm_bds_auth';
+const emptyState: AuthState = { accessToken: null, refreshToken: null, user: null };
 const listeners = new Set<() => void>();
 
 function readState(): AuthState {
   const rawValue = window.localStorage.getItem(STORAGE_KEY);
   if (!rawValue) {
-    return { accessToken: null, refreshToken: null, user: null };
+    return emptyState;
   }
 
   try {
     return JSON.parse(rawValue) as AuthState;
   } catch {
     window.localStorage.removeItem(STORAGE_KEY);
-    return { accessToken: null, refreshToken: null, user: null };
+    return emptyState;
   }
 }
 
@@ -49,13 +52,16 @@ export const authStore = {
     emit();
   },
   clear: () => {
-    state = { accessToken: null, refreshToken: null, user: null };
+    state = emptyState;
     window.localStorage.removeItem(STORAGE_KEY);
     emit();
   },
 };
 
-export function can(permissionCode: string): boolean {
-  const user = authStore.getState().user;
+export function useAuth(): AuthState {
+  return useSyncExternalStore(authStore.subscribe, authStore.getState, authStore.getState);
+}
+
+export function can(permissionCode: string, user: CurrentUser | null = authStore.getState().user): boolean {
   return Boolean(user?.is_superuser || user?.permissions.includes(permissionCode));
 }

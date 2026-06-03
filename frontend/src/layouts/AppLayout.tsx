@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { logout } from '../features/auth/api';
-import { authStore, can } from '../features/auth/authStore';
+import { authStore, can, useAuth } from '../features/auth/authStore';
 
 const sidebarItems = [
   { label: 'Dashboard', to: '/dashboard', permission: null },
@@ -12,7 +12,7 @@ const sidebarItems = [
 
 export function AppLayout() {
   const navigate = useNavigate();
-  const { user, refreshToken } = authStore.getState();
+  const { user, refreshToken } = useAuth();
 
   async function handleLogout() {
     try {
@@ -33,7 +33,7 @@ export function AppLayout() {
 
         <nav className="mt-10 space-y-2">
           {sidebarItems
-            .filter((item) => item.permission === null || can(item.permission))
+            .filter((item) => item.permission === null || can(item.permission, user))
             .map((item) => (
               <NavLink
                 className={({ isActive }) =>

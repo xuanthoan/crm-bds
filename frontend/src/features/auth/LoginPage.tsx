@@ -1,7 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { login } from './api';
-import { authStore } from './authStore';
+import { authStore, useAuth } from './authStore';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -10,7 +10,9 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (authStore.getState().accessToken) {
+  const { accessToken } = useAuth();
+
+  if (accessToken) {
     return <Navigate to="/dashboard" replace />;
   }
 
