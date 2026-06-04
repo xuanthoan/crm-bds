@@ -1,13 +1,15 @@
 import { FormEvent, useState } from 'react';
 
 import { navigateTo } from '../../routes/AppRoutes';
+import { FormError } from '../../components/FormError';
+import { formatApiError } from '../../services/apiClient';
 import { login } from './api';
 import { setSession } from './authStore';
 
 export function LoginPage() {
   const [email, setEmail] = useState('admin@example.com');
   const [password, setPassword] = useState('Admin@123456');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string[] | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -19,7 +21,7 @@ export function LoginPage() {
       setSession(response.data.access_token, response.data.refresh_token, response.data.user);
       navigateTo('/dashboard');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      setError(formatApiError(err, 'Đăng nhập thất bại.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -52,7 +54,7 @@ export function LoginPage() {
               required
             />
           </label>
-          {error && <div className="form-error">{error}</div>}
+          <FormError messages={error} />
           <button type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Signing in…' : 'Sign in'}
           </button>

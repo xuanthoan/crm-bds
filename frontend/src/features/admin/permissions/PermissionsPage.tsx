@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 
+import { FormError } from '../../../components/FormError';
+import { formatApiError } from '../../../services/apiClient';
 import { listPermissions, type PermissionGroup } from './api';
 
 export function PermissionsPage() {
   const [groups, setGroups] = useState<PermissionGroup[]>([]);
   const [search, setSearch] = useState('');
   const [moduleFilter, setModuleFilter] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   async function loadData() {
@@ -16,7 +18,7 @@ export function PermissionsPage() {
       const response = await listPermissions({ module: moduleFilter, search });
       setGroups(response.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không thể tải danh sách quyền.');
+      setError(formatApiError(err, 'Không thể tải danh sách quyền.'));
     } finally {
       setIsLoading(false);
     }
@@ -44,7 +46,7 @@ export function PermissionsPage() {
         </select>
         <button type="button" className="secondary-button" onClick={() => void loadData()}>Lọc</button>
       </div>
-      {error && <div className="form-error">{error}</div>}
+      <FormError messages={error} />
       <div className="permission-list">
         {groups.map((group) => (
           <section className="permission-group-card" key={group.module}>

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 
 import { Badge } from '../../../components/Badge';
+import { FormError } from '../../../components/FormError';
+import { formatApiError } from '../../../services/apiClient';
 import { listPermissions, type PermissionGroup } from '../permissions/api';
 import { createRole, getRole, listRoles, updateRole, type RoleDetail, type RoleSummary } from './api';
 import { RoleFormModal } from './RoleFormModal';
@@ -10,7 +12,7 @@ export function RolesPage() {
   const [permissionGroups, setPermissionGroups] = useState<PermissionGroup[]>([]);
   const [editingRole, setEditingRole] = useState<RoleDetail | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   async function loadData() {
@@ -21,7 +23,7 @@ export function RolesPage() {
       setRoles(rolesResponse.data);
       setPermissionGroups(permissionsResponse.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không thể tải dữ liệu vai trò.');
+      setError(formatApiError(err, 'Không thể tải dữ liệu vai trò.'));
     } finally {
       setIsLoading(false);
     }
@@ -32,8 +34,13 @@ export function RolesPage() {
   }, []);
 
   async function openEdit(roleId: string) {
-    const response = await getRole(roleId);
-    setEditingRole(response.data);
+    setError(null);
+    try {
+      const response = await getRole(roleId);
+      setEditingRole(response.data);
+    } catch (err) {
+      setError(formatApiError(err, 'Không thể tải chi tiết vai trò.'));
+    }
   }
 
   return (
@@ -47,7 +54,7 @@ export function RolesPage() {
           Tạo vai trò
         </button>
       </header>
-      {error && <div className="form-error">{error}</div>}
+      <FormError messages={error} />
       <div className="table-card">
         <table>
           <thead>

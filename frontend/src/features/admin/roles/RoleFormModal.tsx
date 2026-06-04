@@ -1,6 +1,8 @@
 import { FormEvent, useState } from 'react';
 
+import { FormError } from '../../../components/FormError';
 import { Modal } from '../../../components/Modal';
+import { formatApiError } from '../../../services/apiClient';
 import type { PermissionGroup } from '../permissions/api';
 import type { RoleDetail } from './api';
 import { PermissionPicker } from './PermissionPicker';
@@ -18,20 +20,20 @@ export function RoleFormModal({ role, permissionGroups, onClose, onSubmit }: Rol
   const [code, setCode] = useState(role?.code ?? '');
   const [description, setDescription] = useState(role?.description ?? '');
   const [permissionCodes, setPermissionCodes] = useState<string[]>(role?.permission_codes ?? []);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string[] | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!name.trim()) return setError('Tên vai trò là bắt buộc.');
-    if (!isEdit && !code.trim()) return setError('Code là bắt buộc.');
-    if (code && !/^[a-z][a-z0-9_]*$/.test(code)) return setError('Code phải là lowercase snake_case.');
+    if (!name.trim()) return setError(['Tên vai trò là bắt buộc.']);
+    if (!isEdit && !code.trim()) return setError(['Code là bắt buộc.']);
+    if (code && !/^[a-z][a-z0-9_]*$/.test(code)) return setError(['Code phải là lowercase snake_case.']);
     setError(null);
     setIsSubmitting(true);
     try {
       await onSubmit({ name, code, description, permission_codes: permissionCodes });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không thể lưu vai trò.');
+      setError(formatApiError(err, 'Không thể lưu vai trò.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -53,7 +55,7 @@ export function RoleFormModal({ role, permissionGroups, onClose, onSubmit }: Rol
           <textarea value={description} onChange={(event: any) => setDescription(event.target.value)} rows={3} />
         </label>
         <PermissionPicker groups={permissionGroups} selectedCodes={permissionCodes} onChange={setPermissionCodes} />
-        {error && <div className="form-error">{error}</div>}
+        <FormError messages={error} />
         <footer className="modal-actions">
           <button type="button" className="secondary-button" onClick={onClose}>
             Hủy

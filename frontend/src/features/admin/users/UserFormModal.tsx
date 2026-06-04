@@ -1,6 +1,8 @@
 import { FormEvent, useState } from 'react';
 
+import { FormError } from '../../../components/FormError';
 import { Modal } from '../../../components/Modal';
+import { formatApiError } from '../../../services/apiClient';
 import type { RoleSummary } from '../roles/api';
 import type { AdminUser } from './api';
 
@@ -19,7 +21,7 @@ export function UserFormModal({ user, roles, onClose, onSubmit }: UserFormModalP
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState(user?.status ?? 'active');
   const [roleCodes, setRoleCodes] = useState<string[]>(user?.roles.map((role) => role.code) ?? []);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string[] | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   function toggleRole(code: string) {
@@ -28,16 +30,16 @@ export function UserFormModal({ user, roles, onClose, onSubmit }: UserFormModalP
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!fullName.trim()) return setError('Họ tên là bắt buộc.');
-    if (!isEdit && !email.trim()) return setError('Email là bắt buộc.');
-    if (!isEdit && !password.trim()) return setError('Mật khẩu là bắt buộc.');
-    if (!roleCodes.length) return setError('Vui lòng chọn ít nhất một vai trò.');
+    if (!fullName.trim()) return setError(['Họ tên là bắt buộc.']);
+    if (!isEdit && !email.trim()) return setError(['Email là bắt buộc.']);
+    if (!isEdit && !password.trim()) return setError(['Mật khẩu là bắt buộc.']);
+    if (!roleCodes.length) return setError(['Vui lòng chọn ít nhất một vai trò.']);
     setError(null);
     setIsSubmitting(true);
     try {
       await onSubmit({ email, full_name: fullName, phone, password: isEdit ? undefined : password, status, role_codes: roleCodes });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không thể lưu người dùng.');
+      setError(formatApiError(err, 'Không thể lưu người dùng.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -82,7 +84,7 @@ export function UserFormModal({ user, roles, onClose, onSubmit }: UserFormModalP
             </label>
           ))}
         </fieldset>
-        {error && <div className="form-error">{error}</div>}
+        <FormError messages={error} />
         <footer className="modal-actions">
           <button type="button" className="secondary-button" onClick={onClose}>Hủy</button>
           <button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Đang lưu…' : 'Lưu'}</button>

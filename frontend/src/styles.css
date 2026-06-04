@@ -506,3 +506,8 @@ th {
     overflow-x: auto;
   }
 }
+
+.form-error ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 
 import { Badge } from '../../../components/Badge';
 import { ConfirmDialog } from '../../../components/ConfirmDialog';
+import { FormError } from '../../../components/FormError';
+import { formatApiError } from '../../../services/apiClient';
 import { listRoles, type RoleSummary } from '../roles/api';
 import { createUser, deactivateUser, listUsers, resetUserPassword, updateUser, type AdminUser, type UserListMeta } from './api';
 import { ResetPasswordModal } from './ResetPasswordModal';
@@ -25,7 +27,7 @@ export function UsersPage() {
   const [resetUser, setResetUser] = useState<AdminUser | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<AdminUser | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   async function loadData(page = 1) {
@@ -40,7 +42,7 @@ export function UsersPage() {
       setMeta(usersResponse.meta as UserListMeta);
       setRoles(rolesResponse.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không thể tải danh sách người dùng.');
+      setError(formatApiError(err, 'Không thể tải danh sách người dùng.'));
     } finally {
       setIsLoading(false);
     }
@@ -76,7 +78,7 @@ export function UsersPage() {
         </select>
         <button type="button" className="secondary-button" onClick={() => void loadData(1)}>Lọc</button>
       </div>
-      {error && <div className="form-error">{error}</div>}
+      <FormError messages={error} />
       <div className="table-card">
         <table>
           <thead>
@@ -161,9 +163,14 @@ export function UsersPage() {
           confirmLabel="Khóa"
           onCancel={() => setDeactivateTarget(null)}
           onConfirm={async () => {
-            await deactivateUser(deactivateTarget.id);
-            setDeactivateTarget(null);
-            await loadData(meta.page);
+            try {
+              await deactivateUser(deactivateTarget.id);
+              setDeactivateTarget(null);
+              await loadData(meta.page);
+            } catch (err) {
+              setError(formatApiError(err, 'Không thể khóa người dùng.'));
+              setDeactivateTarget(null);
+            }
           }}
         />
       )}
