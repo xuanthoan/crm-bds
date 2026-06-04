@@ -6,4 +6,9 @@ psycopg2-binary==2.9.10
 pydantic-settings==2.7.1
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+# Compatibility note: passlib 1.7.4 expects bcrypt.__about__, which was
+# removed in bcrypt >=4.1, and bcrypt 5.x raises stricter 72-byte password
+# errors during passlib backend initialization. Pin bcrypt 4.0.1 until the
+# password hashing layer is migrated to a maintained replacement.
+bcrypt==4.0.1
 email-validator==2.2.0
