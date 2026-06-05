@@ -10,3 +10,5 @@ from app.models.permission import Permission  # noqa: F401
 from app.models.refresh_token import RefreshToken  # noqa: F401
 from app.models.role import Role, role_permissions  # noqa: F401
 from app.models.user import User, user_roles  # noqa: F401
+from app.models.lead import Lead  # noqa: F401
+from app.models.lead_activity import LeadActivity  # noqa: F401

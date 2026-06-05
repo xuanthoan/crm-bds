@@ -9,7 +9,7 @@ type PermissionPickerProps = {
 };
 
 function labelFromCode(code: string): string {
-  return code.replaceAll('.', ' · ').replaceAll('_', ' ');
+  return code.split('.').join(' · ').split('_').join(' ');
 }
 
 export function PermissionPicker({ groups, selectedCodes, onChange }: PermissionPickerProps) {

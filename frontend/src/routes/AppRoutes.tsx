@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { LoginPage } from '../features/auth/LoginPage';
 import { can, isAuthenticated, subscribeAuth } from '../features/auth/authStore';
 import { PermissionsPage } from '../features/admin/permissions/PermissionsPage';
 import { RolesPage } from '../features/admin/roles/RolesPage';
 import { UsersPage } from '../features/admin/users/UsersPage';
+import { LeadDetailPage } from '../features/leads/LeadDetailPage';
+import { LeadsPage } from '../features/leads/LeadsPage';
+import { LEAD_VIEW_PERMISSIONS } from '../features/leads/constants';
 import { AppLayout } from '../layouts/AppLayout';
 import { CustomersPage } from '../pages/CustomersPage';
 import { DashboardPage } from '../pages/DashboardPage';
@@ -20,11 +23,12 @@ export function navigateTo(path: string): void {
 
 type ProtectedPage = {
   element: unknown;
-  permission?: string;
+  permission?: string | string[];
 };
 
 const protectedPages: Record<string, ProtectedPage> = {
   '/dashboard': { element: <DashboardPage /> },
+  '/leads': { element: <LeadsPage />, permission: LEAD_VIEW_PERMISSIONS },
   '/admin/users': { element: <UsersPage />, permission: 'users.view' },
   '/admin/roles': { element: <RolesPage />, permission: 'roles.view' },
   '/admin/permissions': { element: <PermissionsPage />, permission: 'permissions.view' },
@@ -34,8 +38,9 @@ const protectedPages: Record<string, ProtectedPage> = {
   '/reports': { element: <ReportsPage />, permission: 'reports.view.own' },
 };
 
-export function PermissionRoute({ permission, children }: { permission?: string; children: unknown }) {
-  if (permission && !can(permission)) {
+export function PermissionRoute({ permission, children }: { permission?: string | string[]; children?: ReactNode }) {
+  const allowed = !permission || (Array.isArray(permission) ? permission.some(can) : can(permission));
+  if (!allowed) {
     return <ForbiddenPage />;
   }
 
@@ -68,7 +73,11 @@ export function AppRoutes() {
     }
   }, [authenticated, normalizedPath]);
 
-  const page = useMemo(() => protectedPages[normalizedPath] ?? protectedPages['/dashboard'], [normalizedPath]);
+  const page = useMemo(() => {
+    const leadDetailMatch = normalizedPath.match(/^\/leads\/([0-9a-f-]+)$/i);
+    if (leadDetailMatch) return { element: <LeadDetailPage leadId={leadDetailMatch[1]} />, permission: LEAD_VIEW_PERMISSIONS };
+    return protectedPages[normalizedPath] ?? protectedPages['/dashboard'];
+  }, [normalizedPath]);
 
   if (!authenticated) {
     return <LoginPage />;

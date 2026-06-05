@@ -30,6 +30,33 @@ export function UsersPage() {
   const [error, setError] = useState<string[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  function closeAllModals() {
+    setIsCreating(false);
+    setEditingUser(null);
+    setResetUser(null);
+    setDeactivateTarget(null);
+  }
+
+  function openCreateModal() {
+    closeAllModals();
+    setIsCreating(true);
+  }
+
+  function openEditModal(user: AdminUser) {
+    closeAllModals();
+    setEditingUser(user);
+  }
+
+  function openResetModal(user: AdminUser) {
+    closeAllModals();
+    setResetUser(user);
+  }
+
+  function openDeactivateDialog(user: AdminUser) {
+    closeAllModals();
+    setDeactivateTarget(user);
+  }
+
   async function loadData(page = 1) {
     setIsLoading(true);
     setError(null);
@@ -59,7 +86,7 @@ export function UsersPage() {
           <p className="eyebrow">Quản trị hệ thống</p>
           <h1>Quản lý người dùng</h1>
         </div>
-        <button type="button" onClick={() => setIsCreating(true)}>
+        <button type="button" onClick={openCreateModal}>
           Tạo người dùng
         </button>
       </header>
@@ -99,12 +126,12 @@ export function UsersPage() {
                 <td>{user.email}</td>
                 <td>{user.phone}</td>
                 <td><Badge tone={statusTone[user.status] ?? 'gray'}>{user.status}</Badge></td>
-                <td>{user.roles.map((role) => <Badge key={role.code} tone="blue">{role.code}</Badge>)}</td>
+                <td>{user.roles.map((role) => <span key={role.code}><Badge tone="blue">{role.code}</Badge></span>)}</td>
                 <td>{new Date(user.created_at).toLocaleDateString('vi-VN')}</td>
                 <td className="action-cell">
-                  <button type="button" className="link-button" onClick={() => setEditingUser(user)}>Edit</button>
-                  <button type="button" className="link-button" onClick={() => setResetUser(user)}>Reset Password</button>
-                  <button type="button" className="link-button danger-link" onClick={() => setDeactivateTarget(user)}>Deactivate</button>
+                  <button type="button" className="link-button" onClick={() => openEditModal(user)}>Edit</button>
+                  <button type="button" className="link-button" onClick={() => openResetModal(user)}>Reset Password</button>
+                  <button type="button" className="link-button danger-link" onClick={() => openDeactivateDialog(user)}>Deactivate</button>
                 </td>
               </tr>
             ))}
@@ -126,10 +153,10 @@ export function UsersPage() {
       {isCreating && (
         <UserFormModal
           roles={roles}
-          onClose={() => setIsCreating(false)}
+          onClose={closeAllModals}
           onSubmit={async (payload) => {
             await createUser(payload);
-            setIsCreating(false);
+            closeAllModals();
             await loadData(1);
           }}
         />
@@ -138,10 +165,10 @@ export function UsersPage() {
         <UserFormModal
           user={editingUser}
           roles={roles}
-          onClose={() => setEditingUser(null)}
+          onClose={closeAllModals}
           onSubmit={async (payload) => {
             await updateUser(editingUser.id, payload);
-            setEditingUser(null);
+            closeAllModals();
             await loadData(meta.page);
           }}
         />
@@ -149,10 +176,10 @@ export function UsersPage() {
       {resetUser && (
         <ResetPasswordModal
           user={resetUser}
-          onClose={() => setResetUser(null)}
+          onClose={closeAllModals}
           onSubmit={async (newPassword) => {
             await resetUserPassword(resetUser.id, newPassword);
-            setResetUser(null);
+            closeAllModals();
           }}
         />
       )}
@@ -161,15 +188,15 @@ export function UsersPage() {
           title="Khóa người dùng"
           message="Bạn có chắc muốn khóa người dùng này không?"
           confirmLabel="Khóa"
-          onCancel={() => setDeactivateTarget(null)}
+          onCancel={closeAllModals}
           onConfirm={async () => {
             try {
               await deactivateUser(deactivateTarget.id);
-              setDeactivateTarget(null);
+              closeAllModals();
               await loadData(meta.page);
             } catch (err) {
               setError(formatApiError(err, 'Không thể khóa người dùng.'));
-              setDeactivateTarget(null);
+              closeAllModals();
             }
           }}
         />

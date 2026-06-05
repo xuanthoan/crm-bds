@@ -1,0 +1,70 @@
+export type LeadUser = { id: string; full_name: string; email: string };
+export type LeadActivityType = 'note' | 'call' | 'zalo' | 'meeting' | 'status_change' | 'assignment';
+export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'appointment' | 'site_visit' | 'negotiating' | 'deposit_ready' | 'converted' | 'lost';
+export type LeadPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+export type LeadActivity = {
+  id: string;
+  activity_type: LeadActivityType;
+  title: string | null;
+  content: string;
+  old_value: string | null;
+  new_value: string | null;
+  user: LeadUser;
+  created_at: string;
+};
+
+export type Lead = {
+  id: string;
+  code: string;
+  full_name: string;
+  phone_primary: string;
+  phone_secondary: string | null;
+  zalo?: string | null;
+  facebook?: string | null;
+  email?: string | null;
+  address?: string | null;
+  source: string | null;
+  project_interest: string | null;
+  location_interest?: string | null;
+  budget_min: string | number | null;
+  budget_max: string | number | null;
+  bedroom_need?: number | null;
+  area_min?: string | number | null;
+  area_max?: string | number | null;
+  note?: string | null;
+  status: LeadStatus;
+  priority: LeadPriority;
+  owner: LeadUser | null;
+  created_by?: LeadUser;
+  assigned_by?: LeadUser | null;
+  assigned_at?: string | null;
+  last_contact_at?: string | null;
+  next_follow_up_at: string | null;
+  lost_reason?: string | null;
+  activities?: LeadActivity[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type LeadPayload = {
+  full_name: string;
+  phone_primary: string;
+  phone_secondary?: string | null;
+  zalo?: string | null;
+  facebook?: string | null;
+  email?: string | null;
+  address?: string | null;
+  source?: string | null;
+  project_interest?: string | null;
+  location_interest?: string | null;
+  budget_min?: number | null;
+  budget_max?: number | null;
+  bedroom_need?: number | null;
+  area_min?: number | null;
+  area_max?: number | null;
+  priority?: LeadPriority;
+  owner_id?: string | null;
+  next_follow_up_at?: string | null;
+  note?: string | null;
+};
