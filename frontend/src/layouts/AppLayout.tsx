@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { logout } from '../features/auth/api';
 import { can, clearSession, getCurrentUser, getRefreshToken } from '../features/auth/authStore';
 import { navigateTo } from '../routes/AppRoutes';
+import { LEAD_VIEW_PERMISSIONS } from '../features/leads/constants';
 
 type AppLayoutProps = {
   children?: ReactNode;
@@ -18,6 +19,7 @@ const adminItems = [
 export function AppLayout({ children, currentPath }: AppLayoutProps) {
   const user = getCurrentUser();
   const visibleAdminItems = adminItems.filter((item) => can(item.permission));
+  const canViewLeads = LEAD_VIEW_PERMISSIONS.some(can);
 
   async function handleLogout() {
     const refreshToken = getRefreshToken();
@@ -35,7 +37,7 @@ export function AppLayout({ children, currentPath }: AppLayoutProps) {
     return (
       <a
         href={path}
-        className={currentPath === path ? 'active' : ''}
+        className={currentPath === path || (path === '/leads' && currentPath.startsWith('/leads/')) ? 'active' : ''}
         onClick={(event: any) => {
           event.preventDefault();
           navigateTo(path);
@@ -52,6 +54,12 @@ export function AppLayout({ children, currentPath }: AppLayoutProps) {
         <div className="brand">CRM BDS</div>
         <nav>
           {renderLink('Dashboard', '/dashboard')}
+          {canViewLeads && (
+            <div className="nav-section">
+              <span>CRM</span>
+              <div>{renderLink('Khách tiềm năng', '/leads')}</div>
+            </div>
+          )}
           {visibleAdminItems.length > 0 && (
             <div className="nav-section">
               <span>Quản trị hệ thống</span>

@@ -1,5 +1,7 @@
+import type { ReactNode } from 'react';
+
 type BadgeProps = {
-  children: string;
+  children?: ReactNode;
   tone?: 'green' | 'gray' | 'orange' | 'red' | 'blue';
 };
 

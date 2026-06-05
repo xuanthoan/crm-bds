@@ -99,7 +99,7 @@ export function UsersPage() {
                 <td>{user.email}</td>
                 <td>{user.phone}</td>
                 <td><Badge tone={statusTone[user.status] ?? 'gray'}>{user.status}</Badge></td>
-                <td>{user.roles.map((role) => <Badge key={role.code} tone="blue">{role.code}</Badge>)}</td>
+                <td>{user.roles.map((role) => <span key={role.code}><Badge tone="blue">{role.code}</Badge></span>)}</td>
                 <td>{new Date(user.created_at).toLocaleDateString('vi-VN')}</td>
                 <td className="action-cell">
                   <button type="button" className="link-button" onClick={() => setEditingUser(user)}>Edit</button>

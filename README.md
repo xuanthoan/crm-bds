@@ -161,3 +161,70 @@ http://localhost:3000/admin/users
 ```
 
 Expected: the frontend shows `Bạn không có quyền truy cập trang này.` and direct API calls to `/api/v1/users` return `403 Forbidden`.
+
+## Sprint 4 Lead Management Foundation
+
+Sprint 4 introduces the first CRM business module while preserving the Sprint 2 authentication/RBAC and Sprint 3 administration flows. Customer, property/inventory, deal, payment/commission, marketing campaign, report dashboard, workflow automation, and file attachment modules remain out of scope.
+
+### New database tables
+
+- `leads`: lead profile, interest, ownership, status, priority, contact scheduling, and soft-delete metadata.
+- `lead_activities`: basic notes/contact/status/assignment timeline entries.
+
+Migration: `backend/alembic/versions/20260605_0002_lead_management_foundation.py`.
+
+### Lead API endpoints
+
+- `GET /api/v1/leads`: scoped, paginated search/filter list.
+- `GET /api/v1/leads/{lead_id}`: full lead detail and activity timeline.
+- `POST /api/v1/leads`: create a lead.
+- `PUT /api/v1/leads/{lead_id}`: update lead profile and interest fields.
+- `POST /api/v1/leads/{lead_id}/status`: change status and record timeline/audit history.
+- `POST /api/v1/leads/{lead_id}/assign`: assign an eligible active sale user.
+- `POST /api/v1/leads/{lead_id}/activities`: add a note, call, Zalo, or meeting activity.
+- `DELETE /api/v1/leads/{lead_id}`: soft delete a lead.
+
+Important lead actions write `leads.create`, `leads.update`, `leads.status_change`, `leads.assign`, `leads.add_activity`, and `leads.delete` audit records.
+
+### Frontend routes
+
+```text
+/leads
+/leads/:id
+```
+
+The CRM sidebar and lead actions are permission-aware. Backend RBAC and object scope checks remain the source of truth.
+
+### Lead CRUD manual checklist
+
+1. Start the stack with `docker compose up --build` and login as admin.
+2. Open `http://localhost:3000/leads`.
+3. Select **Tạo lead**, enter a name and primary phone, then save.
+4. Open the lead detail from its code or **Chi tiết** action.
+5. Edit profile, interest, priority, follow-up, and note fields.
+6. Change the status to **Đã liên hệ** and verify the timeline and last-contact time.
+7. Assign the lead to an active user with role `sale`, `leader`, `sales_manager`, or `admin`.
+8. Add a note/call/Zalo/meeting activity and verify the timeline.
+9. As a user with `leads.delete`, delete the lead and verify it disappears from normal list/detail requests.
+
+### Duplicate phone test
+
+1. Create a lead with primary phone `0987654321`.
+2. Create another lead using `0987654321` as either primary or secondary phone.
+3. Verify the API returns `Số điện thoại đã tồn tại trong hệ thống` and the frontend displays that message.
+4. Edit an existing lead and attempt to use another non-deleted lead's primary or secondary phone; verify the same rejection.
+
+Phone values are normalized to digits before comparison. Duplicate checks cover both phone columns of all other non-deleted leads.
+
+### Permission and scope tests
+
+- Call `GET /api/v1/leads` without a Bearer token: expect `401 Unauthorized`.
+- Login as a user without any `leads.view.*` permission and call/open `/api/v1/leads`: expect API `403 Forbidden` and a frontend forbidden page.
+- Login as a Sale user with `leads.view.own`: verify only leads owned by or created by that user appear.
+- Verify `leads.update.own` only updates own-scope leads.
+- Verify `leads.assign.team` only assigns own-scope leads in Sprint 4.
+- Verify `leads.assign.all` can assign any visible lead to an eligible active sales-role user.
+
+### Known limitation
+
+Team and department hierarchy is not implemented yet. In Sprint 4, `leads.view.team`, `leads.view.department`, `leads.update.team`, and `leads.assign.team` deliberately use the same owner/creator condition as own scope. The scope helpers are isolated so real team and department membership can replace this placeholder in a later sprint.

@@ -1,0 +1,349 @@
+import re
+from datetime import date, datetime, time, timezone
+from decimal import Decimal
+from math import ceil
+from uuid import UUID
+
+from fastapi import HTTPException, status
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session
+
+from app.leads.constants import (
+    ASSIGN_PERMISSIONS,
+    CONTACT_STATUSES,
+    LEAD_PRIORITIES,
+    LEAD_STATUSES,
+    SALES_ROLE_CODES,
+    UPDATE_PERMISSIONS,
+    VIEW_PERMISSIONS,
+)
+from app.models.lead import Lead
+from app.models.role import Role
+from app.models.user import User
+from app.permissions.dependencies import get_user_permissions
+from app.schemas.lead import LeadAssign, LeadCreate, LeadStatusUpdate, LeadUpdate
+from app.services.audit_service import write_audit_log
+from app.services.lead_activity_service import create_activity_record, serialize_activity
+from app.services.user_service import get_user_by_id, user_role_codes
+
+
+def _permission_set(user: User) -> set[str]:
+    return set(get_user_permissions(user))
+
+
+def _has_any(user: User, permissions: set[str]) -> bool:
+    return user.is_superuser or bool(_permission_set(user) & permissions)
+
+
+def _own_scope_condition(user: User):
+    return or_(Lead.owner_id == user.id, Lead.created_by_id == user.id)
+
+
+def apply_view_scope(query, user: User):
+    permissions = _permission_set(user)
+    if user.is_superuser or "leads.view.all" in permissions:
+        return query
+    if permissions & {"leads.view.department", "leads.view.team", "leads.view.own"}:
+        # Sprint 4 placeholder: team and department scopes intentionally behave
+        # like own scope until organization hierarchy is introduced.
+        return query.where(_own_scope_condition(user))
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bạn không có quyền xem lead")
+
+
+def can_view_lead(user: User, lead: Lead) -> bool:
+    permissions = _permission_set(user)
+    if user.is_superuser or "leads.view.all" in permissions:
+        return True
+    if permissions & {"leads.view.department", "leads.view.team", "leads.view.own"}:
+        return lead.owner_id == user.id or lead.created_by_id == user.id
+    return False
+
+
+def can_update_lead(user: User, lead: Lead) -> bool:
+    permissions = _permission_set(user)
+    if user.is_superuser or "leads.update.all" in permissions:
+        return True
+    if permissions & {"leads.update.team", "leads.update.own"}:
+        return lead.owner_id == user.id or lead.created_by_id == user.id
+    return False
+
+
+def can_assign_lead(user: User, lead: Lead) -> bool:
+    permissions = _permission_set(user)
+    if user.is_superuser or "leads.assign.all" in permissions:
+        return True
+    if "leads.assign.team" in permissions:
+        return lead.owner_id == user.id or lead.created_by_id == user.id
+    return False
+
+
+def require_view_permission(user: User) -> None:
+    if not _has_any(user, VIEW_PERMISSIONS):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bạn không có quyền xem lead")
+
+
+def require_update_access(user: User, lead: Lead) -> None:
+    if not _has_any(user, UPDATE_PERMISSIONS) or not can_update_lead(user, lead):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bạn không có quyền cập nhật lead này")
+
+
+def require_assign_access(user: User, lead: Lead) -> None:
+    if not _has_any(user, ASSIGN_PERMISSIONS) or not can_assign_lead(user, lead):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bạn không có quyền phân công lead này")
+
+
+def normalize_phone(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = re.sub(r"\D", "", value)
+    return normalized or None
+
+
+def _validate_ranges(budget_min: Decimal | None, budget_max: Decimal | None, area_min: Decimal | None, area_max: Decimal | None) -> None:
+    if budget_min is not None and budget_max is not None and budget_min > budget_max:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ngân sách tối thiểu không được lớn hơn ngân sách tối đa")
+    if area_min is not None and area_max is not None and area_min > area_max:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Diện tích tối thiểu không được lớn hơn diện tích tối đa")
+
+
+def _validate_priority(priority: str | None) -> None:
+    if priority is not None and priority not in LEAD_PRIORITIES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Mức độ ưu tiên không hợp lệ")
+
+
+def _ensure_phone_unique(db: Session, phone_primary: str, phone_secondary: str | None, exclude_id: UUID | None = None) -> None:
+    phones = {phone for phone in (phone_primary, phone_secondary) if phone}
+    if len(phones) != len([phone for phone in (phone_primary, phone_secondary) if phone]):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Số điện thoại đã tồn tại trong hệ thống")
+    query = select(Lead.id).where(
+        Lead.deleted_at.is_(None),
+        or_(Lead.phone_primary.in_(phones), Lead.phone_secondary.in_(phones)),
+    )
+    if exclude_id:
+        query = query.where(Lead.id != exclude_id)
+    if db.scalar(query.limit(1)):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Số điện thoại đã tồn tại trong hệ thống")
+
+
+def _next_lead_code(db: Session) -> str:
+    latest = db.scalar(select(Lead.code).order_by(Lead.code.desc()).limit(1))
+    number = int(latest.split("-")[-1]) + 1 if latest and latest.startswith("LD-") else 1
+    return f"LD-{number:06d}"
+
+
+def _serialize_user(user: User | None) -> dict | None:
+    if user is None:
+        return None
+    return {"id": user.id, "full_name": user.full_name, "email": user.email}
+
+
+def _audit_snapshot(lead: Lead) -> dict:
+    return {
+        "code": lead.code,
+        "full_name": lead.full_name,
+        "phone_primary": lead.phone_primary,
+        "phone_secondary": lead.phone_secondary,
+        "status": lead.status,
+        "priority": lead.priority,
+        "owner_id": str(lead.owner_id) if lead.owner_id else None,
+        "next_follow_up_at": lead.next_follow_up_at.isoformat() if lead.next_follow_up_at else None,
+    }
+
+
+def serialize_lead(lead: Lead, *, detail: bool = False) -> dict:
+    data = {
+        "id": lead.id,
+        "code": lead.code,
+        "full_name": lead.full_name,
+        "phone_primary": lead.phone_primary,
+        "phone_secondary": lead.phone_secondary,
+        "source": lead.source,
+        "project_interest": lead.project_interest,
+        "budget_min": lead.budget_min,
+        "budget_max": lead.budget_max,
+        "status": lead.status,
+        "priority": lead.priority,
+        "owner": _serialize_user(lead.owner),
+        "next_follow_up_at": lead.next_follow_up_at,
+        "created_at": lead.created_at,
+        "updated_at": lead.updated_at,
+    }
+    if detail:
+        data.update({
+            "zalo": lead.zalo,
+            "facebook": lead.facebook,
+            "email": lead.email,
+            "address": lead.address,
+            "location_interest": lead.location_interest,
+            "bedroom_need": lead.bedroom_need,
+            "area_min": lead.area_min,
+            "area_max": lead.area_max,
+            "note": lead.note,
+            "created_by": _serialize_user(lead.created_by),
+            "assigned_by": _serialize_user(lead.assigned_by),
+            "assigned_at": lead.assigned_at,
+            "last_contact_at": lead.last_contact_at,
+            "converted_customer_id": lead.converted_customer_id,
+            "lost_reason": lead.lost_reason,
+            "activities": [serialize_activity(activity) for activity in lead.activities],
+        })
+    return data
+
+
+def get_lead_by_id(db: Session, lead_id: UUID) -> Lead | None:
+    return db.scalar(select(Lead).where(Lead.id == lead_id, Lead.deleted_at.is_(None)))
+
+
+def list_leads(
+    db: Session,
+    user: User,
+    *,
+    page: int,
+    page_size: int,
+    search: str | None = None,
+    lead_status: str | None = None,
+    priority: str | None = None,
+    source: str | None = None,
+    owner_id: UUID | None = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
+    next_follow_up_from: date | None = None,
+    next_follow_up_to: date | None = None,
+) -> tuple[list[Lead], dict]:
+    require_view_permission(user)
+    query = apply_view_scope(select(Lead).where(Lead.deleted_at.is_(None)), user)
+    count_query = apply_view_scope(select(func.count(Lead.id)).where(Lead.deleted_at.is_(None)), user)
+    conditions = []
+    if search:
+        term = f"%{search.strip()}%"
+        conditions.append(or_(Lead.code.ilike(term), Lead.full_name.ilike(term), Lead.phone_primary.ilike(term), Lead.phone_secondary.ilike(term), Lead.email.ilike(term), Lead.zalo.ilike(term), Lead.facebook.ilike(term)))
+    if lead_status:
+        if lead_status not in LEAD_STATUSES:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Trạng thái lead không hợp lệ")
+        conditions.append(Lead.status == lead_status)
+    if priority:
+        _validate_priority(priority)
+        conditions.append(Lead.priority == priority)
+    if source:
+        conditions.append(Lead.source == source)
+    if owner_id:
+        conditions.append(Lead.owner_id == owner_id)
+    if created_from:
+        conditions.append(Lead.created_at >= datetime.combine(created_from, time.min, tzinfo=timezone.utc))
+    if created_to:
+        conditions.append(Lead.created_at <= datetime.combine(created_to, time.max, tzinfo=timezone.utc))
+    if next_follow_up_from:
+        conditions.append(Lead.next_follow_up_at >= datetime.combine(next_follow_up_from, time.min, tzinfo=timezone.utc))
+    if next_follow_up_to:
+        conditions.append(Lead.next_follow_up_at <= datetime.combine(next_follow_up_to, time.max, tzinfo=timezone.utc))
+    for condition in conditions:
+        query = query.where(condition)
+        count_query = count_query.where(condition)
+    total = db.scalar(count_query) or 0
+    leads = list(db.scalars(query.order_by(Lead.created_at.desc()).offset((page - 1) * page_size).limit(page_size)).unique().all())
+    return leads, {"page": page, "page_size": page_size, "total": total, "total_pages": ceil(total / page_size) if total else 0}
+
+
+def _eligible_owner(db: Session, owner_id: UUID) -> User:
+    owner = get_user_by_id(db, owner_id)
+    if owner is None or owner.status != "active" or not (set(user_role_codes(owner)) & SALES_ROLE_CODES):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Người phụ trách không hợp lệ")
+    return owner
+
+
+def create_lead(db: Session, payload: LeadCreate, actor: User) -> Lead:
+    _validate_priority(payload.priority)
+    _validate_ranges(payload.budget_min, payload.budget_max, payload.area_min, payload.area_max)
+    primary = normalize_phone(payload.phone_primary)
+    secondary = normalize_phone(payload.phone_secondary)
+    if not primary:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Số điện thoại chính là bắt buộc")
+    _ensure_phone_unique(db, primary, secondary)
+    owner_id = actor.id
+    if payload.owner_id and payload.owner_id != actor.id and _has_any(actor, ASSIGN_PERMISSIONS):
+        owner_id = _eligible_owner(db, payload.owner_id).id
+    lead = Lead(**payload.model_dump(exclude={"owner_id", "phone_primary", "phone_secondary"}), code=_next_lead_code(db), phone_primary=primary, phone_secondary=secondary, status="new", owner_id=owner_id, created_by_id=actor.id)
+    if owner_id != actor.id:
+        lead.assigned_by_id = actor.id
+        lead.assigned_at = datetime.now(timezone.utc)
+    db.add(lead)
+    db.flush()
+    if lead.note and lead.note.strip():
+        create_activity_record(db, lead=lead, actor=actor, activity_type="note", title="Ghi chú ban đầu", content=lead.note.strip())
+    if owner_id != actor.id:
+        create_activity_record(db, lead=lead, actor=actor, activity_type="assignment", content="Phân công lead khi tạo", old_value=str(actor.id), new_value=str(owner_id))
+    write_audit_log(db, action="leads.create", user_id=actor.id, entity_type="leads", entity_id=str(lead.id), after_data=_audit_snapshot(lead))
+    db.commit()
+    db.refresh(lead)
+    return lead
+
+
+def update_lead(db: Session, lead: Lead, payload: LeadUpdate, actor: User) -> Lead:
+    require_update_access(actor, lead)
+    values = payload.model_dump(exclude_unset=True)
+    _validate_priority(values.get("priority"))
+    budget_min = values.get("budget_min", lead.budget_min)
+    budget_max = values.get("budget_max", lead.budget_max)
+    area_min = values.get("area_min", lead.area_min)
+    area_max = values.get("area_max", lead.area_max)
+    _validate_ranges(budget_min, budget_max, area_min, area_max)
+    primary = normalize_phone(values.get("phone_primary", lead.phone_primary))
+    secondary = normalize_phone(values.get("phone_secondary", lead.phone_secondary))
+    if not primary:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Số điện thoại chính là bắt buộc")
+    _ensure_phone_unique(db, primary, secondary, lead.id)
+    before = _audit_snapshot(lead)
+    values["phone_primary"] = primary
+    values["phone_secondary"] = secondary
+    old_note = lead.note
+    for field, value in values.items():
+        setattr(lead, field, value)
+    if "note" in values and values["note"] and values["note"] != old_note:
+        create_activity_record(db, lead=lead, actor=actor, activity_type="note", title="Cập nhật ghi chú", content=values["note"].strip())
+    write_audit_log(db, action="leads.update", user_id=actor.id, entity_type="leads", entity_id=str(lead.id), before_data=before, after_data=_audit_snapshot(lead))
+    db.commit()
+    db.refresh(lead)
+    return lead
+
+
+def change_lead_status(db: Session, lead: Lead, payload: LeadStatusUpdate, actor: User) -> Lead:
+    require_update_access(actor, lead)
+    if payload.status not in LEAD_STATUSES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Trạng thái lead không hợp lệ")
+    if payload.status == "lost" and not (payload.lost_reason and payload.lost_reason.strip()):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Vui lòng nhập lý do mất khách")
+    old_status = lead.status
+    if old_status == payload.status and lead.lost_reason == payload.lost_reason:
+        return lead
+    lead.status = payload.status
+    lead.lost_reason = payload.lost_reason.strip() if payload.status == "lost" and payload.lost_reason else None
+    if payload.status in CONTACT_STATUSES:
+        lead.last_contact_at = datetime.now(timezone.utc)
+    content = payload.note.strip() if payload.note and payload.note.strip() else f"Chuyển trạng thái từ {old_status} sang {payload.status}"
+    create_activity_record(db, lead=lead, actor=actor, activity_type="status_change", content=content, old_value=old_status, new_value=payload.status)
+    write_audit_log(db, action="leads.status_change", user_id=actor.id, entity_type="leads", entity_id=str(lead.id), before_data={"status": old_status}, after_data={"status": lead.status, "lost_reason": lead.lost_reason})
+    db.commit()
+    db.refresh(lead)
+    return lead
+
+
+def assign_lead(db: Session, lead: Lead, payload: LeadAssign, actor: User) -> Lead:
+    require_assign_access(actor, lead)
+    owner = _eligible_owner(db, payload.owner_id)
+    old_owner_id = lead.owner_id
+    lead.owner_id = owner.id
+    lead.assigned_by_id = actor.id
+    lead.assigned_at = datetime.now(timezone.utc)
+    content = payload.note.strip() if payload.note and payload.note.strip() else f"Phân công lead cho {owner.full_name}"
+    create_activity_record(db, lead=lead, actor=actor, activity_type="assignment", content=content, old_value=str(old_owner_id) if old_owner_id else None, new_value=str(owner.id))
+    write_audit_log(db, action="leads.assign", user_id=actor.id, entity_type="leads", entity_id=str(lead.id), before_data={"owner_id": str(old_owner_id) if old_owner_id else None}, after_data={"owner_id": str(owner.id)})
+    db.commit()
+    db.refresh(lead)
+    return lead
+
+
+def delete_lead(db: Session, lead: Lead, actor: User) -> None:
+    lead.deleted_at = datetime.now(timezone.utc)
+    lead.deleted_by = actor.id
+    write_audit_log(db, action="leads.delete", user_id=actor.id, entity_type="leads", entity_id=str(lead.id), before_data=_audit_snapshot(lead), after_data={"deleted_at": lead.deleted_at.isoformat(), "deleted_by": str(actor.id)})
+    db.commit()
