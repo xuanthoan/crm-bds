@@ -1,0 +1,3 @@
+import { ACTIVITY_TYPES } from '../constants';
+import type { LeadActivity } from '../types';
+export function LeadTimeline({ activities = [] }: { activities?: LeadActivity[] }) { return <div className="lead-timeline">{activities.map((item) => <article key={item.id}><header><strong>{ACTIVITY_TYPES[item.activity_type] ?? item.activity_type}</strong><span>{new Date(item.created_at).toLocaleString('vi-VN')}</span></header>{item.title && <h4>{item.title}</h4>}<p>{item.content}</p>{(item.old_value || item.new_value) && <small>{item.old_value ?? '—'} → {item.new_value ?? '—'}</small>}<footer>{item.user?.full_name}</footer></article>)}{!activities.length && <p>Chưa có hoạt động.</p>}</div>; }

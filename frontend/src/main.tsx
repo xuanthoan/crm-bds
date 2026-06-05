@@ -1,21 +1,8 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import './styles.css';
 
-function App() {
-  return (
-    <main className="app-shell">
-      <section className="foundation-card">
-        <p className="eyebrow">CRM BDS</p>
-        <h1>Project foundation is ready</h1>
-        <p>
-          React, FastAPI, PostgreSQL, Redis, and Docker are wired for Sprint 1.
-          Business modules will be added in later sprints.
-        </p>
-      </section>
-    </main>
-  );
-}
+import { AppRoutes } from './routes/AppRoutes';
+import './styles.css';
 
 const rootElement = document.getElementById('root');
 
@@ -25,6 +12,6 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <React.StrictMode>
-    <App />
+    <AppRoutes />
   </React.StrictMode>,
 );
