@@ -1,0 +1,5 @@
+import type { LeadUser } from '../leads/types';
+export type TaskStatus='pending'|'in_progress'|'completed'|'cancelled'; export type TaskType='call'|'zalo'|'email'|'meeting'|'follow_up'|'document'|'other'; export type TaskPriority='low'|'medium'|'high'|'urgent';
+export type LeadSummary={id:string;code:string;full_name:string;phone_primary:string};
+export type LeadTask={id:string;lead_id:string;lead:LeadSummary;title:string;description:string|null;task_type:TaskType;status:TaskStatus;priority:TaskPriority;due_at:string;assigned_to_id:string;assigned_to:LeadUser;created_by:LeadUser;completed_by:LeadUser|null;completed_at:string|null;cancelled_at:string|null;reminder_enabled:boolean;reminder_at:string|null;result_note:string|null;created_at:string;updated_at:string;is_overdue:boolean;hours_overdue:number;days_overdue:number};
+export type TaskPayload={lead_id:string;title:string;description?:string|null;task_type:TaskType;priority:TaskPriority;due_at:string;assigned_to_id?:string|null;reminder_enabled:boolean;reminder_at?:string|null};

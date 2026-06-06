@@ -1,5 +1,5 @@
 export type LeadUser = { id: string; full_name: string; email: string };
-export type LeadActivityType = 'note' | 'call' | 'zalo' | 'meeting' | 'status_change' | 'assignment';
+export type LeadActivityType = 'note' | 'call' | 'zalo' | 'meeting' | 'follow_up' | 'status_change' | 'assignment';
 export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'appointment' | 'site_visit' | 'negotiating' | 'deposit_ready' | 'converted' | 'lost';
 export type LeadPriority = 'low' | 'medium' | 'high' | 'urgent';
 

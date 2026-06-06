@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import auth, leads, organization, permissions, roles, users
+from app.api.v1 import auth, dashboard, lead_appointments, lead_tasks, leads, organization, permissions, roles, users
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
@@ -12,3 +12,7 @@ api_router.include_router(organization.departments_router)
 api_router.include_router(organization.teams_router)
 api_router.include_router(organization.organization_router)
 api_router.include_router(leads.router)
+
+api_router.include_router(lead_tasks.router)
+api_router.include_router(lead_appointments.router)
+api_router.include_router(dashboard.router)

@@ -336,3 +336,111 @@ Scope priority is `all > department > team > own`:
 - The current UI manages one primary membership conveniently, while the schema supports multiple memberships for future use.
 - Department deletion is blocked while active teams exist; teams must be deactivated first.
 - No Customer, Deal, Inventory, Commission, Payment, Marketing, reporting dashboard, or workflow module is added in this sprint.
+
+## Sprint 6 - Lead Care, Tasks, Appointments & Sales Dashboard
+
+Sprint 6 adds the daily operating layer used by salespeople and team leaders while preserving the Sprint 4/5 lead and organization scope implementation.
+
+### New database tables
+
+- `lead_tasks`: soft-deleted lead care tasks/reminders with type, priority, due time, reminder time, assignee, completion/cancellation metadata, and result notes.
+- `lead_appointments`: soft-deleted office meetings, site visits, calls, contract meetings, and other scheduled appointments with assignee and outcome metadata.
+- Migration: `backend/alembic/versions/20260607_0004_lead_tasks_appointments.py` (`20260606_0003 -> 20260607_0004`).
+
+### New API endpoints
+
+Tasks:
+
+- `GET/POST /api/v1/lead-tasks`
+- `GET/PUT/DELETE /api/v1/lead-tasks/{task_id}`
+- `POST /api/v1/lead-tasks/{task_id}/status`
+- `GET /api/v1/lead-tasks/my/today`
+- `GET /api/v1/lead-tasks/my/overdue`
+
+Appointments:
+
+- `GET/POST /api/v1/lead-appointments`
+- `GET/PUT/DELETE /api/v1/lead-appointments/{appointment_id}`
+- `POST /api/v1/lead-appointments/{appointment_id}/status`
+- `GET /api/v1/lead-appointments/my/today`
+- `GET /api/v1/lead-appointments/my/upcoming`
+
+Dashboards:
+
+- `GET /api/v1/dashboard/my-work` and alias `/api/v1/dashboard/sale`
+- `GET /api/v1/dashboard/team-work` and alias `/api/v1/dashboard/leader`
+
+### New frontend routes
+
+- `/tasks`, `/tasks/today`, `/tasks/overdue`
+- `/appointments`, `/appointments/today`
+- `/dashboard/my-work`, `/dashboard/team-work`
+- `/dashboard` now opens the authenticated user's work summary.
+- Lead detail now includes recent task and appointment sections, create actions, and the existing activity timeline.
+
+### Permissions added
+
+- Tasks: `lead_tasks.view.{own,team,all}`, `lead_tasks.create`, `lead_tasks.update.{own,team,all}`, `lead_tasks.delete`, `lead_tasks.complete.{own,team,all}`.
+- Appointments: `lead_appointments.view.{own,team,all}`, `lead_appointments.create`, `lead_appointments.update.{own,team,all}`, `lead_appointments.delete`, `lead_appointments.complete.{own,team,all}`.
+- Dashboards: `dashboard.view.{own,team,all}`.
+- Admin receives every new permission. Director receives all-scope read/update/complete and dashboard access. Sales Manager and Leader receive team task/appointment/dashboard access. Sale receives own task/appointment/dashboard access.
+
+Task and appointment list/object access reuses Sprint 5 accessible-user and lead-scope rules. Direct access is also allowed for the assigned user. Changes write both audit log actions and Vietnamese lead activity timeline entries.
+
+### Sprint 6 manual test checklist
+
+#### Setup
+
+1. Login admin.
+2. Ensure there is Department `Kinh doanh Miền Bắc`, Team `Team A`, Sale7 assigned to Team A, and a lead owned by Sale7.
+3. Login Sale7.
+
+#### Task tests
+
+1. Open a lead owned by Sale7.
+2. Create `Gọi lại khách`, type Call, due today, priority High.
+3. Confirm it appears in lead detail, `/tasks`, and `/tasks/today`.
+4. Complete it with `Đã gọi, khách hẹn xem nhà cuối tuần`.
+5. Confirm status/completed time, `Hoàn thành công việc` in the timeline, and updated `lead.last_contact_at`.
+
+#### Overdue task test
+
+1. Create a task due yesterday and confirm it appears in `/tasks/overdue`.
+2. Complete it and confirm it disappears from the overdue list.
+
+#### Appointment test
+
+1. From lead detail create `Hẹn khách xem nhà`, type Site Visit, tomorrow at 10:00, location `Vinhomes Ocean Park`.
+2. Confirm it appears in lead detail and `/appointments`.
+3. Complete it and confirm `Hoàn thành lịch hẹn` appears in the timeline.
+4. Also verify cancel, no-show, and reschedule (including old/new times in the timeline).
+
+#### Dashboard test
+
+1. Login Sale7 and confirm `/dashboard/my-work` shows today tasks, overdue tasks, today appointments, upcoming appointments, follow-up leads, and completed tasks.
+2. Login Leader/Admin and confirm `/dashboard/team-work` shows Sale7 workload and per-user counts.
+
+#### Scope test
+
+1. Confirm Sale7 only lists own accessible tasks/appointments.
+2. Open another user's object URL directly and expect 403/access denied.
+3. Confirm Leader sees the accessible team and Admin sees all records.
+
+#### Regression test
+
+Verify login/logout, all `/admin/*` pages, lead list/create/duplicate-phone/detail/status/assignment/overdue, Sale own scope, and modal cleanup still work.
+
+### Known limitations
+
+- Reminder times are stored and displayed, but no background notification, email, SMS, or Zalo scheduler is included.
+- Dashboard time boundaries currently use UTC; deployment-specific business timezone configuration is a future improvement.
+- No calendar synchronization, recurring tasks, bulk operations, or complex charts are included.
+- Customer, Deal, Inventory, Payment, Commission, and Marketing modules are intentionally outside Sprint 6.
+
+### Suggested Sprint 7 scope
+
+- Configurable business timezone and in-app notification center for due reminders.
+- Recurring care plans/playbooks and task templates.
+- Calendar/week view and optional external calendar integration design.
+- Dashboard drill-down/export and workload balancing.
+- Expanded automated integration tests for PostgreSQL migrations, scope rules, and timeline side effects.

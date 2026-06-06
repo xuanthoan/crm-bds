@@ -56,12 +56,14 @@ export function AppLayout({ children, currentPath }: AppLayoutProps) {
       <aside className="sidebar">
         <div className="brand">CRM BDS</div>
         <nav>
-          {renderLink('Dashboard', '/dashboard')}
+          <div className="nav-section"><span>Dashboard</span>{can('dashboard.view.own') || can('dashboard.view.team') || can('dashboard.view.all') ? <div>{renderLink('Tổng quan của tôi', '/dashboard/my-work')}</div> : null}{can('dashboard.view.team') || can('dashboard.view.all') ? <div>{renderLink('Tổng quan team', '/dashboard/team-work')}</div> : null}</div>
           {canViewLeads && (
             <div className="nav-section">
               <span>CRM</span>
               <div>{renderLink('Khách tiềm năng', '/leads')}</div>
               <div>{renderLink('Lead quá hạn', '/leads/overdue')}</div>
+              {(can('lead_tasks.view.own') || can('lead_tasks.view.team') || can('lead_tasks.view.all')) && <><div>{renderLink('Công việc', '/tasks')}</div><div>{renderLink('Việc hôm nay', '/tasks/today')}</div><div>{renderLink('Việc quá hạn', '/tasks/overdue')}</div></>}
+              {(can('lead_appointments.view.own') || can('lead_appointments.view.team') || can('lead_appointments.view.all')) && <><div>{renderLink('Lịch hẹn', '/appointments')}</div><div>{renderLink('Lịch hẹn hôm nay', '/appointments/today')}</div></>}
             </div>
           )}
           {visibleAdminItems.length > 0 && (
