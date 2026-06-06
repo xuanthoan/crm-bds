@@ -24,7 +24,7 @@ from app.permissions.dependencies import get_user_permissions
 from app.schemas.lead import LeadAssign, LeadCreate, LeadStatusUpdate, LeadUpdate
 from app.services.audit_service import write_audit_log
 from app.services.lead_activity_service import create_activity_record, serialize_activity
-from app.services.user_service import get_user_by_id, user_role_codes
+from app.services.user_service import get_user_by_id, user_role_code_set
 
 
 def _permission_set(user: User) -> set[str]:
@@ -282,7 +282,7 @@ def list_leads(
 
 def _eligible_owner(db: Session, owner_id: UUID) -> User:
     owner = get_user_by_id(db, owner_id)
-    if owner is None or owner.status != "active" or not (set(user_role_codes(owner)) & SALES_ROLE_CODES):
+    if owner is None or owner.status != "active" or not (user_role_code_set(owner) & SALES_ROLE_CODES):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Người phụ trách không hợp lệ")
     return owner
 

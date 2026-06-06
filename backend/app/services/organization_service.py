@@ -15,7 +15,7 @@ from app.schemas.department import DepartmentCreate, DepartmentUpdate
 from app.schemas.organization import MembershipCreate, MembershipUpdate
 from app.schemas.team import TeamCreate, TeamUpdate
 from app.services.audit_service import write_audit_log
-from app.services.user_service import get_user_by_id, user_role_codes
+from app.services.user_service import get_user_by_id, user_role_code_set, user_role_codes
 
 CODE_PATTERN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
 ACTIVE_STATUSES = {"active", "inactive"}
@@ -83,7 +83,7 @@ def _validate_responsible_user(db: Session, user_id: UUID | None, roles: set[str
     if user_id is None:
         return None
     user = get_user_by_id(db, user_id)
-    if user is None or user.status != "active" or not (user.is_superuser or user_role_codes(user) & roles):
+    if user is None or user.status != "active" or not (user.is_superuser or user_role_code_set(user) & roles):
         raise HTTPException(status_code=400, detail=message)
     return user
 
@@ -309,5 +309,5 @@ def list_eligible_lead_assignees(db: Session, current_user: User) -> list[User]:
     return [
         user
         for user in users
-        if user.is_superuser or user_role_codes(user) & SALES_ROLE_CODES
+        if user.is_superuser or user_role_code_set(user) & SALES_ROLE_CODES
     ]
