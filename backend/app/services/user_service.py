@@ -30,6 +30,11 @@ def user_role_codes(user: User) -> list[str]:
     return sorted({role.code for role in user.roles})
 
 
+def user_role_code_set(user: User) -> set[str]:
+    """Return role codes as a set for safe membership and intersection checks."""
+    return set(user_role_codes(user) or [])
+
+
 def _serialize_role(role: Role) -> dict:
     return {"id": role.id, "code": role.code, "name": role.name}
 
