@@ -7,6 +7,10 @@ import { RolesPage } from '../features/admin/roles/RolesPage';
 import { UsersPage } from '../features/admin/users/UsersPage';
 import { LeadDetailPage } from '../features/leads/LeadDetailPage';
 import { LeadsPage } from '../features/leads/LeadsPage';
+import { OverdueLeadsPage } from '../features/leads/OverdueLeadsPage';
+import { DepartmentsPage } from '../features/organization/DepartmentsPage';
+import { TeamsPage } from '../features/organization/TeamsPage';
+import { MembershipsPage } from '../features/organization/MembershipsPage';
 import { LEAD_VIEW_PERMISSIONS } from '../features/leads/constants';
 import { AppLayout } from '../layouts/AppLayout';
 import { CustomersPage } from '../pages/CustomersPage';
@@ -29,9 +33,13 @@ type ProtectedPage = {
 const protectedPages: Record<string, ProtectedPage> = {
   '/dashboard': { element: <DashboardPage /> },
   '/leads': { element: <LeadsPage />, permission: LEAD_VIEW_PERMISSIONS },
+  '/leads/overdue': { element: <OverdueLeadsPage />, permission: LEAD_VIEW_PERMISSIONS },
   '/admin/users': { element: <UsersPage />, permission: 'users.view' },
   '/admin/roles': { element: <RolesPage />, permission: 'roles.view' },
   '/admin/permissions': { element: <PermissionsPage />, permission: 'permissions.view' },
+  '/admin/departments': { element: <DepartmentsPage />, permission: 'settings.manage_master_data' },
+  '/admin/teams': { element: <TeamsPage />, permission: 'settings.manage_master_data' },
+  '/admin/memberships': { element: <MembershipsPage />, permission: 'users.update' },
   '/customers': { element: <CustomersPage />, permission: 'customers.view.own' },
   '/properties': { element: <PropertiesPage />, permission: 'inventory.view.available' },
   '/deals': { element: <DealsPage />, permission: 'deals.view.own' },

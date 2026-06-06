@@ -40,6 +40,13 @@ def _get_user(db: Session, user_id: UUID) -> User:
     return user
 
 
+@router.get("/{user_id}/organization")
+def get_user_organization(user_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(require_permission("users.view"))):
+    from app.services.organization_service import list_memberships, serialize_membership
+    items, _ = list_memberships(db, page=1, page_size=100, user_id=user_id)
+    return success_response(data=[serialize_membership(item) for item in items], message="User organization retrieved")
+
+
 @router.get("/{user_id}")
 def get_user(user_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(require_permission("users.view"))):
     return success_response(data=serialize_user(_get_user(db, user_id)), message="User retrieved")

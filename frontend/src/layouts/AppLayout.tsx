@@ -14,6 +14,9 @@ const adminItems = [
   { label: 'Người dùng', path: '/admin/users', permission: 'users.view' },
   { label: 'Vai trò', path: '/admin/roles', permission: 'roles.view' },
   { label: 'Quyền', path: '/admin/permissions', permission: 'permissions.view' },
+  { label: 'Phòng ban', path: '/admin/departments', permission: 'settings.manage_master_data' },
+  { label: 'Nhóm sale', path: '/admin/teams', permission: 'settings.manage_master_data' },
+  { label: 'Phân bổ nhân sự', path: '/admin/memberships', permission: 'users.update' },
 ];
 
 export function AppLayout({ children, currentPath }: AppLayoutProps) {
@@ -37,7 +40,7 @@ export function AppLayout({ children, currentPath }: AppLayoutProps) {
     return (
       <a
         href={path}
-        className={currentPath === path || (path === '/leads' && currentPath.startsWith('/leads/')) ? 'active' : ''}
+        className={currentPath === path || (path === '/leads' && /^\/leads\/[^/]+$/.test(currentPath)) ? 'active' : ''}
         onClick={(event: any) => {
           event.preventDefault();
           navigateTo(path);
@@ -58,6 +61,7 @@ export function AppLayout({ children, currentPath }: AppLayoutProps) {
             <div className="nav-section">
               <span>CRM</span>
               <div>{renderLink('Khách tiềm năng', '/leads')}</div>
+              <div>{renderLink('Lead quá hạn', '/leads/overdue')}</div>
             </div>
           )}
           {visibleAdminItems.length > 0 && (
