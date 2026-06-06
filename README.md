@@ -227,4 +227,202 @@ Phone values are normalized to digits before comparison. Duplicate checks cover 
 
 ### Known limitation
 
-Team and department hierarchy is not implemented yet. In Sprint 4, `leads.view.team`, `leads.view.department`, `leads.update.team`, and `leads.assign.team` deliberately use the same owner/creator condition as own scope. The scope helpers are isolated so real team and department membership can replace this placeholder in a later sprint.
+Sprint 4 originally shipped team and department scope as an own-scope placeholder. Sprint 5 supersedes that limitation with the organization membership hierarchy documented below.
+
+## Sprint 5 - Organization Structure & Real Lead Scope
+
+Sprint 5 introduces persistent organization hierarchy and replaces the Sprint 4 team/department placeholder with database-backed lead scope.
+
+### New database tables
+
+- `departments`: department code/name, manager, status, timestamps, and soft deletion.
+- `teams`: department-owned sales teams with optional leader, status, timestamps, and soft deletion.
+- `user_organization_memberships`: future-ready multiple department/team memberships with one primary membership supported by the current UI.
+
+Run the new migration with:
+
+```bash
+cd backend
+alembic upgrade head
+```
+
+The Sprint 5 migration is `20260606_0003_organization_structure.py` and follows the Sprint 4 lead migration.
+
+### Organization and lead endpoints
+
+- `GET|POST /api/v1/departments`
+- `GET|PUT|DELETE /api/v1/departments/{department_id}`
+- `GET|POST /api/v1/teams`
+- `GET|PUT|DELETE /api/v1/teams/{team_id}`
+- `GET|POST /api/v1/organization/memberships`
+- `PUT|DELETE /api/v1/organization/memberships/{membership_id}`
+- `GET /api/v1/users/{user_id}/organization`
+- `GET /api/v1/organization/lead-scope-users`
+- `GET /api/v1/leads/overdue`
+- `POST /api/v1/leads/{lead_id}/transfer`
+- `POST /api/v1/leads/{lead_id}/reclaim`
+
+Department/team administration reuses `settings.manage_master_data`; membership reads and writes reuse `users.view` and `users.update`. No new permission codes are introduced. Organization actions and lead transfer/reclaim write audit records.
+
+### Frontend routes
+
+- `/admin/departments` - Quản lý phòng ban
+- `/admin/teams` - Quản lý nhóm sale
+- `/admin/memberships` - Phân bổ nhân sự
+- `/leads/overdue` - Lead quá hạn chăm sóc
+
+### Real lead scope
+
+Scope priority is `all > department > team > own`:
+
+- Own scope includes leads owned or created by the current user.
+- Team scope includes the current user and members of active teams led by the current user.
+- Department scope includes the current user and members of departments managed by the current user. A team leader with department permission uses the leader's primary department.
+- All scope includes all non-deleted leads.
+- Team assignment, transfer, and reclaim reject target owners outside the leader's accessible team.
+- Overdue leads have `next_follow_up_at` in the past and exclude `converted` and `lost` statuses.
+
+### Sprint 5 manual test checklist
+
+#### Setup
+
+1. Login as admin.
+2. Open `/admin/departments` and create `kinh_doanh_1` / `Phòng Kinh Doanh 1`.
+3. Open `/admin/teams` and create `team_a` / `Team A` in that department.
+4. Create users Leader A, Sale A1, Sale A2, and Sale B1.
+5. Set Leader A as the Team A leader.
+6. Open `/admin/memberships`; assign Leader A, Sale A1, and Sale A2 to Team A. Assign Sale B1 to another team or leave that user without a team.
+
+#### Scope test
+
+1. Assign Lead 1 to Sale A1, Lead 2 to Sale A2, and Lead 3 to Sale B1.
+2. Login as Sale A1: only Lead 1 should be visible (plus leads created by Sale A1).
+3. Login as Leader A: Lead 1 and Lead 2 should be visible; Lead 3 should be forbidden.
+4. Set a Sales Manager as department manager and verify all department leads are visible.
+5. Login as Admin and verify all three leads are visible.
+
+#### Assignment and transfer test
+
+1. Login as Leader A and assign/transfer Lead 1 from Sale A1 to Sale A2: it should pass.
+2. Try assigning/transferring Lead 1 to Sale B1: API should return `Người phụ trách không nằm trong phạm vi bạn được phân công`.
+3. Login as Admin and assign Lead 1 to Sale B1: it should pass.
+4. Verify the lead timeline contains `Chuyển lead` and the audit log contains `leads.transfer`.
+
+#### Reclaim test
+
+1. Login as Leader A and reclaim a lead in Team A: it should pass.
+2. Reclaim a lead outside Team A: it should fail with 403.
+3. Login as Admin and reclaim any lead: it should pass.
+4. Verify the timeline contains `Thu hồi lead` and the audit log contains `leads.reclaim`.
+
+#### Overdue test
+
+1. Create/update a lead with `next_follow_up_at` in the past.
+2. Open `/leads/overdue` and confirm it appears within the current permission scope.
+3. Change the lead to `lost` or `converted` and confirm it disappears.
+
+#### Regression test
+
+- Login/logout and 401/403 behavior.
+- `/admin/users`: create, edit, deactivate, and reset password.
+- `/admin/roles` and `/admin/permissions`.
+- `/leads`: create, edit, duplicate-phone validation, detail, status change, timeline, assignment, and soft delete.
+- Open and close each modal by buttons, backdrop, Escape, and route change; confirm no stuck modal overlay.
+
+### Known limitations
+
+- Membership consistency between team and department is enforced in the service layer rather than by a cross-table database constraint.
+- Sprint 5 provides manual reclaim only; no neglected-lead scheduler or workflow automation is included.
+- The current UI manages one primary membership conveniently, while the schema supports multiple memberships for future use.
+- Department deletion is blocked while active teams exist; teams must be deactivated first.
+- No Customer, Deal, Inventory, Commission, Payment, Marketing, reporting dashboard, or workflow module is added in this sprint.
+
+## Sprint 6 - Lead Care, Tasks, Appointments & Work Dashboards
+
+Sprint 6 adds structured daily sales operations without replacing the existing lead activity timeline or Sprint 5 organization scope.
+
+### New database tables
+
+- `lead_tasks`: follow-up tasks, reminders, due dates, completion/cancellation metadata, assignee and soft deletion.
+- `lead_appointments`: meetings, site visits, calls, rescheduling/completion metadata, assignee and soft deletion.
+
+Migration: `backend/alembic/versions/20260607_0004_lead_tasks_appointments.py` (`20260606_0003 -> 20260607_0004`).
+
+### New API endpoints
+
+- `GET|POST /api/v1/lead-tasks`
+- `GET|PUT|DELETE /api/v1/lead-tasks/{task_id}`
+- `POST /api/v1/lead-tasks/{task_id}/status`
+- `GET /api/v1/lead-tasks/my/today`
+- `GET /api/v1/lead-tasks/my/overdue`
+- `GET|POST /api/v1/lead-appointments`
+- `GET|PUT|DELETE /api/v1/lead-appointments/{appointment_id}`
+- `POST /api/v1/lead-appointments/{appointment_id}/status`
+- `GET /api/v1/lead-appointments/my/today`
+- `GET /api/v1/lead-appointments/my/upcoming`
+- `GET /api/v1/dashboard/my-work` and `/api/v1/dashboard/sale`
+- `GET /api/v1/dashboard/team-work` and `/api/v1/dashboard/leader`
+
+Task and appointment changes write lead timeline entries and audit actions. Completing contact tasks or appointments updates `lead.last_contact_at`; future due dates/appointments can advance `lead.next_follow_up_at`.
+
+### Frontend routes
+
+- `/tasks`, `/tasks/today`, `/tasks/overdue`
+- `/appointments`, `/appointments/today`
+- `/dashboard/my-work`, `/dashboard/team-work`
+
+Lead detail now includes existing lead information/activity plus scoped task and appointment sections with create, edit and status workflows.
+
+### Permissions added
+
+- `lead_tasks.view.{own,team,all}`, `lead_tasks.create`, `lead_tasks.update.{own,team,all}`, `lead_tasks.complete.{own,team,all}`, `lead_tasks.delete`
+- `lead_appointments.view.{own,team,all}`, `lead_appointments.create`, `lead_appointments.update.{own,team,all}`, `lead_appointments.complete.{own,team,all}`, `lead_appointments.delete`
+- `dashboard.view.{own,team,all}`
+
+Admin receives all permissions. Director receives all-view dashboards/tasks/appointments. Sales Manager and Leader receive team work permissions. Sale receives own work permissions. Existing seed logic adds missing permissions idempotently at startup.
+
+### Sprint 6 manual test checklist
+
+#### Setup
+
+1. Login as admin.
+2. Ensure Department `Kinh doanh Miền Bắc`, Team `Team A`, Sale7 assigned to Team A, and a lead owned by Sale7 exist.
+3. Login as Sale7.
+
+#### Task tests
+
+1. Open Sale7's lead and create `Gọi lại khách`, type Call, due today, priority High.
+2. Confirm it appears in lead detail, `/tasks`, and `/tasks/today`.
+3. Complete it with `Đã gọi, khách hẹn xem nhà cuối tuần`.
+4. Confirm status/completed timestamp, `Hoàn thành công việc` timeline entry, and updated lead contact time.
+5. Create a task due yesterday, verify `/tasks/overdue`, complete it, and verify it disappears.
+
+#### Appointment tests
+
+1. Create `Hẹn khách xem nhà`, type Site Visit, tomorrow 10:00, at `Vinhomes Ocean Park`.
+2. Confirm it appears in lead detail and `/appointments`.
+3. Complete it and confirm `Hoàn thành lịch hẹn` in the timeline.
+4. Test cancel, no-show and reschedule, including end-after-start validation.
+
+#### Dashboard tests
+
+1. Login Sale7 and verify `/dashboard/my-work` cards for today's/overdue tasks, today's/upcoming appointments and follow-up leads.
+2. Login Leader/Admin and verify `/dashboard/team-work` totals and Sale7 workload row.
+
+#### Scope and regression tests
+
+1. Verify Sale7 cannot access another user's task/appointment by direct ID.
+2. Verify Leader sees Team A work and Admin sees all work.
+3. Regression-check login/logout, user/role/permission and organization pages, lead CRUD, duplicate phone, lead status/assignment/overdue, own/team scope and modal cleanup.
+
+### Known limitations
+
+- Reminders are stored and displayed; no background push/email/SMS/Zalo scheduler is included.
+- No Google Calendar synchronization or recurring task support is included.
+- Overdue task state is computed dynamically rather than persisted as a status transition.
+- Dashboard metrics are operational counts/tables, not complex analytics charts.
+- Customer, Deal, Inventory, Payment, Commission and Marketing modules remain out of scope.
+
+### Suggested Sprint 7
+
+Implement customer conversion and Customer 360 using converted leads, preserving task/appointment history; optionally add in-app notification delivery for due reminders before external messaging integrations.

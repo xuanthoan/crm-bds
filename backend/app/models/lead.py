@@ -53,3 +53,5 @@ class Lead(Base):
     created_by = relationship("User", foreign_keys=[created_by_id], lazy="joined")
     assigned_by = relationship("User", foreign_keys=[assigned_by_id], lazy="joined")
     activities = relationship("LeadActivity", back_populates="lead", cascade="all, delete-orphan", order_by="LeadActivity.created_at.desc()")
+    tasks = relationship("LeadTask", back_populates="lead", cascade="all, delete-orphan", lazy="selectin")
+    appointments = relationship("LeadAppointment", back_populates="lead", cascade="all, delete-orphan", lazy="selectin")

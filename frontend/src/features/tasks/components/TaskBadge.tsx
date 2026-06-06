@@ -1,0 +1,1 @@
+import{Badge}from'../../../components/Badge';import{TASK_STATUSES}from'../constants';export function TaskBadge({status,isOverdue}:{status:string;isOverdue?:boolean}){return <Badge tone={isOverdue?'red':status==='completed'?'green':status==='cancelled'?'gray':'orange'}>{isOverdue?'Quá hạn':TASK_STATUSES[status]??status}</Badge>}

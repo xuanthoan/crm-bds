@@ -24,7 +24,7 @@ from app.permissions.dependencies import get_user_permissions
 from app.schemas.lead import LeadAssign, LeadCreate, LeadStatusUpdate, LeadUpdate
 from app.services.audit_service import write_audit_log
 from app.services.lead_activity_service import create_activity_record, serialize_activity
-from app.services.user_service import get_user_by_id, user_role_codes
+from app.services.user_service import get_user_by_id, user_role_code_set
 
 
 def _permission_set(user: User) -> set[str]:
@@ -39,58 +39,86 @@ def _own_scope_condition(user: User):
     return or_(Lead.owner_id == user.id, Lead.created_by_id == user.id)
 
 
-def apply_view_scope(query, user: User):
+def _scope_for_permissions(permissions: set[str], prefix: str) -> str | None:
+    for scope in ("all", "department", "team", "own"):
+        if f"{prefix}.{scope}" in permissions:
+            return scope
+    return None
+
+
+def _scope_condition(db: Session, user: User, scope: str):
+    from app.services.organization_service import get_accessible_user_ids_for_lead_scope
+    ids = get_accessible_user_ids_for_lead_scope(db, user, scope)
+    return or_(Lead.owner_id.in_(ids), Lead.created_by_id.in_(ids))
+
+
+def apply_view_scope(db: Session, query, user: User):
     permissions = _permission_set(user)
     if user.is_superuser or "leads.view.all" in permissions:
         return query
-    if permissions & {"leads.view.department", "leads.view.team", "leads.view.own"}:
-        # Sprint 4 placeholder: team and department scopes intentionally behave
-        # like own scope until organization hierarchy is introduced.
-        return query.where(_own_scope_condition(user))
-    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bạn không có quyền xem lead")
+    scope = _scope_for_permissions(permissions, "leads.view")
+    if scope:
+        return query.where(_scope_condition(db, user, scope))
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bạn không có quyền thực hiện thao tác này")
 
 
-def can_view_lead(user: User, lead: Lead) -> bool:
+def can_view_lead(db: Session, user: User, lead: Lead) -> bool:
     permissions = _permission_set(user)
     if user.is_superuser or "leads.view.all" in permissions:
         return True
-    if permissions & {"leads.view.department", "leads.view.team", "leads.view.own"}:
-        return lead.owner_id == user.id or lead.created_by_id == user.id
-    return False
+    scope = _scope_for_permissions(permissions, "leads.view")
+    if not scope:
+        return False
+    from app.services.organization_service import get_accessible_user_ids_for_lead_scope
+    ids = get_accessible_user_ids_for_lead_scope(db, user, scope)
+    return lead.owner_id in ids or lead.created_by_id in ids
 
 
-def can_update_lead(user: User, lead: Lead) -> bool:
+def can_update_lead(db: Session, user: User, lead: Lead) -> bool:
     permissions = _permission_set(user)
     if user.is_superuser or "leads.update.all" in permissions:
         return True
-    if permissions & {"leads.update.team", "leads.update.own"}:
-        return lead.owner_id == user.id or lead.created_by_id == user.id
-    return False
+    scope = "team" if "leads.update.team" in permissions else "own" if "leads.update.own" in permissions else None
+    if not scope:
+        return False
+    from app.services.organization_service import get_accessible_user_ids_for_lead_scope
+    ids = get_accessible_user_ids_for_lead_scope(db, user, scope)
+    return lead.owner_id in ids or lead.created_by_id in ids
 
 
-def can_assign_lead(user: User, lead: Lead) -> bool:
+def can_assign_lead(db: Session, user: User, lead: Lead) -> bool:
     permissions = _permission_set(user)
     if user.is_superuser or "leads.assign.all" in permissions:
         return True
-    if "leads.assign.team" in permissions:
-        return lead.owner_id == user.id or lead.created_by_id == user.id
-    return False
+    if "leads.assign.team" not in permissions:
+        return False
+    from app.services.organization_service import get_accessible_user_ids_for_lead_scope
+    ids = get_accessible_user_ids_for_lead_scope(db, user, "team")
+    return lead.owner_id in ids or lead.created_by_id in ids
 
 
 def require_view_permission(user: User) -> None:
     if not _has_any(user, VIEW_PERMISSIONS):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bạn không có quyền xem lead")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bạn không có quyền thực hiện thao tác này")
 
 
-def require_update_access(user: User, lead: Lead) -> None:
-    if not _has_any(user, UPDATE_PERMISSIONS) or not can_update_lead(user, lead):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bạn không có quyền cập nhật lead này")
+def require_update_access(db: Session, user: User, lead: Lead) -> None:
+    if not _has_any(user, UPDATE_PERMISSIONS) or not can_update_lead(db, user, lead):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bạn không có quyền truy cập lead này")
 
 
-def require_assign_access(user: User, lead: Lead) -> None:
-    if not _has_any(user, ASSIGN_PERMISSIONS) or not can_assign_lead(user, lead):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bạn không có quyền phân công lead này")
+def require_assign_access(db: Session, user: User, lead: Lead) -> None:
+    if not _has_any(user, ASSIGN_PERMISSIONS) or not can_assign_lead(db, user, lead):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bạn không có quyền thực hiện thao tác này")
 
+
+def _validate_target_owner_scope(db: Session, actor: User, owner: User) -> None:
+    permissions = _permission_set(actor)
+    if actor.is_superuser or "leads.assign.all" in permissions:
+        return
+    from app.services.organization_service import get_accessible_user_ids_for_lead_scope
+    if "leads.assign.team" not in permissions or owner.id not in get_accessible_user_ids_for_lead_scope(db, actor, "team"):
+        raise HTTPException(status_code=403, detail="Người phụ trách không nằm trong phạm vi bạn được phân công")
 
 def normalize_phone(value: str | None) -> str | None:
     if value is None:
@@ -205,14 +233,16 @@ def list_leads(
     priority: str | None = None,
     source: str | None = None,
     owner_id: UUID | None = None,
+    department_id: UUID | None = None,
+    team_id: UUID | None = None,
     created_from: date | None = None,
     created_to: date | None = None,
     next_follow_up_from: date | None = None,
     next_follow_up_to: date | None = None,
 ) -> tuple[list[Lead], dict]:
     require_view_permission(user)
-    query = apply_view_scope(select(Lead).where(Lead.deleted_at.is_(None)), user)
-    count_query = apply_view_scope(select(func.count(Lead.id)).where(Lead.deleted_at.is_(None)), user)
+    query = apply_view_scope(db, select(Lead).where(Lead.deleted_at.is_(None)), user)
+    count_query = apply_view_scope(db, select(func.count(Lead.id)).where(Lead.deleted_at.is_(None)), user)
     conditions = []
     if search:
         term = f"%{search.strip()}%"
@@ -228,6 +258,12 @@ def list_leads(
         conditions.append(Lead.source == source)
     if owner_id:
         conditions.append(Lead.owner_id == owner_id)
+    if department_id or team_id:
+        from app.models.user_organization_membership import UserOrganizationMembership
+        member_query = select(UserOrganizationMembership.user_id)
+        if department_id: member_query = member_query.where(UserOrganizationMembership.department_id == department_id)
+        if team_id: member_query = member_query.where(UserOrganizationMembership.team_id == team_id)
+        conditions.append(Lead.owner_id.in_(member_query))
     if created_from:
         conditions.append(Lead.created_at >= datetime.combine(created_from, time.min, tzinfo=timezone.utc))
     if created_to:
@@ -246,7 +282,7 @@ def list_leads(
 
 def _eligible_owner(db: Session, owner_id: UUID) -> User:
     owner = get_user_by_id(db, owner_id)
-    if owner is None or owner.status != "active" or not (set(user_role_codes(owner)) & SALES_ROLE_CODES):
+    if owner is None or owner.status != "active" or not (user_role_code_set(owner) & SALES_ROLE_CODES):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Người phụ trách không hợp lệ")
     return owner
 
@@ -261,7 +297,9 @@ def create_lead(db: Session, payload: LeadCreate, actor: User) -> Lead:
     _ensure_phone_unique(db, primary, secondary)
     owner_id = actor.id
     if payload.owner_id and payload.owner_id != actor.id and _has_any(actor, ASSIGN_PERMISSIONS):
-        owner_id = _eligible_owner(db, payload.owner_id).id
+        owner = _eligible_owner(db, payload.owner_id)
+        _validate_target_owner_scope(db, actor, owner)
+        owner_id = owner.id
     lead = Lead(**payload.model_dump(exclude={"owner_id", "phone_primary", "phone_secondary"}), code=_next_lead_code(db), phone_primary=primary, phone_secondary=secondary, status="new", owner_id=owner_id, created_by_id=actor.id)
     if owner_id != actor.id:
         lead.assigned_by_id = actor.id
@@ -279,7 +317,7 @@ def create_lead(db: Session, payload: LeadCreate, actor: User) -> Lead:
 
 
 def update_lead(db: Session, lead: Lead, payload: LeadUpdate, actor: User) -> Lead:
-    require_update_access(actor, lead)
+    require_update_access(db, actor, lead)
     values = payload.model_dump(exclude_unset=True)
     _validate_priority(values.get("priority"))
     budget_min = values.get("budget_min", lead.budget_min)
@@ -307,7 +345,7 @@ def update_lead(db: Session, lead: Lead, payload: LeadUpdate, actor: User) -> Le
 
 
 def change_lead_status(db: Session, lead: Lead, payload: LeadStatusUpdate, actor: User) -> Lead:
-    require_update_access(actor, lead)
+    require_update_access(db, actor, lead)
     if payload.status not in LEAD_STATUSES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Trạng thái lead không hợp lệ")
     if payload.status == "lost" and not (payload.lost_reason and payload.lost_reason.strip()):
@@ -328,8 +366,9 @@ def change_lead_status(db: Session, lead: Lead, payload: LeadStatusUpdate, actor
 
 
 def assign_lead(db: Session, lead: Lead, payload: LeadAssign, actor: User) -> Lead:
-    require_assign_access(actor, lead)
+    require_assign_access(db, actor, lead)
     owner = _eligible_owner(db, payload.owner_id)
+    _validate_target_owner_scope(db, actor, owner)
     old_owner_id = lead.owner_id
     lead.owner_id = owner.id
     lead.assigned_by_id = actor.id
@@ -347,3 +386,50 @@ def delete_lead(db: Session, lead: Lead, actor: User) -> None:
     lead.deleted_by = actor.id
     write_audit_log(db, action="leads.delete", user_id=actor.id, entity_type="leads", entity_id=str(lead.id), before_data=_audit_snapshot(lead), after_data={"deleted_at": lead.deleted_at.isoformat(), "deleted_by": str(actor.id)})
     db.commit()
+
+
+def list_overdue_leads(db: Session, user: User, *, page: int, page_size: int, owner_id: UUID | None = None, priority: str | None = None):
+    require_view_permission(user)
+    conditions = [Lead.deleted_at.is_(None), Lead.next_follow_up_at < datetime.now(timezone.utc), Lead.status.not_in({"converted", "lost"})]
+    if owner_id: conditions.append(Lead.owner_id == owner_id)
+    if priority:
+        _validate_priority(priority); conditions.append(Lead.priority == priority)
+    query = apply_view_scope(db, select(Lead).where(*conditions), user)
+    count_query = apply_view_scope(db, select(func.count(Lead.id)).where(*conditions), user)
+    total = db.scalar(count_query) or 0
+    leads = list(db.scalars(query.order_by(Lead.next_follow_up_at.asc()).offset((page - 1) * page_size).limit(page_size)).unique())
+    return leads, {"page": page, "page_size": page_size, "total": total, "total_pages": ceil(total / page_size) if total else 0}
+
+
+def transfer_lead(db: Session, lead: Lead, new_owner_id: UUID, reason: str, actor: User) -> Lead:
+    require_assign_access(db, actor, lead)
+    owner = _eligible_owner(db, new_owner_id)
+    _validate_target_owner_scope(db, actor, owner)
+    previous = lead.owner
+    lead.owner_id = owner.id; lead.assigned_by_id = actor.id; lead.assigned_at = datetime.now(timezone.utc)
+    create_activity_record(db, lead=lead, actor=actor, activity_type="assignment", title="Chuyển lead", content=reason.strip(), old_value=f"{previous.id} - {previous.full_name}" if previous else None, new_value=f"{owner.id} - {owner.full_name}")
+    write_audit_log(db, action="leads.transfer", user_id=actor.id, entity_type="leads", entity_id=str(lead.id), before_data={"owner_id": str(previous.id) if previous else None}, after_data={"owner_id": str(owner.id), "reason": reason.strip()})
+    db.commit(); db.refresh(lead); return lead
+
+
+def reclaim_lead(db: Session, lead: Lead, new_owner_id: UUID | None, reason: str, actor: User) -> Lead:
+    permissions = _permission_set(actor)
+    if actor.is_superuser or "leads.reclaim.all" in permissions:
+        pass
+    elif "leads.reclaim.team" in permissions:
+        from app.services.organization_service import get_accessible_user_ids_for_lead_scope
+        ids = get_accessible_user_ids_for_lead_scope(db, actor, "team")
+        if lead.owner_id not in ids and lead.created_by_id not in ids:
+            raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập lead này")
+    else:
+        raise HTTPException(status_code=403, detail="Bạn không có quyền thực hiện thao tác này")
+    owner = _eligible_owner(db, new_owner_id or actor.id)
+    if not (actor.is_superuser or "leads.reclaim.all" in permissions):
+        from app.services.organization_service import get_accessible_user_ids_for_lead_scope
+        if owner.id not in get_accessible_user_ids_for_lead_scope(db, actor, "team"):
+            raise HTTPException(status_code=403, detail="Người phụ trách không nằm trong phạm vi bạn được phân công")
+    previous = lead.owner
+    lead.owner_id = owner.id; lead.assigned_by_id = actor.id; lead.assigned_at = datetime.now(timezone.utc)
+    create_activity_record(db, lead=lead, actor=actor, activity_type="assignment", title="Thu hồi lead", content=reason.strip(), old_value=f"{previous.id} - {previous.full_name}" if previous else None, new_value=f"{owner.id} - {owner.full_name}")
+    write_audit_log(db, action="leads.reclaim", user_id=actor.id, entity_type="leads", entity_id=str(lead.id), before_data={"owner_id": str(previous.id) if previous else None}, after_data={"owner_id": str(owner.id), "reason": reason.strip()})
+    db.commit(); db.refresh(lead); return lead

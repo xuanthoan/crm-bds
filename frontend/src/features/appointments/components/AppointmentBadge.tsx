@@ -1,0 +1,1 @@
+import{Badge}from'../../../components/Badge';import{APPOINTMENT_STATUSES}from'../constants';export function AppointmentBadge({status}:{status:string}){return <Badge tone={status==='completed'?'green':status==='cancelled'||status==='no_show'?'gray':'blue'}>{APPOINTMENT_STATUSES[status]??status}</Badge>}

@@ -26,6 +26,7 @@ LEAD_ACTIVITY_TYPE_LABELS = {
     "meeting": "Cuộc hẹn",
     "status_change": "Đổi trạng thái",
     "assignment": "Phân công",
+    "follow_up": "Chăm sóc",
 }
 LEAD_ACTIVITY_TYPES = set(LEAD_ACTIVITY_TYPE_LABELS)
 CONTACT_ACTIVITY_TYPES = {"call", "zalo", "meeting"}

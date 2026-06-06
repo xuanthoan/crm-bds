@@ -7,7 +7,18 @@ import { RolesPage } from '../features/admin/roles/RolesPage';
 import { UsersPage } from '../features/admin/users/UsersPage';
 import { LeadDetailPage } from '../features/leads/LeadDetailPage';
 import { LeadsPage } from '../features/leads/LeadsPage';
+import { OverdueLeadsPage } from '../features/leads/OverdueLeadsPage';
+import { DepartmentsPage } from '../features/organization/DepartmentsPage';
+import { TeamsPage } from '../features/organization/TeamsPage';
+import { MembershipsPage } from '../features/organization/MembershipsPage';
 import { LEAD_VIEW_PERMISSIONS } from '../features/leads/constants';
+import { TasksPage } from '../features/tasks/TasksPage';
+import { TodayTasksPage } from '../features/tasks/TodayTasksPage';
+import { OverdueTasksPage } from '../features/tasks/OverdueTasksPage';
+import { AppointmentsPage } from '../features/appointments/AppointmentsPage';
+import { TodayAppointmentsPage } from '../features/appointments/TodayAppointmentsPage';
+import { MyWorkDashboard } from '../features/dashboard/MyWorkDashboard';
+import { TeamWorkDashboard } from '../features/dashboard/TeamWorkDashboard';
 import { AppLayout } from '../layouts/AppLayout';
 import { CustomersPage } from '../pages/CustomersPage';
 import { DashboardPage } from '../pages/DashboardPage';
@@ -27,11 +38,22 @@ type ProtectedPage = {
 };
 
 const protectedPages: Record<string, ProtectedPage> = {
-  '/dashboard': { element: <DashboardPage /> },
+  '/dashboard': { element: <DashboardPage />, permission: ['dashboard.view.own', 'dashboard.view.team', 'dashboard.view.all'] },
+  '/dashboard/my-work': { element: <MyWorkDashboard />, permission: ['dashboard.view.own', 'dashboard.view.team', 'dashboard.view.all'] },
+  '/dashboard/team-work': { element: <TeamWorkDashboard />, permission: ['dashboard.view.team', 'dashboard.view.all'] },
+  '/tasks': { element: <TasksPage />, permission: ['lead_tasks.view.own', 'lead_tasks.view.team', 'lead_tasks.view.all'] },
+  '/tasks/today': { element: <TodayTasksPage />, permission: ['lead_tasks.view.own', 'lead_tasks.view.team', 'lead_tasks.view.all'] },
+  '/tasks/overdue': { element: <OverdueTasksPage />, permission: ['lead_tasks.view.own', 'lead_tasks.view.team', 'lead_tasks.view.all'] },
+  '/appointments': { element: <AppointmentsPage />, permission: ['lead_appointments.view.own', 'lead_appointments.view.team', 'lead_appointments.view.all'] },
+  '/appointments/today': { element: <TodayAppointmentsPage />, permission: ['lead_appointments.view.own', 'lead_appointments.view.team', 'lead_appointments.view.all'] },
   '/leads': { element: <LeadsPage />, permission: LEAD_VIEW_PERMISSIONS },
+  '/leads/overdue': { element: <OverdueLeadsPage />, permission: LEAD_VIEW_PERMISSIONS },
   '/admin/users': { element: <UsersPage />, permission: 'users.view' },
   '/admin/roles': { element: <RolesPage />, permission: 'roles.view' },
   '/admin/permissions': { element: <PermissionsPage />, permission: 'permissions.view' },
+  '/admin/departments': { element: <DepartmentsPage />, permission: 'settings.manage_master_data' },
+  '/admin/teams': { element: <TeamsPage />, permission: 'settings.manage_master_data' },
+  '/admin/memberships': { element: <MembershipsPage />, permission: 'users.update' },
   '/customers': { element: <CustomersPage />, permission: 'customers.view.own' },
   '/properties': { element: <PropertiesPage />, permission: 'inventory.view.available' },
   '/deals': { element: <DealsPage />, permission: 'deals.view.own' },
