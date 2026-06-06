@@ -9,3 +9,4 @@ frontend/dist/
 backend/.venv/
 
 docker-compose.override.yml
+docker-compose.local.yml
