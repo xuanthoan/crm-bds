@@ -12,5 +12,3 @@ export const listMemberships = () => apiRequest<Membership[]>('/api/v1/organizat
 export const createMembership = (p:MembershipPayload) => apiRequest<Membership>('/api/v1/organization/memberships',{method:'POST',body:JSON.stringify(p)});
 export const updateMembership = (id:string,p:MembershipPayload) => apiRequest<Membership>(`/api/v1/organization/memberships/${id}`,{method:'PUT',body:JSON.stringify(p)});
 export const deleteMembership = (id:string) => apiRequest<null>(`/api/v1/organization/memberships/${id}`,{method:'DELETE'});
-import type { AdminUser } from '../admin/users/api';
-export const listLeadScopeUsers = () => apiRequest<AdminUser[]>('/api/v1/organization/lead-scope-users');

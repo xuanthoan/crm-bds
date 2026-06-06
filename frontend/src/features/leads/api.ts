@@ -1,4 +1,5 @@
 import { apiRequest } from '../../services/apiClient';
+import type { AdminUser } from '../admin/users/api';
 import type { Lead, LeadActivity, LeadActivityType, LeadPayload, LeadStatus } from './types';
 
 export type LeadFilters = { page?: number; page_size?: number; search?: string; status?: string; priority?: string; source?: string; owner_id?: string; department_id?: string; team_id?: string; created_from?: string; created_to?: string };
@@ -20,3 +21,5 @@ export const deleteLead = (id: string) => apiRequest<null>(`/api/v1/leads/${id}`
 export const listOverdueLeads = (filters: {page?:number;page_size?:number;owner_id?:string;priority?:string}={}) => { const p=new URLSearchParams();p.set('page',String(filters.page??1));p.set('page_size',String(filters.page_size??20));if(filters.owner_id)p.set('owner_id',filters.owner_id);if(filters.priority)p.set('priority',filters.priority);return apiRequest<Lead[]>(`/api/v1/leads/overdue?${p}`); };
 export const transferLead = (id:string,newOwnerId:string,reason:string) => apiRequest<Lead>(`/api/v1/leads/${id}/transfer`,{method:'POST',body:JSON.stringify({new_owner_id:newOwnerId,reason})});
 export const reclaimLead = (id:string,newOwnerId:string|undefined,reason:string) => apiRequest<Lead>(`/api/v1/leads/${id}/reclaim`,{method:'POST',body:JSON.stringify({new_owner_id:newOwnerId||null,reason})});
+
+export const listEligibleLeadAssignees = () => apiRequest<AdminUser[]>('/api/v1/organization/lead-scope-users');

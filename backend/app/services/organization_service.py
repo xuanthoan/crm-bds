@@ -281,3 +281,33 @@ def get_accessible_user_ids_for_lead_scope(db: Session, current_user: User, perm
     if permission_type == "department": return get_subordinate_user_ids_for_department_scope(db, current_user)
     if permission_type == "team": return get_subordinate_user_ids_for_team_scope(db, current_user)
     return {current_user.id}
+
+
+def list_eligible_lead_assignees(db: Session, current_user: User) -> list[User]:
+    """Return active sales users the current user may assign leads to."""
+    from app.leads.constants import SALES_ROLE_CODES
+    from app.permissions.dependencies import get_user_permissions
+
+    permissions = set(get_user_permissions(current_user))
+    if current_user.is_superuser or "leads.assign.all" in permissions:
+        accessible_ids = get_accessible_user_ids_for_lead_scope(db, current_user, "all")
+    elif "leads.assign.team" in permissions:
+        accessible_ids = get_accessible_user_ids_for_lead_scope(db, current_user, "team")
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Bạn không có quyền thực hiện thao tác này",
+        )
+
+    users = db.scalars(
+        select(User).where(
+            User.id.in_(accessible_ids),
+            User.status == "active",
+            User.deleted_at.is_(None),
+        )
+    ).unique()
+    return [
+        user
+        for user in users
+        if user.is_superuser or user_role_codes(user) & SALES_ROLE_CODES
+    ]

@@ -1,5 +1,5 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.core.responses import success_response
 from app.db.session import get_db
@@ -8,10 +8,9 @@ from app.permissions.dependencies import get_user_permissions, require_auth, req
 from app.schemas.department import DepartmentCreate, DepartmentUpdate
 from app.schemas.organization import MembershipCreate, MembershipUpdate
 from app.schemas.team import TeamCreate, TeamUpdate
-from app.services.user_service import user_role_codes
 from app.services.organization_service import (
     create_department, create_membership, create_team, delete_department, delete_membership, delete_team,
-    get_department, get_membership, get_team, list_departments, list_memberships, list_teams,
+    get_department, get_membership, get_team, list_departments, list_eligible_lead_assignees, list_memberships, list_teams,
     serialize_department, serialize_membership, serialize_team, update_department, update_membership, update_team,
 )
 
@@ -98,20 +97,21 @@ def remove_membership(membership_id: UUID, db: Session = Depends(get_db), user: 
 
 
 @organization_router.get("/lead-scope-users")
-def lead_scope_users(db: Session = Depends(get_db), user: User = Depends(require_auth)):
-    from sqlalchemy import select
-    from app.leads.constants import SALES_ROLE_CODES
-    from app.models.user import User as UserModel
-    from app.services.organization_service import get_accessible_user_ids_for_lead_scope
-    permissions = set(get_user_permissions(user))
-    if user.is_superuser or "leads.assign.all" in permissions or "leads.view.all" in permissions:
-        ids = get_accessible_user_ids_for_lead_scope(db, user, "all")
-    elif "leads.view.department" in permissions:
-        ids = get_accessible_user_ids_for_lead_scope(db, user, "department")
-    elif "leads.assign.team" in permissions or "leads.view.team" in permissions:
-        ids = get_accessible_user_ids_for_lead_scope(db, user, "team")
-    else:
-        ids = {user.id}
-    users = list(db.scalars(select(UserModel).where(UserModel.id.in_(ids), UserModel.status == "active", UserModel.deleted_at.is_(None))).unique())
-    data = [{"id": item.id, "full_name": item.full_name, "email": item.email, "roles": [{"id": role.id, "code": role.code, "name": role.name} for role in item.roles]} for item in users if item.is_superuser or user_role_codes(item) & SALES_ROLE_CODES]
+def lead_scope_users(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth),
+):
+    users = list_eligible_lead_assignees(db, user)
+    data = [
+        {
+            "id": item.id,
+            "full_name": item.full_name,
+            "email": item.email,
+            "roles": [
+                {"id": role.id, "code": role.code, "name": role.name}
+                for role in item.roles
+            ],
+        }
+        for item in users
+    ]
     return success_response(data=data, message="Lead scope users retrieved")
