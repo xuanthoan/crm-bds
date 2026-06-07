@@ -37,11 +37,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function translateMessage(message: string, validationError?: FastApiValidationError): string {
-  const field = validationError?.loc?.map(String).join('.').toLowerCase() ?? '';
-  const normalized = message.toLowerCase();
+function normalizeValidationMessage(message: string): string {
+  const withoutPrefix = message
+    .replace(/^value error,\s*/i, '')
+    .replace(/^assertion failed,\s*/i, '')
+    .trim();
 
-  if (message === 'Email already exists') {
+  if (/^input should be/i.test(withoutPrefix)) {
+    return 'Dữ liệu không hợp lệ';
+  }
+
+  return withoutPrefix;
+}
+
+function translateMessage(message: string, validationError?: FastApiValidationError): string {
+  const cleanedMessage = normalizeValidationMessage(message);
+  const field = validationError?.loc?.map(String).join('.').toLowerCase() ?? '';
+  const normalized = cleanedMessage.toLowerCase();
+
+  if (cleanedMessage === 'Email already exists') {
     return 'Email đã tồn tại';
   }
 
@@ -58,7 +72,7 @@ function translateMessage(message: string, validationError?: FastApiValidationEr
     return lastField ? `${String(lastField)} là bắt buộc` : 'Thiếu thông tin bắt buộc';
   }
 
-  return message;
+  return cleanedMessage;
 }
 
 function formatApiErrorPayload(payload: unknown): string[] {

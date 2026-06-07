@@ -24,6 +24,7 @@ LEAD_ACTIVITY_TYPE_LABELS = {
     "call": "Cuộc gọi",
     "zalo": "Zalo",
     "meeting": "Cuộc hẹn",
+    "follow_up": "Chăm sóc",
     "status_change": "Đổi trạng thái",
     "assignment": "Phân công",
 }

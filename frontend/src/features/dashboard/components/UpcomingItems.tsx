@@ -1,0 +1,1 @@
+import type {ReactNode} from 'react';export function UpcomingItems({title,children}:{title:string;children?:ReactNode}){return <section className="detail-card"><h2>{title}</h2>{children??<p className="empty-state">Mở danh sách chi tiết để theo dõi công việc.</p>}</section>}

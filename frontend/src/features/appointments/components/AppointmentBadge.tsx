@@ -1,0 +1,1 @@
+import {APPOINTMENT_STATUS_LABELS} from '../constants';export function AppointmentBadge({status}:{status:string}){return <span className={`badge ${status==='completed'?'badge-green':status==='cancelled'||status==='no_show'?'badge-red':'badge-blue'}`}>{APPOINTMENT_STATUS_LABELS[status]??status}</span>}

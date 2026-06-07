@@ -1,0 +1,1 @@
+import {apiRequest} from '../../services/apiClient';import type {MyWorkSummary,TeamWorkSummary} from './types';export const getMyWork=()=>apiRequest<MyWorkSummary>('/api/v1/dashboard/my-work');export const getTeamWork=()=>apiRequest<TeamWorkSummary>('/api/v1/dashboard/team-work');
