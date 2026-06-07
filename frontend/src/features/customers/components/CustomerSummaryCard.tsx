@@ -1,0 +1,3 @@
+import type { Customer } from '../types';
+const money=(v:string|number|null)=>v==null?'—':Number(v).toLocaleString('vi-VN');
+export function CustomerSummaryCard({customer}:{customer:Customer}){return <section className="detail-card"><h2>Thông tin quan tâm</h2><dl className="info-grid"><div><dt>Dự án</dt><dd>{customer.interested_project||'—'}</dd></div><div><dt>Khu vực</dt><dd>{customer.interested_area||'—'}</dd></div><div><dt>Ngân sách</dt><dd>{money(customer.budget_min)} - {money(customer.budget_max)}</dd></div><div><dt>Phòng ngủ</dt><dd>{customer.bedroom_count??'—'}</dd></div><div><dt>Diện tích</dt><dd>{customer.area_min??'—'} - {customer.area_max??'—'} m²</dd></div><div><dt>Mục đích</dt><dd>{customer.purpose||'—'}</dd></div></dl></section>}

@@ -11,8 +11,10 @@ from app.models.user import User
 from app.permissions.dependencies import require_auth, require_permission
 from app.schemas.lead import LeadAssign, LeadCreate, LeadStatusUpdate, LeadUpdate
 from app.schemas.lead_activity import LeadActivityCreate
+from app.schemas.customer import LeadConvertRequest
 from app.schemas.organization import LeadReclaim, LeadTransfer
 from app.services.lead_activity_service import add_lead_activity, serialize_activity
+from app.services.customer_service import convert_lead_to_customer, serialize_customer
 from app.services.lead_service import (
     assign_lead,
     can_view_lead,
@@ -108,6 +110,12 @@ def post_lead_reclaim(lead_id: UUID, payload: LeadReclaim, db: Session = Depends
     lead = get_lead_by_id(db, lead_id)
     if lead is None: raise HTTPException(status_code=404, detail="Không tìm thấy lead")
     return success_response(data=serialize_lead(reclaim_lead(db, lead, payload.new_owner_id, payload.reason, current_user), detail=True), message="Lead reclaimed")
+
+
+@router.post("/{lead_id}/convert")
+def post_lead_conversion(lead_id: UUID, payload: LeadConvertRequest, db: Session = Depends(get_db), current_user: User = Depends(require_auth)):
+    customer, lead = convert_lead_to_customer(db, lead_id, payload, current_user)
+    return success_response(data={"customer": serialize_customer(customer, detail=True), "lead": serialize_lead(lead, detail=True), "message": "Chuyển đổi lead thành khách hàng thành công"}, message="Chuyển đổi lead thành khách hàng thành công")
 
 
 @router.post("/{lead_id}/activities")

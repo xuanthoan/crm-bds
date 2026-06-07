@@ -42,6 +42,9 @@ export type Lead = {
   last_contact_at?: string | null;
   next_follow_up_at: string | null;
   lost_reason?: string | null;
+  converted_customer_id?: string | null;
+  converted_customer?: { id: string; customer_code: string; full_name: string } | null;
+  converted_at?: string | null;
   activities?: LeadActivity[];
   created_at: string;
   updated_at: string;

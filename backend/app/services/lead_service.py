@@ -212,6 +212,9 @@ def serialize_lead(lead: Lead, *, detail: bool = False) -> dict:
             "assigned_at": lead.assigned_at,
             "last_contact_at": lead.last_contact_at,
             "converted_customer_id": lead.converted_customer_id,
+            "converted_customer": {"id": lead.converted_customer.id, "customer_code": lead.converted_customer.customer_code, "full_name": lead.converted_customer.full_name} if lead.converted_customer else None,
+            "converted_at": lead.converted_at,
+            "converted_by": _serialize_user(lead.converted_by),
             "lost_reason": lead.lost_reason,
             "activities": [serialize_activity(activity) for activity in lead.activities],
         })

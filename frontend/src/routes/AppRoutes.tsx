@@ -20,7 +20,9 @@ import { TodayAppointmentsPage } from '../features/appointments/TodayAppointment
 import { MyWorkDashboard } from '../features/dashboard/MyWorkDashboard';
 import { TeamWorkDashboard } from '../features/dashboard/TeamWorkDashboard';
 import { AppLayout } from '../layouts/AppLayout';
-import { CustomersPage } from '../pages/CustomersPage';
+import { CustomersPage } from '../features/customers/CustomersPage';
+import { CustomerDetailPage } from '../features/customers/CustomerDetailPage';
+import { CUSTOMER_VIEW_PERMISSIONS } from '../features/customers/constants';
 import { DealsPage } from '../pages/DealsPage';
 import { ForbiddenPage } from '../pages/ForbiddenPage';
 import { PropertiesPage } from '../pages/PropertiesPage';
@@ -53,7 +55,7 @@ const protectedPages: Record<string, ProtectedPage> = {
   '/admin/departments': { element: <DepartmentsPage />, permission: 'settings.manage_master_data' },
   '/admin/teams': { element: <TeamsPage />, permission: 'settings.manage_master_data' },
   '/admin/memberships': { element: <MembershipsPage />, permission: 'users.update' },
-  '/customers': { element: <CustomersPage />, permission: 'customers.view.own' },
+  '/customers': { element: <CustomersPage />, permission: CUSTOMER_VIEW_PERMISSIONS },
   '/properties': { element: <PropertiesPage />, permission: 'inventory.view.available' },
   '/deals': { element: <DealsPage />, permission: 'deals.view.own' },
   '/reports': { element: <ReportsPage />, permission: 'reports.view.own' },
@@ -95,6 +97,8 @@ export function AppRoutes() {
   }, [authenticated, normalizedPath]);
 
   const page = useMemo(() => {
+    const customerDetailMatch = normalizedPath.match(/^\/customers\/([0-9a-f-]+)$/i);
+    if (customerDetailMatch) return { element: <CustomerDetailPage customerId={customerDetailMatch[1]} />, permission: CUSTOMER_VIEW_PERMISSIONS };
     const leadDetailMatch = normalizedPath.match(/^\/leads\/([0-9a-f-]+)$/i);
     if (leadDetailMatch) return { element: <LeadDetailPage leadId={leadDetailMatch[1]} />, permission: LEAD_VIEW_PERMISSIONS };
     return protectedPages[normalizedPath] ?? protectedPages['/dashboard'];
