@@ -1,13 +1,33 @@
+import re
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field, field_validator
 
 CustomerType = Literal["individual", "company", "investor", "agent", "other"]
 CustomerStatus = Literal["active", "inactive", "potential", "vip", "blacklisted"]
 CustomerPurpose = Literal["buy_to_live", "investment", "rent", "rent_out", "other"]
+
+PHONE_PATTERN = re.compile(r"^\+?[\d\s-]+$")
+EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
+
+def normalize_customer_phone(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    if not PHONE_PATTERN.fullmatch(value):
+        raise ValueError("Số điện thoại không hợp lệ")
+    digits = re.sub(r"\D", "", value)
+    if len(digits) == 11 and digits.startswith("84"):
+        digits = f"0{digits[2:]}"
+    if len(digits) != 10 or not digits.startswith("0"):
+        raise ValueError("Số điện thoại không hợp lệ")
+    return digits
 
 
 class CustomerFields(BaseModel):
@@ -16,7 +36,7 @@ class CustomerFields(BaseModel):
     status: CustomerStatus | None = None
     primary_phone: str | None = Field(default=None, max_length=50)
     secondary_phone: str | None = Field(default=None, max_length=50)
-    email: EmailStr | None = None
+    email: str | None = Field(default=None, max_length=255)
     zalo: str | None = Field(default=None, max_length=255)
     facebook: str | None = Field(default=None, max_length=500)
     address: str | None = None
@@ -32,6 +52,47 @@ class CustomerFields(BaseModel):
     owner_id: UUID | None = None
     next_follow_up_at: datetime | None = None
     note: str | None = None
+
+    @field_validator(
+        "secondary_phone",
+        "email",
+        "zalo",
+        "facebook",
+        "address",
+        "source",
+        "interested_project",
+        "interested_area",
+        "purpose",
+        "owner_id",
+        "next_follow_up_at",
+        "note",
+        "budget_min",
+        "budget_max",
+        "bedroom_count",
+        "area_min",
+        "area_max",
+        mode="before",
+    )
+    @classmethod
+    def empty_optional_value_to_none(cls, value: Any) -> Any:
+        return None if isinstance(value, str) and not value.strip() else value
+
+    @field_validator("primary_phone", "secondary_phone", mode="before")
+    @classmethod
+    def validate_phone(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        return normalize_customer_phone(str(value))
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip().lower()
+        if not EMAIL_PATTERN.fullmatch(value):
+            raise ValueError("Email không hợp lệ")
+        return value
 
 
 class CustomerCreate(CustomerFields):

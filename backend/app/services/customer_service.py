@@ -1,4 +1,3 @@
-import re
 from datetime import date, datetime, time, timezone
 from math import ceil
 from uuid import UUID
@@ -12,7 +11,7 @@ from app.models.customer_activity import CustomerActivity
 from app.models.lead import Lead
 from app.models.user import User
 from app.permissions.dependencies import get_user_permissions
-from app.schemas.customer import CustomerActivityCreate, CustomerCreate, CustomerOwnerUpdate, CustomerStatusUpdate, CustomerUpdate, LeadConvertRequest
+from app.schemas.customer import CustomerActivityCreate, CustomerCreate, CustomerOwnerUpdate, CustomerStatusUpdate, CustomerUpdate, LeadConvertRequest, normalize_customer_phone
 from app.services.audit_service import write_audit_log
 from app.services.lead_activity_service import create_activity_record, serialize_activity as serialize_lead_activity
 from app.services.lead_service import can_view_lead, get_lead_by_id, serialize_lead
@@ -58,9 +57,10 @@ def _require_update(db: Session, user: User, customer: Customer) -> None:
 
 
 def normalize_phone(value: str | None) -> str | None:
-    if value is None:
-        return None
-    return re.sub(r"\D", "", value) or None
+    try:
+        return normalize_customer_phone(value)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="Số điện thoại không hợp lệ") from exc
 
 
 def _validate_phone(db: Session, primary: str | None, secondary: str | None, exclude_id: UUID | None = None) -> tuple[str, str | None]:
