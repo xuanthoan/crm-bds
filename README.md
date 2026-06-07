@@ -565,7 +565,7 @@ Verify login/logout, all Admin pages, organization pages, lead list/create/detai
 
 - Sprint 7 implements `reject_existing`; automatic customer merge is intentionally deferred.
 - Customer tasks and appointments are displayed through the immutable source lead. Dedicated customer-native task/appointment foreign keys are deferred.
-- Customer code generation is application-managed; high-volume deployments should replace it with a database sequence.
+- Customer code generation is application-managed. TODO: Replace with database sequence for high-concurrency production.
 - Cross-column duplicate phone protection is service-level because a portable partial cross-column unique constraint is not available. All supported writes must use the service/API layer.
 - This source snapshot has no configured `origin`, local `dev` branch, or tag refs. Sprint 7 was based on local commit `faebe3d`, whose history contains the required Sprint 6 and Sprint 5 merge commits.
 

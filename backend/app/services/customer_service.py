@@ -85,9 +85,10 @@ def _validate_ranges(data: dict) -> None:
 
 
 def _next_code(db: Session) -> str:
-    last = db.scalar(select(Customer.customer_code).order_by(Customer.customer_code.desc()).limit(1))
-    number = int(last.split("-")[-1]) + 1 if last and last.startswith("CUS-") and last.split("-")[-1].isdigit() else 1
-    return f"CUS-{number:06d}"
+    # TODO: Replace with database sequence for high-concurrency production.
+    codes = db.scalars(select(Customer.customer_code).where(Customer.customer_code.like("CUS-%")))
+    numbers = [int(code.removeprefix("CUS-")) for code in codes if code.removeprefix("CUS-").isdigit()]
+    return f"CUS-{max(numbers, default=0) + 1:06d}"
 
 
 def _user_summary(user: User | None) -> dict | None:
@@ -190,6 +191,28 @@ def _activity(db: Session, customer: Customer, actor: User, activity_type: str, 
     return item
 
 
+def _set_customer_owner(db: Session, customer: Customer, owner_id: UUID | None, actor: User, note: str | None = None) -> bool:
+    if owner_id is None:
+        raise HTTPException(status_code=400, detail="Người phụ trách khách hàng không hợp lệ")
+    new_owner = _validate_owner(db, actor, owner_id)
+    if customer.owner_id == new_owner.id:
+        return False
+    old_owner_name = customer.owner.full_name if customer.owner else "Chưa phân công"
+    customer.owner_id = new_owner.id
+    customer.updated_by_id = actor.id
+    _activity(
+        db,
+        customer,
+        actor,
+        "owner_change",
+        "Đổi người phụ trách",
+        note,
+        old_owner_name,
+        new_owner.full_name,
+    )
+    return True
+
+
 def create_customer(db: Session, payload: CustomerCreate, actor: User) -> Customer:
     if "customers.create" not in _permissions(actor) and not actor.is_superuser:
         raise HTTPException(status_code=403, detail="Bạn không có quyền cập nhật khách hàng này")
@@ -212,10 +235,9 @@ def update_customer(db: Session, customer: Customer, payload: CustomerUpdate, ac
     _require_update(db, actor, customer)
     data = payload.model_dump(exclude_unset=True)
     if "full_name" in data and (not data["full_name"] or not data["full_name"].strip()): raise HTTPException(status_code=422, detail="Họ tên khách hàng là bắt buộc")
+    owner_changed = False
     if "owner_id" in data:
-        owner_id = data.pop("owner_id")
-        if owner_id: _validate_owner(db, actor, owner_id)
-        customer.owner_id = owner_id
+        owner_changed = _set_customer_owner(db, customer, data.pop("owner_id"), actor)
     primary = data.get("primary_phone", customer.primary_phone); secondary = data.get("secondary_phone", customer.secondary_phone)
     if "primary_phone" in data or "secondary_phone" in data:
         data["primary_phone"], data["secondary_phone"] = _validate_phone(db, primary, secondary, customer.id)
@@ -224,7 +246,8 @@ def update_customer(db: Session, customer: Customer, payload: CustomerUpdate, ac
     for key, value in data.items(): setattr(customer, key, value)
     customer.updated_by_id = actor.id
     _activity(db, customer, actor, "other", "Cập nhật khách hàng", "Thông tin khách hàng đã được cập nhật")
-    write_audit_log(db, action="customers.update", user_id=actor.id, entity_type="customers", entity_id=str(customer.id), after_data={"fields": sorted(data)})
+    updated_fields = sorted([*data, *(["owner_id"] if owner_changed else [])])
+    write_audit_log(db, action="customers.update", user_id=actor.id, entity_type="customers", entity_id=str(customer.id), after_data={"fields": updated_fields})
     db.commit(); db.refresh(customer); return customer
 
 
@@ -236,11 +259,14 @@ def update_customer_status(db: Session, customer: Customer, payload: CustomerSta
 
 
 def update_customer_owner(db: Session, customer: Customer, payload: CustomerOwnerUpdate, actor: User) -> Customer:
-    _require_view(db, actor, customer); _validate_owner(db, actor, payload.owner_id); old = customer.owner_id
-    customer.owner_id = payload.owner_id; customer.updated_by_id = actor.id
-    _activity(db, customer, actor, "owner_change", "Đổi người phụ trách", payload.note, str(old) if old else None, str(payload.owner_id))
-    write_audit_log(db, action="customers.assign", user_id=actor.id, entity_type="customers", entity_id=str(customer.id), before_data={"owner_id": str(old) if old else None}, after_data={"owner_id": str(payload.owner_id)})
-    db.commit(); db.refresh(customer); return customer
+    _require_view(db, actor, customer)
+    old_owner_id = customer.owner_id
+    changed = _set_customer_owner(db, customer, payload.owner_id, actor, payload.note)
+    if changed:
+        write_audit_log(db, action="customers.assign", user_id=actor.id, entity_type="customers", entity_id=str(customer.id), before_data={"owner_id": str(old_owner_id) if old_owner_id else None}, after_data={"owner_id": str(payload.owner_id)})
+        db.commit()
+        db.refresh(customer)
+    return customer
 
 
 def add_customer_activity(db: Session, customer: Customer, payload: CustomerActivityCreate, actor: User) -> CustomerActivity:
