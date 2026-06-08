@@ -10,6 +10,8 @@ export type LeadActivity = {
   content: string;
   old_value: string | null;
   new_value: string | null;
+  old_owner_name?: string | null;
+  new_owner_name?: string | null;
   user: LeadUser;
   created_at: string;
 };

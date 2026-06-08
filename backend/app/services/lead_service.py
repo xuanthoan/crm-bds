@@ -178,7 +178,7 @@ def _audit_snapshot(lead: Lead) -> dict:
     }
 
 
-def serialize_lead(lead: Lead, *, detail: bool = False) -> dict:
+def serialize_lead(lead: Lead, *, detail: bool = False, db: Session | None = None) -> dict:
     data = {
         "id": lead.id,
         "code": lead.code,
@@ -216,7 +216,7 @@ def serialize_lead(lead: Lead, *, detail: bool = False) -> dict:
             "converted_at": lead.converted_at,
             "converted_by": _serialize_user(lead.converted_by),
             "lost_reason": lead.lost_reason,
-            "activities": [serialize_activity(activity) for activity in lead.activities],
+            "activities": [serialize_activity(activity, db) for activity in lead.activities],
         })
     return data
 
@@ -299,10 +299,11 @@ def create_lead(db: Session, payload: LeadCreate, actor: User) -> Lead:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Số điện thoại chính là bắt buộc")
     _ensure_phone_unique(db, primary, secondary)
     owner_id = actor.id
+    assigned_owner = None
     if payload.owner_id and payload.owner_id != actor.id and _has_any(actor, ASSIGN_PERMISSIONS):
-        owner = _eligible_owner(db, payload.owner_id)
-        _validate_target_owner_scope(db, actor, owner)
-        owner_id = owner.id
+        assigned_owner = _eligible_owner(db, payload.owner_id)
+        _validate_target_owner_scope(db, actor, assigned_owner)
+        owner_id = assigned_owner.id
     lead = Lead(**payload.model_dump(exclude={"owner_id", "phone_primary", "phone_secondary"}), code=_next_lead_code(db), phone_primary=primary, phone_secondary=secondary, status="new", owner_id=owner_id, created_by_id=actor.id)
     if owner_id != actor.id:
         lead.assigned_by_id = actor.id
@@ -311,8 +312,8 @@ def create_lead(db: Session, payload: LeadCreate, actor: User) -> Lead:
     db.flush()
     if lead.note and lead.note.strip():
         create_activity_record(db, lead=lead, actor=actor, activity_type="note", title="Ghi chú ban đầu", content=lead.note.strip())
-    if owner_id != actor.id:
-        create_activity_record(db, lead=lead, actor=actor, activity_type="assignment", content="Phân công lead khi tạo", old_value=str(actor.id), new_value=str(owner_id))
+    if assigned_owner is not None:
+        create_activity_record(db, lead=lead, actor=actor, activity_type="assignment", content="Phân công lead khi tạo", old_value=actor.full_name, new_value=assigned_owner.full_name)
     write_audit_log(db, action="leads.create", user_id=actor.id, entity_type="leads", entity_id=str(lead.id), after_data=_audit_snapshot(lead))
     db.commit()
     db.refresh(lead)
@@ -373,11 +374,12 @@ def assign_lead(db: Session, lead: Lead, payload: LeadAssign, actor: User) -> Le
     owner = _eligible_owner(db, payload.owner_id)
     _validate_target_owner_scope(db, actor, owner)
     old_owner_id = lead.owner_id
+    old_owner_name = lead.owner.full_name if lead.owner else "Chưa phân công"
     lead.owner_id = owner.id
     lead.assigned_by_id = actor.id
     lead.assigned_at = datetime.now(timezone.utc)
     content = payload.note.strip() if payload.note and payload.note.strip() else f"Phân công lead cho {owner.full_name}"
-    create_activity_record(db, lead=lead, actor=actor, activity_type="assignment", content=content, old_value=str(old_owner_id) if old_owner_id else None, new_value=str(owner.id))
+    create_activity_record(db, lead=lead, actor=actor, activity_type="assignment", content=content, old_value=old_owner_name, new_value=owner.full_name)
     write_audit_log(db, action="leads.assign", user_id=actor.id, entity_type="leads", entity_id=str(lead.id), before_data={"owner_id": str(old_owner_id) if old_owner_id else None}, after_data={"owner_id": str(owner.id)})
     db.commit()
     db.refresh(lead)
@@ -410,7 +412,7 @@ def transfer_lead(db: Session, lead: Lead, new_owner_id: UUID, reason: str, acto
     _validate_target_owner_scope(db, actor, owner)
     previous = lead.owner
     lead.owner_id = owner.id; lead.assigned_by_id = actor.id; lead.assigned_at = datetime.now(timezone.utc)
-    create_activity_record(db, lead=lead, actor=actor, activity_type="assignment", title="Chuyển lead", content=reason.strip(), old_value=f"{previous.id} - {previous.full_name}" if previous else None, new_value=f"{owner.id} - {owner.full_name}")
+    create_activity_record(db, lead=lead, actor=actor, activity_type="assignment", title="Chuyển lead", content=reason.strip(), old_value=previous.full_name if previous else "Chưa phân công", new_value=owner.full_name)
     write_audit_log(db, action="leads.transfer", user_id=actor.id, entity_type="leads", entity_id=str(lead.id), before_data={"owner_id": str(previous.id) if previous else None}, after_data={"owner_id": str(owner.id), "reason": reason.strip()})
     db.commit(); db.refresh(lead); return lead
 
@@ -433,6 +435,6 @@ def reclaim_lead(db: Session, lead: Lead, new_owner_id: UUID | None, reason: str
             raise HTTPException(status_code=403, detail="Người phụ trách không nằm trong phạm vi bạn được phân công")
     previous = lead.owner
     lead.owner_id = owner.id; lead.assigned_by_id = actor.id; lead.assigned_at = datetime.now(timezone.utc)
-    create_activity_record(db, lead=lead, actor=actor, activity_type="assignment", title="Thu hồi lead", content=reason.strip(), old_value=f"{previous.id} - {previous.full_name}" if previous else None, new_value=f"{owner.id} - {owner.full_name}")
+    create_activity_record(db, lead=lead, actor=actor, activity_type="assignment", title="Thu hồi lead", content=reason.strip(), old_value=previous.full_name if previous else "Chưa phân công", new_value=owner.full_name)
     write_audit_log(db, action="leads.reclaim", user_id=actor.id, entity_type="leads", entity_id=str(lead.id), before_data={"owner_id": str(previous.id) if previous else None}, after_data={"owner_id": str(owner.id), "reason": reason.strip()})
     db.commit(); db.refresh(lead); return lead
