@@ -444,3 +444,131 @@ Verify login/logout, all `/admin/*` pages, lead list/create/duplicate-phone/deta
 - Calendar/week view and optional external calendar integration design.
 - Dashboard drill-down/export and workload balancing.
 - Expanded automated integration tests for PostgreSQL migrations, scope rules, and timeline side effects.
+
+## Sprint 7 - Customer 360 & Lead-to-Customer Conversion Foundation
+
+Sprint 7 introduces the first production-oriented customer module. It preserves the original lead and all lead activities, tasks, appointments, ownership history, and organization scope while creating a long-term Customer 360 profile. Deal, inventory booking, payment, commission, contract, and invoice modules remain out of scope.
+
+### New database tables and migration
+
+Migration: `backend/alembic/versions/20260608_0005_customer_360_conversion.py` (`20260607_0004 -> 20260608_0005`).
+
+- `customers`: customer identity, normalized contact data, source lead, real-estate interest, owner, follow-up dates, conversion metadata, notes, audit users, and soft delete.
+- `customer_activities`: manual contacts plus creation, conversion, edit, status, and owner timeline events.
+- `leads` gains `converted_at` and `converted_by_id`; its existing `converted_customer_id` is linked to `customers.id` by a PostgreSQL foreign key.
+
+Customer phone numbers are normalized to digits. Service validation prevents any active customer phone from appearing in either phone column of another non-deleted customer and returns `Số điện thoại khách hàng đã tồn tại` with HTTP 409.
+
+### Customer and conversion API endpoints
+
+- `GET /api/v1/customers`: scoped, paginated search/filter list.
+- `GET /api/v1/customers/assignees`: users available within the actor's assignment scope.
+- `POST /api/v1/customers`: manually create a customer.
+- `GET /api/v1/customers/{customer_id}`: Customer 360 detail, source lead history, tasks, and appointments.
+- `PUT /api/v1/customers/{customer_id}`: update customer profile and interest data.
+- `POST /api/v1/customers/{customer_id}/status`: change status and write timeline/audit records.
+- `POST /api/v1/customers/{customer_id}/owner`: change owner within organization scope.
+- `POST /api/v1/customers/{customer_id}/activities`: add note/call/Zalo/email/meeting activity.
+- `DELETE /api/v1/customers/{customer_id}`: soft delete.
+- `POST /api/v1/leads/{lead_id}/convert`: atomically create the customer, mark the lead converted, and write both timelines and audit events.
+
+### Frontend routes
+
+```text
+/customers
+/customers/:id
+```
+
+The customer list includes search, status/type/source/project filters, pagination, customer CRUD actions, status and owner actions. Customer detail includes contact, interest, ownership, dates, notes, activity form/timeline, and a concise source-lead history. Lead detail now displays **Chuyển thành khách hàng** when the actor has an applicable `leads.convert.*` permission, or links to the converted customer after conversion.
+
+### Permissions added
+
+Customer permissions:
+
+```text
+customers.view.own / team / department / all
+customers.create
+customers.update.own / team / department / all
+customers.delete
+customers.assign.own / team / department / all
+customers.add_activity.own / team / department / all
+```
+
+Lead conversion permissions:
+
+```text
+leads.convert.own / team / department / all
+```
+
+Default mapping follows `all > department > team > own`: Director uses all scope, Sales Manager department scope, Leader team scope, Sale own scope, Viewer own read-only scope, and Admin receives every permission.
+
+### Lead conversion flow
+
+1. Confirm the actor can view and convert the lead in the applicable organization scope.
+2. Reject an already converted lead and reject a phone already used by another non-deleted customer.
+3. Copy the lead's identity, phones, channels, source, project/area, budget, bedroom/area need, owner, contact/follow-up dates, and notes.
+4. Create `CUS-000001`-style customer code and source-lead relationship.
+5. Set lead status to `converted`, `converted_customer_id`, `converted_at`, and `converted_by_id`.
+6. Write customer conversion activity, lead conversion activity, `customers.create`, and `leads.convert` audit records in the same transaction.
+7. Keep every existing lead activity, task, and appointment in place and expose them from Customer 360.
+
+### Customer scope rules
+
+- Own: customer owner is the current user.
+- Team: owner belongs to a team led by the current user.
+- Department: owner belongs to an accessible/managed department.
+- All: all non-deleted customers.
+- Assignment targets must be active users inside the actor's `customers.assign.*` scope.
+- Backend scope checks remain authoritative; frontend permission checks only control visibility.
+
+### Sprint 7 manual test checklist
+
+#### Setup
+
+1. Login as Admin.
+2. Confirm Sprint 6 still works: leads, tasks, appointments, and dashboards.
+3. Ensure Sale7 exists and has an own-scope lead.
+
+#### Customer create test
+
+1. Open `/customers`.
+2. Create `Khách hàng A`, phone `0900000001`, type `individual`, status `active`.
+3. Confirm the customer appears, then open detail.
+4. Add call activity `Đã gọi xác nhận nhu cầu`.
+5. Confirm the timeline entry and updated `last_contact_at`.
+
+#### Duplicate phone test
+
+1. Create a customer with phone `0900000002`.
+2. Create another customer with the same phone in either phone field.
+3. Confirm `Số điện thoại khách hàng đã tồn tại`.
+
+#### Lead conversion test
+
+1. Open a non-converted lead and select **Chuyển thành khách hàng**.
+2. Confirm lead code, customer name, phone, source, project, budget, and owner preview.
+3. Submit and confirm customer creation, converted lead status/link, source-lead customer link, both conversion timeline entries, and preserved lead tasks/appointments.
+4. Convert the same lead again and confirm `Lead này đã được chuyển thành khách hàng`.
+
+#### Customer scope test
+
+1. Login as Sale7 and confirm only own customers are listed/openable.
+2. Try another sale's customer and expect access denied.
+3. Login as Leader and confirm team customers.
+4. Login as Admin and confirm all customers.
+
+#### Regression test
+
+Verify login/logout, all Admin pages, organization pages, lead list/create/detail/status/assignment/reclaim/overdue, duplicate lead phone, tasks/today/overdue, appointments/today/validation, dashboards, own scope, and modal cleanup.
+
+### Known limitations
+
+- Sprint 7 implements `reject_existing`; automatic customer merge is intentionally deferred.
+- Customer tasks and appointments are displayed through the immutable source lead. Dedicated customer-native task/appointment foreign keys are deferred.
+- Customer code generation is application-managed. TODO: Replace with database sequence for high-concurrency production.
+- Cross-column duplicate phone protection is service-level because a portable partial cross-column unique constraint is not available. All supported writes must use the service/API layer.
+- This source snapshot has no configured `origin`, local `dev` branch, or tag refs. Sprint 7 was based on local commit `faebe3d`, whose history contains the required Sprint 6 and Sprint 5 merge commits.
+
+### Suggested Sprint 8 scope
+
+Implement the Deal foundation after Customer 360 stabilizes: customer-linked pipeline stages, project/property selection, negotiation history, scoped ownership, deal activity timeline, and basic forecast metrics. Keep deposits, payments, contracts, invoices, and commissions in later dedicated sprints unless separately approved.
