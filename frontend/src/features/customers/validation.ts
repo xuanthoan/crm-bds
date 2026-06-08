@@ -1,7 +1,7 @@
 import type { CustomerPayload } from './types';
 
 const PHONE_PATTERN = /^\+?[\d\s-]+$/;
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_PATTERN = /^[A-Za-z0-9_%+-]+(?:\.[A-Za-z0-9_%+-]+)*@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
 const NUMERIC_FIELDS = ['budget_min', 'budget_max', 'bedroom_count', 'area_min', 'area_max'] as const;
 const OPTIONAL_TEXT_FIELDS = [
   'secondary_phone',

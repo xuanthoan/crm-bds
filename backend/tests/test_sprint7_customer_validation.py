@@ -13,12 +13,18 @@ class Sprint7CustomerValidationTests(unittest.TestCase):
         self.assertIsNone(customer.email)
 
     def test_empty_email_is_optional(self):
-        customer = CustomerCreate(full_name="Khách hàng A", primary_phone="0987 332 499", email="")
-        self.assertEqual("0987332499", customer.primary_phone)
-        self.assertIsNone(customer.email)
+        for email in ("", "   "):
+            with self.subTest(email=email):
+                customer = CustomerCreate(full_name="Khách hàng A", primary_phone="0987 332 499", email=email)
+                self.assertEqual("0987332499", customer.primary_phone)
+                self.assertIsNone(customer.email)
+
+    def test_valid_email_is_accepted(self):
+        customer = CustomerCreate(full_name="Khách hàng A", primary_phone="0987332499", email="test@gmail.com")
+        self.assertEqual("test@gmail.com", customer.email)
 
     def test_invalid_email_has_clear_message(self):
-        for email in ("abc", "test@", "@gmail.com"):
+        for email in ("xada@g,ail.com", "abc", "test@", "@gmail.com", "test@gmail"):
             with self.subTest(email=email), self.assertRaisesRegex(ValidationError, "Email không hợp lệ"):
                 CustomerCreate(full_name="Khách hàng A", primary_phone="0987332499", email=email)
 
