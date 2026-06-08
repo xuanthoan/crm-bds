@@ -1,6 +1,8 @@
 from app.models.audit_log import AuditLog
 from app.models.customer import Customer
 from app.models.customer_activity import CustomerActivity
+from app.models.deal import Deal
+from app.models.deal_activity import DealActivity
 from app.models.department import Department
 from app.models.lead import Lead
 from app.models.lead_activity import LeadActivity
@@ -13,4 +15,4 @@ from app.models.team import Team
 from app.models.user import User
 from app.models.user_organization_membership import UserOrganizationMembership
 
-__all__ = ["AuditLog", "Customer", "CustomerActivity", "Department", "Lead", "LeadActivity", "LeadAppointment", "LeadTask", "Permission", "RefreshToken", "Role", "Team", "User", "UserOrganizationMembership"]
+__all__ = ["AuditLog", "Customer", "CustomerActivity", "Deal", "DealActivity", "Department", "Lead", "LeadActivity", "LeadAppointment", "LeadTask", "Permission", "RefreshToken", "Role", "Team", "User", "UserOrganizationMembership"]
