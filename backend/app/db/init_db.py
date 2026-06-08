@@ -36,6 +36,12 @@ def seed_roles_permissions(db: Session) -> None:
     for role_code, permission_codes in ROLE_PERMISSION_MAP.items():
         role = role_by_code[role_code]
         desired_permissions = [permission_by_code[code] for code in permission_codes]
+        desired_codes = set(permission_codes)
+        # Sprint 8 replaces the legacy deal permission vocabulary. Keep system roles
+        # synchronized so obsolete deal grants do not survive an application upgrade.
+        for permission in list(role.permissions):
+            if permission.module == "deals" and permission.code not in desired_codes:
+                role.permissions.remove(permission)
         existing_codes = {permission.code for permission in role.permissions}
         for permission in desired_permissions:
             if permission.code not in existing_codes:

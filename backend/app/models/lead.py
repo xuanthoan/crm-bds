@@ -56,6 +56,7 @@ class Lead(Base):
     assigned_by = relationship("User", foreign_keys=[assigned_by_id], lazy="joined")
     converted_by = relationship("User", foreign_keys=[converted_by_id], lazy="joined")
     converted_customer = relationship("Customer", foreign_keys=[converted_customer_id], lazy="joined")
+    deals = relationship("Deal", back_populates="source_lead", lazy="select")
     source_customer = relationship("Customer", foreign_keys="Customer.source_lead_id", back_populates="source_lead", uselist=False)
     activities = relationship("LeadActivity", back_populates="lead", cascade="all, delete-orphan", order_by="LeadActivity.created_at.desc()")
     tasks = relationship("LeadTask", back_populates="lead", order_by="LeadTask.due_at.desc()")

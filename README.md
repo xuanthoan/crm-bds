@@ -572,3 +572,91 @@ Verify login/logout, all Admin pages, organization pages, lead list/create/detai
 ### Suggested Sprint 8 scope
 
 Implement the Deal foundation after Customer 360 stabilizes: customer-linked pipeline stages, project/property selection, negotiation history, scoped ownership, deal activity timeline, and basic forecast metrics. Keep deposits, payments, contracts, invoices, and commissions in later dedicated sprints unless separately approved.
+
+## Sprint 8 — Deal Pipeline Foundation
+
+Sprint 8 introduces the first production-ready **Giao dịch (Deal)** workflow after a lead becomes a qualified customer. It extends Customer 360 without changing lead-to-customer conversion, lead tasks, or appointments.
+
+### Database migration
+
+- Migration: `backend/alembic/versions/20260609_0006_deal_pipeline.py`
+- Revision chain: `20260608_0005 -> 20260609_0006`
+- New tables:
+  - `deals`: customer-linked opportunity, pipeline/status/priority, property context, expected financial values, milestone dates, ownership, soft deletion, and audit timestamps.
+  - `deal_activities`: immutable deal timeline entries with user, activity type, human-readable old/new values, optional JSON metadata, and timestamp.
+- Deal codes use application-level `DL-000001` generation. A database sequence is recommended before high-concurrency production use.
+
+### Deal pipeline
+
+1. `new` — Mới tạo
+2. `consulting` — Đang tư vấn
+3. `viewing` — Đã xem nhà / xem dự án
+4. `negotiating` — Đang đàm phán
+5. `deposit` — Đặt cọc
+6. `contract` — Ký hợp đồng
+7. `completed` — Hoàn tất
+8. `lost` — Thất bại / Hủy
+
+Statuses are `open`, `won`, `lost`, and `cancelled`. Priorities are `low`, `medium`, `high`, and `urgent`.
+
+### API endpoints
+
+- `GET /api/v1/deals` — scoped, paginated filtering/search.
+- `POST /api/v1/deals` — create a deal.
+- `GET /api/v1/deals/assignees` — eligible assignees for the current assignment scope.
+- `GET /api/v1/deals/{deal_id}` — detail, linked customer summary, source lead summary, and timeline.
+- `PUT /api/v1/deals/{deal_id}` — update deal information.
+- `POST /api/v1/deals/{deal_id}/stage` — change pipeline stage and milestone data.
+- `POST /api/v1/deals/{deal_id}/status` — change open/won/lost/cancelled status.
+- `POST /api/v1/deals/{deal_id}/assign` — assign an eligible owner.
+- `POST /api/v1/deals/{deal_id}/activities` — add a timeline activity.
+- `DELETE /api/v1/deals/{deal_id}` — soft delete.
+
+### Frontend routes and Customer 360
+
+- `/deals` — filters, paginated table, permission-aware actions, and create form.
+- `/deals/:id` — deal summary, values, milestones, customer link, activity form, and timeline.
+- Customer Detail includes a **Giao dịch** section and a **Tạo giao dịch** action. Customer, source lead, and customer owner are prefilled when available.
+
+### Permissions and organization scope
+
+Deal permissions use explicit `own`, `team`, `department`, and `all` scopes for `view`, `update`, `assign`, `stage`, `status`, `add_activity`, and `delete`, plus `deals.create`. Scope priority is `all > department > team > own`; own access includes deals owned or created by the current user.
+
+- **Admin:** every deal permission.
+- **Director:** all-scoped view/update/assign/stage/status/activity; no delete by the current director pattern.
+- **Sales Manager:** create and department-scoped view/update/assign/stage/status/activity.
+- **Leader:** create and team-scoped view/update/assign/stage/status/activity.
+- **Sale:** create and own-scoped view/update/stage/status/activity; no assignment permission.
+- **Viewer:** own-scoped read-only access.
+
+### Manual test checklist
+
+- [ ] Admin creates a deal from `/deals`.
+- [ ] Admin creates a deal from Customer Detail.
+- [ ] Sale creates a deal for an own customer.
+- [ ] Sale cannot see another sale's deal.
+- [ ] Leader sees team deals.
+- [ ] Sales Manager sees department deals.
+- [ ] Change stage `new -> consulting -> viewing -> negotiating`.
+- [ ] Change stage to `deposit` and verify deposit fields and timeline.
+- [ ] Change stage to `contract` and verify contract fields and timeline.
+- [ ] Mark a deal won/completed and verify `closed_at`.
+- [ ] Mark a deal lost without a reason and verify rejection.
+- [ ] Add a deal activity.
+- [ ] Assignment timeline shows user names rather than UUIDs.
+- [ ] Customer Detail shows its related deals and detail links.
+- [ ] Soft delete hides a deal from normal lists.
+
+### Known limitations
+
+- No payment schedule yet.
+- No contract or invoice module yet.
+- No commission calculation yet; `commission_expected` is informational only.
+- No inventory/property catalog yet.
+- No kanban drag-and-drop pipeline yet.
+- Deal code generation is application-level and should use a database sequence later.
+- Deal reporting dashboard is not included in Sprint 8.
+
+### Suggested Sprint 9 scope
+
+A future sprint can add a kanban pipeline, richer stage-transition policies, reminders tied to deal milestones, and focused deal dashboards. Payment schedules, formal contracts/invoices, inventory, and commission calculation should remain separate modules with their own approved scope.

@@ -23,7 +23,9 @@ import { AppLayout } from '../layouts/AppLayout';
 import { CustomersPage } from '../features/customers/CustomersPage';
 import { CustomerDetailPage } from '../features/customers/CustomerDetailPage';
 import { CUSTOMER_VIEW_PERMISSIONS } from '../features/customers/constants';
-import { DealsPage } from '../pages/DealsPage';
+import { DealsPage } from '../features/deals/DealsPage';
+import { DealDetailPage } from '../features/deals/DealDetailPage';
+import { DEAL_VIEW_PERMISSIONS } from '../features/deals/constants';
 import { ForbiddenPage } from '../pages/ForbiddenPage';
 import { PropertiesPage } from '../pages/PropertiesPage';
 import { ReportsPage } from '../pages/ReportsPage';
@@ -57,7 +59,7 @@ const protectedPages: Record<string, ProtectedPage> = {
   '/admin/memberships': { element: <MembershipsPage />, permission: 'users.update' },
   '/customers': { element: <CustomersPage />, permission: CUSTOMER_VIEW_PERMISSIONS },
   '/properties': { element: <PropertiesPage />, permission: 'inventory.view.available' },
-  '/deals': { element: <DealsPage />, permission: 'deals.view.own' },
+  '/deals': { element: <DealsPage />, permission: DEAL_VIEW_PERMISSIONS },
   '/reports': { element: <ReportsPage />, permission: 'reports.view.own' },
 };
 
@@ -97,6 +99,8 @@ export function AppRoutes() {
   }, [authenticated, normalizedPath]);
 
   const page = useMemo(() => {
+    const dealDetailMatch = normalizedPath.match(/^\/deals\/([0-9a-f-]+)$/i);
+    if (dealDetailMatch) return { element: <DealDetailPage dealId={dealDetailMatch[1]} />, permission: DEAL_VIEW_PERMISSIONS };
     const customerDetailMatch = normalizedPath.match(/^\/customers\/([0-9a-f-]+)$/i);
     if (customerDetailMatch) return { element: <CustomerDetailPage customerId={customerDetailMatch[1]} />, permission: CUSTOMER_VIEW_PERMISSIONS };
     const leadDetailMatch = normalizedPath.match(/^\/leads\/([0-9a-f-]+)$/i);
