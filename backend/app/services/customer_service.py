@@ -68,7 +68,7 @@ def _refresh_score(customer: Customer) -> tuple[int, str | None]:
 
 
 def serialize_related_person(person: CustomerRelatedPerson) -> dict:
-    return {"id": person.id, "full_name": person.full_name, "relationship": person.relationship, "phone": person.phone, "email": person.email, "note": person.note, "created_at": person.created_at, "updated_at": person.updated_at}
+    return {"id": person.id, "full_name": person.full_name, "relationship": person.relationship_type, "phone": person.phone, "email": person.email, "note": person.note, "created_at": person.created_at, "updated_at": person.updated_at}
 
 
 def _permissions(user: User) -> set[str]:
@@ -403,7 +403,14 @@ def list_related_people(db: Session, customer_id: UUID, actor: User) -> list[Cus
 def add_related_person(db: Session, customer_id: UUID, payload: CustomerRelatedPersonCreate, actor: User) -> CustomerRelatedPerson:
     customer = get_customer_detail(db, customer_id, actor)
     _require_update(db, actor, customer)
-    person = CustomerRelatedPerson(customer_id=customer.id, created_by_id=actor.id, **payload.model_dump())
+    data = payload.model_dump()
+    relationship_type = data.pop("relationship")
+    person = CustomerRelatedPerson(
+        customer_id=customer.id,
+        created_by_id=actor.id,
+        relationship_type=relationship_type,
+        **data,
+    )
     db.add(person); db.flush()
     _activity(db, customer, actor, "update", "Thêm người liên quan", person.full_name)
     db.commit(); db.refresh(person); return person
@@ -427,6 +434,8 @@ def update_related_person(db: Session, customer_id: UUID, person_id: UUID, paylo
         raise HTTPException(status_code=422, detail="Họ tên người liên quan là bắt buộc")
     if updates.get("relationship") is None and "relationship" in updates:
         raise HTTPException(status_code=422, detail="Mối quan hệ không hợp lệ")
+    if "relationship" in updates:
+        updates["relationship_type"] = updates.pop("relationship")
     for key, value in updates.items():
         setattr(person, key, value)
     _activity(db, customer, actor, "update", "Cập nhật người liên quan", person.full_name)

@@ -1,4 +1,6 @@
+import ast
 import unittest
+from pathlib import Path
 from datetime import date, timedelta
 
 from pydantic import ValidationError
@@ -28,6 +30,33 @@ class Sprint9CustomerProfileValidationTests(unittest.TestCase):
         self.assert_invalid("Mục đích mua không hợp lệ", buying_purpose="holiday")
         self.assert_invalid("Loại hình quan tâm không hợp lệ", interested_property_type="office")
         self.assert_invalid("Timeline mua không hợp lệ", buying_timeline="tomorrow")
+
+    def test_related_person_model_does_not_shadow_orm_relationship(self):
+        model_path = Path("backend/app/models/customer_related_person.py")
+        tree = ast.parse(model_path.read_text())
+        model = next(
+            node for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "CustomerRelatedPerson"
+        )
+        annotated_names = {
+            node.target.id
+            for node in model.body
+            if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+        }
+        self.assertNotIn("relationship", annotated_names)
+        self.assertIn("relationship_type", annotated_names)
+        self.assertIn(
+            'relationship_type: Mapped[str] = mapped_column("relationship",',
+            model_path.read_text(),
+        )
+
+    def test_model_registry_import_does_not_crash(self):
+        try:
+            import app.db.model_registry  # noqa: F401
+        except ModuleNotFoundError as exc:
+            if exc.name == "sqlalchemy":
+                self.skipTest("SQLAlchemy is not installed in this test environment")
+            raise
 
     def test_birth_date_phone_email_and_relationship_validation(self):
         self.assert_invalid("Ngày sinh không hợp lệ", date_of_birth=date.today() + timedelta(days=1))
