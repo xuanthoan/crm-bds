@@ -6,6 +6,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 from app.deals.constants import DEAL_PRIORITY_LABELS, DEAL_STATUS_LABELS, PIPELINE_STAGE_LABELS
 from app.models.customer import Customer
+from app.models.customer_activity import CustomerActivity
 from app.models.deal import Deal
 from app.models.deal_activity import DealActivity
 from app.models.lead import Lead
@@ -155,7 +156,32 @@ def add_deal_activity(db: Session, deal_id: UUID, payload: DealActivityCreate, a
     deal=_get(db,deal_id); _require(db,actor,deal,"deals.add_activity","Bạn không có quyền thêm hoạt động giao dịch này"); item=_add(db,deal,actor,payload.activity_type,payload.title,payload.content,metadata_json=payload.metadata_json); db.flush(); write_audit_log(db,action="deals.add_activity",user_id=actor.id,entity_type="deals",entity_id=str(deal.id),after_data={"activity_type":payload.activity_type}); db.commit(); db.refresh(item); return item
 
 def soft_delete_deal(db: Session, deal_id: UUID, actor: User) -> None:
-    deal=_get(db,deal_id); _require(db,actor,deal,"deals.delete","Bạn không có quyền xóa giao dịch này"); deal.deleted_at=datetime.now(timezone.utc); deal.deleted_by_id=actor.id; write_audit_log(db,action="deals.delete",user_id=actor.id,entity_type="deals",entity_id=str(deal.id)); db.commit()
+    deal = _get(db, deal_id)
+    _require(db, actor, deal, "deals.delete", "Bạn không có quyền xóa giao dịch này")
+    deleted_at = datetime.now(timezone.utc)
+    deal.deleted_at = deleted_at
+    deal.deleted_by_id = actor.id
+    expected_value = (
+        f"{deal.expected_value:,.0f}".replace(",", ".") + " ₫"
+        if deal.expected_value is not None
+        else "Chưa cập nhật"
+    )
+    customer_activity = CustomerActivity(
+        customer_id=deal.customer_id,
+        user_id=actor.id,
+        activity_type="update",
+        title="Xóa giao dịch",
+        content=(
+            f"Mã giao dịch: {deal.deal_code}\n"
+            f"Tên giao dịch: {deal.title}\n"
+            f"Giá trị dự kiến: {expected_value}\n"
+            f"Người xóa: {actor.full_name}\n"
+            f"Thời gian xóa: {deleted_at.strftime('%d/%m/%Y %H:%M:%S UTC')}"
+        ),
+    )
+    db.add(customer_activity)
+    write_audit_log(db, action="deals.delete", user_id=actor.id, entity_type="deals", entity_id=str(deal.id))
+    db.commit()
 
 def list_deal_assignees(db: Session, actor: User) -> list[User]:
     scope=_scope(actor,"deals.assign")

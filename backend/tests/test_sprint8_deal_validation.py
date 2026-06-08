@@ -1,4 +1,6 @@
+import ast
 import unittest
+from pathlib import Path
 from pydantic import ValidationError
 from app.schemas.deal import DealCreate, DealStageUpdate, DealStatusUpdate
 
@@ -16,6 +18,27 @@ class Sprint8DealValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError,'Giai đoạn giao dịch không hợp lệ'): self.make(pipeline_stage='bad')
         with self.assertRaisesRegex(ValidationError,'Trạng thái giao dịch không hợp lệ'): self.make(status='bad')
         with self.assertRaisesRegex(ValidationError,'Ưu tiên không hợp lệ'): self.make(priority='bad')
+    def test_soft_delete_writes_customer_timeline_and_keeps_active_filter(self):
+        service_path = Path("backend/app/services/deal_service.py")
+        source = service_path.read_text()
+        tree = ast.parse(source)
+        delete_function = next(
+            node for node in tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == "soft_delete_deal"
+        )
+        delete_source = ast.get_source_segment(source, delete_function) or ""
+
+        self.assertIn("Deal.deleted_at.is_(None)", source)
+        self.assertIn("deal.deleted_at = deleted_at", delete_source)
+        self.assertIn("CustomerActivity(", delete_source)
+        self.assertIn('title="Xóa giao dịch"', delete_source)
+        self.assertIn("Mã giao dịch: {deal.deal_code}", delete_source)
+        self.assertIn("Tên giao dịch: {deal.title}", delete_source)
+        self.assertIn("Giá trị dự kiến: {expected_value}", delete_source)
+        self.assertIn("Người xóa: {actor.full_name}", delete_source)
+        self.assertIn("Thời gian xóa:", delete_source)
+        self.assertNotIn("str(deal.id)", delete_source.split("write_audit_log", 1)[0])
+
     def test_lost_requires_reason(self):
         with self.assertRaisesRegex(ValidationError,'Vui lòng nhập lý do thất bại/hủy giao dịch'): DealStatusUpdate(status='lost')
         with self.assertRaisesRegex(ValidationError,'Vui lòng nhập lý do thất bại/hủy giao dịch'): DealStageUpdate(pipeline_stage='lost')
