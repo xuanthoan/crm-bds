@@ -1,4 +1,5 @@
 from datetime import date, datetime, time, timezone
+from decimal import Decimal
 from math import ceil
 from uuid import UUID
 
@@ -8,10 +9,11 @@ from sqlalchemy.orm import Session
 
 from app.models.customer import Customer
 from app.models.customer_activity import CustomerActivity
+from app.models.customer_related_person import CustomerRelatedPerson
 from app.models.lead import Lead
 from app.models.user import User
 from app.permissions.dependencies import get_user_permissions
-from app.schemas.customer import CustomerActivityCreate, CustomerCreate, CustomerOwnerUpdate, CustomerStatusUpdate, CustomerUpdate, LeadConvertRequest, normalize_customer_phone
+from app.schemas.customer import CustomerActivityCreate, CustomerCreate, CustomerOwnerUpdate, CustomerRelatedPersonCreate, CustomerRelatedPersonUpdate, CustomerStatusUpdate, CustomerUpdate, LeadConvertRequest, normalize_customer_phone
 from app.services.audit_service import write_audit_log
 from app.services.lead_activity_service import create_activity_record, serialize_activity as serialize_lead_activity
 from app.services.lead_service import can_view_lead, get_lead_by_id, serialize_lead
@@ -21,6 +23,52 @@ from app.services.user_service import get_user_by_id
 CUSTOMER_TYPES = {"individual", "company", "investor", "agent", "other"}
 CUSTOMER_STATUSES = {"active", "inactive", "potential", "vip", "blacklisted"}
 CONTACT_ACTIVITY_TYPES = {"call", "zalo", "email", "meeting"}
+
+ADVANCED_PROFILE_FIELDS = {"gender", "date_of_birth", "province", "district", "occupation", "company", "job_title", "expected_budget", "available_cash", "loan_needed", "loan_ratio", "preferred_bank", "monthly_income", "financial_rating", "buying_purpose", "interested_property_type", "preferred_direction", "preferred_view", "buying_timeline", "related_people_note"}
+
+
+def calculate_customer_score(customer: Customer) -> tuple[int, str, str]:
+    parts: list[str] = []
+    score = {"immediate": 30, "one_month": 25, "three_months": 15, "six_months": 8, "over_six_months": 3, "unknown": 0}.get(customer.buying_timeline, 0)
+    if score:
+        parts.append(f"Timeline +{score}")
+    financial_points = {"A": 30, "B": 20, "C": 10, "D": 0, "unknown": 0}.get(customer.financial_rating, 0)
+    score += financial_points
+    if financial_points:
+        parts.append(f"Tài chính +{financial_points}")
+    if customer.expected_budget and customer.expected_budget > 0 and customer.available_cash is not None:
+        ratio = customer.available_cash / customer.expected_budget
+        cash_points = 20 if ratio >= Decimal("0.3") else 15 if ratio >= Decimal("0.2") else 8 if ratio >= Decimal("0.1") else 0
+        score += cash_points
+        if cash_points:
+            parts.append(f"Tiền mặt +{cash_points}")
+    income = customer.monthly_income or 0
+    income_points = 10 if income >= 50_000_000 else 6 if income >= 30_000_000 else 3 if income >= 15_000_000 else 0
+    score += income_points
+    if income_points:
+        parts.append(f"Thu nhập +{income_points}")
+    now = datetime.now(timezone.utc)
+    if customer.last_contact_at:
+        contact_at = customer.last_contact_at if customer.last_contact_at.tzinfo else customer.last_contact_at.replace(tzinfo=timezone.utc)
+        if (now - contact_at).days <= 7:
+            score += 10
+            parts.append("Liên hệ gần đây +10")
+    if customer.next_follow_up_at:
+        score += 5
+        parts.append("Có lịch chăm sóc +5")
+    label = "hot" if score >= 75 else "warm" if score >= 45 else "cold" if score >= 20 else "unqualified"
+    return score, label, "; ".join(parts) or "Chưa có tiêu chí cộng điểm"
+
+
+def _refresh_score(customer: Customer) -> tuple[int, str | None]:
+    old = (customer.score_total, customer.score_label)
+    customer.score_total, customer.score_label, customer.score_note = calculate_customer_score(customer)
+    customer.score_updated_at = datetime.now(timezone.utc)
+    return old
+
+
+def serialize_related_person(person: CustomerRelatedPerson) -> dict:
+    return {"id": person.id, "full_name": person.full_name, "relationship": person.relationship, "phone": person.phone, "email": person.email, "note": person.note, "created_at": person.created_at, "updated_at": person.updated_at}
 
 
 def _permissions(user: User) -> set[str]:
@@ -113,7 +161,16 @@ def serialize_customer(customer: Customer, *, detail: bool = False) -> dict:
         "id": customer.id, "customer_code": customer.customer_code, "full_name": customer.full_name,
         "customer_type": customer.customer_type, "status": customer.status, "primary_phone": customer.primary_phone,
         "secondary_phone": customer.secondary_phone, "email": customer.email, "zalo": customer.zalo,
-        "facebook": customer.facebook, "address": customer.address, "source": customer.source,
+        "facebook": customer.facebook, "address": customer.address,
+        "gender": customer.gender, "date_of_birth": customer.date_of_birth, "province": customer.province, "district": customer.district,
+        "occupation": customer.occupation, "company": customer.company, "job_title": customer.job_title,
+        "expected_budget": customer.expected_budget, "available_cash": customer.available_cash, "loan_needed": customer.loan_needed,
+        "loan_ratio": customer.loan_ratio, "preferred_bank": customer.preferred_bank, "monthly_income": customer.monthly_income,
+        "financial_rating": customer.financial_rating, "buying_purpose": customer.buying_purpose,
+        "interested_property_type": customer.interested_property_type, "preferred_direction": customer.preferred_direction,
+        "preferred_view": customer.preferred_view, "buying_timeline": customer.buying_timeline, "related_people_note": customer.related_people_note,
+        "score_total": customer.score_total, "score_label": customer.score_label, "score_updated_at": customer.score_updated_at, "score_note": customer.score_note,
+        "source": customer.source,
         "source_lead_id": customer.source_lead_id, "source_note": customer.source_note,
         "interested_project": customer.interested_project, "interested_area": customer.interested_area,
         "budget_min": customer.budget_min, "budget_max": customer.budget_max, "bedroom_count": customer.bedroom_count,
@@ -130,6 +187,7 @@ def serialize_customer(customer: Customer, *, detail: bool = False) -> dict:
             "lead_activities": [serialize_lead_activity(item) for item in lead.activities] if lead else [],
             "related_tasks": [_task_summary(item) for item in lead.tasks if item.deleted_at is None] if lead else [],
             "related_appointments": [_appointment_summary(item) for item in lead.appointments if item.deleted_at is None] if lead else [],
+            "related_people": [serialize_related_person(item) for item in customer.related_people if item.deleted_at is None],
         })
     return data
 
@@ -146,7 +204,7 @@ def get_customer_detail(db: Session, customer_id: UUID, actor: User) -> Customer
     return customer
 
 
-def list_customers(db: Session, actor: User, *, page: int, page_size: int, search: str | None = None, customer_status: str | None = None, customer_type: str | None = None, owner_id: UUID | None = None, source: str | None = None, project: str | None = None, next_follow_up_from: date | None = None, next_follow_up_to: date | None = None):
+def list_customers(db: Session, actor: User, *, page: int, page_size: int, search: str | None = None, customer_status: str | None = None, customer_type: str | None = None, owner_id: UUID | None = None, source: str | None = None, project: str | None = None, next_follow_up_from: date | None = None, next_follow_up_to: date | None = None, gender: str | None = None, province: str | None = None, district: str | None = None, financial_rating: str | None = None, buying_purpose: str | None = None, interested_property_type: str | None = None, buying_timeline: str | None = None, score_label: str | None = None, score_min: int | None = None, score_max: int | None = None):
     scope = _scope(actor, "customers.view")
     if not scope:
         raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập khách hàng này")
@@ -160,6 +218,16 @@ def list_customers(db: Session, actor: User, *, page: int, page_size: int, searc
     if owner_id: conditions.append(Customer.owner_id == owner_id)
     if source: conditions.append(Customer.source.ilike(f"%{source}%"))
     if project: conditions.append(Customer.interested_project.ilike(f"%{project}%"))
+    if gender: conditions.append(Customer.gender == gender)
+    if province: conditions.append(Customer.province.ilike(f"%{province}%"))
+    if district: conditions.append(Customer.district.ilike(f"%{district}%"))
+    if financial_rating: conditions.append(Customer.financial_rating == financial_rating)
+    if buying_purpose: conditions.append(Customer.buying_purpose == buying_purpose)
+    if interested_property_type: conditions.append(Customer.interested_property_type == interested_property_type)
+    if buying_timeline: conditions.append(Customer.buying_timeline == buying_timeline)
+    if score_label: conditions.append(Customer.score_label == score_label)
+    if score_min is not None: conditions.append(Customer.score_total >= score_min)
+    if score_max is not None: conditions.append(Customer.score_total <= score_max)
     if next_follow_up_from: conditions.append(Customer.next_follow_up_at >= datetime.combine(next_follow_up_from, time.min, tzinfo=timezone.utc))
     if next_follow_up_to: conditions.append(Customer.next_follow_up_at <= datetime.combine(next_follow_up_to, time.max, tzinfo=timezone.utc))
     total = db.scalar(select(func.count(Customer.id)).where(*conditions)) or 0
@@ -224,6 +292,7 @@ def create_customer(db: Session, payload: CustomerCreate, actor: User) -> Custom
     owner_id = data.pop("owner_id") or actor.id
     _validate_owner(db, actor, owner_id)
     customer = Customer(**data, owner_id=owner_id, customer_code=_next_code(db), created_by_id=actor.id)
+    _refresh_score(customer)
     db.add(customer); db.flush()
     _activity(db, customer, actor, "other", "Tạo khách hàng", "Khách hàng được tạo thủ công")
     write_audit_log(db, action="customers.create", user_id=actor.id, entity_type="customers", entity_id=str(customer.id), after_data={"customer_code": customer.customer_code, "owner_id": str(owner_id)})
@@ -243,9 +312,16 @@ def update_customer(db: Session, customer: Customer, payload: CustomerUpdate, ac
         data["primary_phone"], data["secondary_phone"] = _validate_phone(db, primary, secondary, customer.id)
     merged = {"budget_min": data.get("budget_min", customer.budget_min), "budget_max": data.get("budget_max", customer.budget_max), "area_min": data.get("area_min", customer.area_min), "area_max": data.get("area_max", customer.area_max)}
     _validate_ranges(merged)
+    old_score = (customer.score_total, customer.score_label)
     for key, value in data.items(): setattr(customer, key, value)
     customer.updated_by_id = actor.id
-    _activity(db, customer, actor, "other", "Cập nhật khách hàng", "Thông tin khách hàng đã được cập nhật")
+    _refresh_score(customer)
+    if ADVANCED_PROFILE_FIELDS.intersection(data):
+        _activity(db, customer, actor, "update", "Cập nhật hồ sơ khách hàng", "Thông tin hồ sơ khách hàng đã được cập nhật")
+    else:
+        _activity(db, customer, actor, "other", "Cập nhật khách hàng", "Thông tin khách hàng đã được cập nhật")
+    if old_score != (customer.score_total, customer.score_label):
+        _activity(db, customer, actor, "update", "Cập nhật điểm khách hàng", old_value=f"{old_score[1] or 'Chưa có'} / {old_score[0]}", new_value=f"{customer.score_label} / {customer.score_total}")
     updated_fields = sorted([*data, *(["owner_id"] if owner_changed else [])])
     write_audit_log(db, action="customers.update", user_id=actor.id, entity_type="customers", entity_id=str(customer.id), after_data={"fields": updated_fields})
     db.commit(); db.refresh(customer); return customer
@@ -275,7 +351,9 @@ def add_customer_activity(db: Session, customer: Customer, payload: CustomerActi
     content = payload.content.strip()
     if not content: raise HTTPException(status_code=422, detail="Nội dung là bắt buộc")
     item = _activity(db, customer, actor, payload.activity_type, payload.title or {"note":"Ghi chú", "call":"Cuộc gọi", "zalo":"Zalo", "email":"Email", "meeting":"Cuộc hẹn", "other":"Hoạt động"}[payload.activity_type], content)
-    if payload.activity_type in CONTACT_ACTIVITY_TYPES: customer.last_contact_at = datetime.now(timezone.utc)
+    if payload.activity_type in CONTACT_ACTIVITY_TYPES:
+        customer.last_contact_at = datetime.now(timezone.utc)
+        _refresh_score(customer)
     write_audit_log(db, action="customers.add_activity", user_id=actor.id, entity_type="customers", entity_id=str(customer.id), after_data={"activity_type": payload.activity_type})
     db.commit(); db.refresh(item); return item
 
@@ -306,7 +384,8 @@ def convert_lead_to_customer(db: Session, lead_id: UUID, payload: LeadConvertReq
         interested_area=lead.location_interest, budget_min=lead.budget_min, budget_max=lead.budget_max, bedroom_count=lead.bedroom_need,
         area_min=lead.area_min, area_max=lead.area_max, owner_id=owner_id, created_by_id=actor.id,
         first_contact_at=lead.created_at, last_contact_at=lead.last_contact_at, next_follow_up_at=lead.next_follow_up_at,
-        converted_at=now, note=payload.note or lead.note)
+        converted_at=now, note=payload.note or lead.note, buying_timeline="unknown", financial_rating="unknown")
+    _refresh_score(customer)
     db.add(customer); db.flush()
     lead.status = "converted"; lead.converted_customer_id = customer.id; lead.converted_at = now; lead.converted_by_id = actor.id
     _activity(db, customer, actor, "conversion", "Chuyển đổi từ lead", f"Lead {lead.code} đã được chuyển thành khách hàng")
@@ -314,3 +393,52 @@ def convert_lead_to_customer(db: Session, lead_id: UUID, payload: LeadConvertReq
     write_audit_log(db, action="customers.create", user_id=actor.id, entity_type="customers", entity_id=str(customer.id), after_data={"source_lead_id": str(lead.id)})
     write_audit_log(db, action="leads.convert", user_id=actor.id, entity_type="leads", entity_id=str(lead.id), after_data={"customer_id": str(customer.id)})
     db.commit(); db.refresh(customer); db.refresh(lead); return customer, lead
+
+
+def list_related_people(db: Session, customer_id: UUID, actor: User) -> list[CustomerRelatedPerson]:
+    customer = get_customer_detail(db, customer_id, actor)
+    return [item for item in customer.related_people if item.deleted_at is None]
+
+
+def add_related_person(db: Session, customer_id: UUID, payload: CustomerRelatedPersonCreate, actor: User) -> CustomerRelatedPerson:
+    customer = get_customer_detail(db, customer_id, actor)
+    _require_update(db, actor, customer)
+    person = CustomerRelatedPerson(customer_id=customer.id, created_by_id=actor.id, **payload.model_dump())
+    db.add(person); db.flush()
+    _activity(db, customer, actor, "update", "Thêm người liên quan", person.full_name)
+    db.commit(); db.refresh(person); return person
+
+
+def _get_related_person(db: Session, person_id: UUID) -> CustomerRelatedPerson:
+    person = db.scalar(select(CustomerRelatedPerson).where(CustomerRelatedPerson.id == person_id, CustomerRelatedPerson.deleted_at.is_(None)))
+    if not person:
+        raise HTTPException(status_code=404, detail="Người liên quan không tồn tại")
+    return person
+
+
+def update_related_person(db: Session, customer_id: UUID, person_id: UUID, payload: CustomerRelatedPersonUpdate, actor: User) -> CustomerRelatedPerson:
+    customer = get_customer_detail(db, customer_id, actor)
+    _require_update(db, actor, customer)
+    person = _get_related_person(db, person_id)
+    if person.customer_id != customer.id:
+        raise HTTPException(status_code=404, detail="Người liên quan không tồn tại")
+    updates = payload.model_dump(exclude_unset=True)
+    if updates.get("full_name") is None and "full_name" in updates:
+        raise HTTPException(status_code=422, detail="Họ tên người liên quan là bắt buộc")
+    if updates.get("relationship") is None and "relationship" in updates:
+        raise HTTPException(status_code=422, detail="Mối quan hệ không hợp lệ")
+    for key, value in updates.items():
+        setattr(person, key, value)
+    _activity(db, customer, actor, "update", "Cập nhật người liên quan", person.full_name)
+    db.commit(); db.refresh(person); return person
+
+
+def delete_related_person(db: Session, customer_id: UUID, person_id: UUID, actor: User) -> None:
+    customer = get_customer_detail(db, customer_id, actor)
+    _require_update(db, actor, customer)
+    person = _get_related_person(db, person_id)
+    if person.customer_id != customer.id:
+        raise HTTPException(status_code=404, detail="Người liên quan không tồn tại")
+    person.deleted_at = datetime.now(timezone.utc)
+    _activity(db, customer, actor, "update", "Xóa người liên quan", person.full_name)
+    db.commit()
