@@ -1,6 +1,6 @@
 import { apiRequest } from '../../services/apiClient';
-import type { Customer, CustomerActivity, CustomerActivityType, CustomerPayload, CustomerStatus, CustomerType, CustomerUser } from './types';
-export type CustomerFilters={page?:number;page_size?:number;search?:string;status?:string;customer_type?:string;owner_id?:string;source?:string;project?:string;next_follow_up_from?:string;next_follow_up_to?:string};
+import type { Customer, CustomerActivity, CustomerActivityType, CustomerPayload, CustomerRelatedPerson, CustomerStatus, CustomerType, CustomerUser } from './types';
+export type CustomerFilters={page?:number;page_size?:number;search?:string;status?:string;customer_type?:string;owner_id?:string;source?:string;project?:string;next_follow_up_from?:string;next_follow_up_to?:string;gender?:string;province?:string;district?:string;financial_rating?:string;buying_purpose?:string;interested_property_type?:string;buying_timeline?:string;score_label?:string;score_min?:number;score_max?:number};
 export function listCustomers(filters:CustomerFilters={}){const p=new URLSearchParams();p.set('page',String(filters.page??1));p.set('page_size',String(filters.page_size??20));Object.entries(filters).forEach(([k,v])=>{if(v!==undefined&&v!==''&&k!=='page'&&k!=='page_size')p.set(k,String(v));});return apiRequest<Customer[]>(`/api/v1/customers?${p}`);}
 export const getCustomer=(id:string)=>apiRequest<Customer>(`/api/v1/customers/${id}`);
 export const createCustomer=(payload:CustomerPayload)=>apiRequest<Customer>('/api/v1/customers',{method:'POST',body:JSON.stringify(payload)});
@@ -11,3 +11,9 @@ export const addCustomerActivity=(id:string,payload:{activity_type:CustomerActiv
 export const deleteCustomer=(id:string)=>apiRequest<null>(`/api/v1/customers/${id}`,{method:'DELETE'});
 export const listCustomerAssignees=()=>apiRequest<CustomerUser[]>('/api/v1/customers/assignees');
 export const convertLead=(leadId:string,payload:{customer_type:CustomerType;status:CustomerStatus;owner_id?:string|null;note?:string})=>apiRequest<{customer:Customer;lead:any;message:string}>(`/api/v1/leads/${leadId}/convert`,{method:'POST',body:JSON.stringify({...payload,merge_strategy:'reject_existing'})});
+
+export type RelatedPersonPayload={full_name:string;relationship:string;phone?:string|null;email?:string|null;note?:string|null};
+export const listRelatedPeople=(customerId:string)=>apiRequest<CustomerRelatedPerson[]>(`/api/v1/customers/${customerId}/related-people`);
+export const addRelatedPerson=(customerId:string,payload:RelatedPersonPayload)=>apiRequest<CustomerRelatedPerson>(`/api/v1/customers/${customerId}/related-people`,{method:'POST',body:JSON.stringify(payload)});
+export const updateRelatedPerson=(customerId:string,personId:string,payload:Partial<RelatedPersonPayload>)=>apiRequest<CustomerRelatedPerson>(`/api/v1/customers/${customerId}/related-people/${personId}`,{method:'PUT',body:JSON.stringify(payload)});
+export const deleteRelatedPerson=(customerId:string,personId:string)=>apiRequest<null>(`/api/v1/customers/${customerId}/related-people/${personId}`,{method:'DELETE'});

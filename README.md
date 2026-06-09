@@ -660,3 +660,53 @@ Deal permissions use explicit `own`, `team`, `department`, and `all` scopes for 
 ### Suggested Sprint 9 scope
 
 A future sprint can add a kanban pipeline, richer stage-transition policies, reminders tied to deal milestones, and focused deal dashboards. Payment schedules, formal contracts/invoices, inventory, and commission calculation should remain separate modules with their own approved scope.
+
+## Sprint 9 — Customer Profile Advanced, Financial Profile & Scoring
+
+Sprint 9 expands Customer 360 with optional personal, financial, demand, search-criteria, buying-timeline, related-person, and rule-based scoring data. Existing customer records remain valid and only name plus primary phone remain required.
+
+### Database migration
+
+- Migration: `backend/alembic/versions/20260610_0007_customer_profile_advanced.py` (`20260609_0006 -> 20260610_0007`).
+- New customer fields: gender, birth date, province/district, occupation/company/job title, expected budget, available cash, loan need/ratio, preferred bank, monthly income, financial rating, buying purpose, interested property type, preferred direction/view, buying timeline, related-people note, score total/label/update time/note.
+- New `customer_related_people` table stores simple related contacts with relationship, phone/email, notes, creator, timestamps, and soft deletion.
+- Indexed filters include personal location, financial/demand/timeline values, score values, and owner combinations.
+
+### Customer score formula
+
+- Timeline: immediate 30, one month 25, three months 15, six months 8, over six months 3.
+- Financial rating: A 30, B 20, C 10, D/unknown 0.
+- Available cash versus expected budget: at least 30% = 20, 20% = 15, 10% = 8.
+- Monthly income: at least VND 50m = 10, VND 30m = 6, VND 15m = 3.
+- Engagement: contact in the last seven days = 10; a next follow-up exists = 5.
+- Labels: hot >= 75, warm >= 45, cold >= 20, otherwise unqualified. Scores recalculate on customer create/update and contact activities.
+
+### API and UI
+
+`GET /api/v1/customers` supports gender, province, district, financial rating, buying purpose, interested property type, buying timeline, score label, and score range filters. Customer detail returns advanced fields, score, and related people. Related contacts use nested GET/POST/PUT/DELETE endpoints under `/api/v1/customers/{customer_id}/related-people` with existing customer view/update scope.
+
+The customer form now uses five collapsible sections. Customer Detail adds personal, financial, demand/search criteria, related people, and score sections while retaining deals, activities, and source-lead history. Empty detail values display **Chưa cập nhật**. The customer list adds qualification filters and compact score/financial/timeline information.
+
+### Manual test checklist
+
+- [ ] Create a customer with only name and phone.
+- [ ] Create a customer with a full advanced profile.
+- [ ] Save empty optional fields.
+- [ ] Reject invalid phone and email.
+- [ ] Reject negative financial values and loan ratio above 100.
+- [ ] Validate buying timeline and financial rating.
+- [ ] Verify hot and low-quality score calculations.
+- [ ] Filter customers by score label and financial rating.
+- [ ] Verify advanced profile and **Chưa cập nhật** placeholders in Customer Detail.
+- [ ] Add, update through API, and delete a related person.
+- [ ] Verify existing Customer CRUD, Lead → Customer conversion, Deal list/customer deals, and Sale scope.
+
+### Known limitations
+
+- Scoring is rule-based, not AI-based; there is no external credit scoring, bank integration, or advanced reporting dashboard.
+- Province and district are free text because no location master-data table exists yet.
+- Related people are simple contacts and are not duplicate-checked against customers.
+
+### Suggested Sprint 10 scope
+
+Add location master data, configurable score rules/history, related-person duplicate matching, qualification reports, and customer segmentation. Inventory, contracts, payments, invoices, commissions, and marketing should remain separate approved modules.

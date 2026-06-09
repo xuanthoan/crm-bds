@@ -1,58 +1,6 @@
 import type { CustomerPayload } from './types';
-
 const PHONE_PATTERN = /^\+?[\d\s-]+$/;
 const EMAIL_PATTERN = /^[A-Za-z0-9_%+-]+(?:\.[A-Za-z0-9_%+-]+)*@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
-const NUMERIC_FIELDS = ['budget_min', 'budget_max', 'bedroom_count', 'area_min', 'area_max'] as const;
-const OPTIONAL_TEXT_FIELDS = [
-  'secondary_phone',
-  'email',
-  'zalo',
-  'facebook',
-  'address',
-  'source',
-  'interested_project',
-  'interested_area',
-  'purpose',
-  'next_follow_up_at',
-  'note',
-] as const;
-
-export function normalizeCustomerPhone(value: string): string | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  if (!PHONE_PATTERN.test(trimmed)) throw new Error('Số điện thoại không hợp lệ');
-  let digits = trimmed.replace(/\D/g, '');
-  if (digits.length === 11 && digits.startsWith('84')) digits = `0${digits.slice(2)}`;
-  if (digits.length !== 10 || !digits.startsWith('0')) throw new Error('Số điện thoại không hợp lệ');
-  return digits;
-}
-
-export function buildCustomerPayload(form: Record<string, unknown>): CustomerPayload {
-  const payload: Record<string, unknown> = { ...form };
-  const fullName = String(form.full_name ?? '').trim();
-  if (!fullName) throw new Error('Họ tên khách hàng là bắt buộc');
-  payload.full_name = fullName;
-
-  const primaryPhone = normalizeCustomerPhone(String(form.primary_phone ?? ''));
-  if (!primaryPhone) throw new Error('Số điện thoại chính là bắt buộc');
-  payload.primary_phone = primaryPhone;
-
-  const secondaryPhone = normalizeCustomerPhone(String(form.secondary_phone ?? ''));
-  payload.secondary_phone = secondaryPhone;
-
-  const email = String(form.email ?? '').trim();
-  if (email && !EMAIL_PATTERN.test(email)) throw new Error('Email không hợp lệ');
-  payload.email = email ? email.toLowerCase() : null;
-
-  NUMERIC_FIELDS.forEach((field) => {
-    const value = form[field];
-    payload[field] = value === '' || value === null || value === undefined ? null : Number(value);
-  });
-  OPTIONAL_TEXT_FIELDS.forEach((field) => {
-    if (field === 'secondary_phone' || field === 'email') return;
-    const value = form[field];
-    payload[field] = typeof value === 'string' && !value.trim() ? null : value ?? null;
-  });
-
-  return payload as CustomerPayload;
-}
+const NUMERIC_FIELDS=['expected_budget','available_cash','loan_needed','loan_ratio','monthly_income','budget_min','budget_max','bedroom_count','area_min','area_max'] as const;
+export function normalizeCustomerPhone(value:string):string|null{const v=value.trim();if(!v)return null;if(!PHONE_PATTERN.test(v))throw new Error('Số điện thoại không hợp lệ');let d=v.replace(/\D/g,'');if(d.length===11&&d.startsWith('84'))d=`0${d.slice(2)}`;if(d.length!==10||!d.startsWith('0'))throw new Error('Số điện thoại không hợp lệ');return d}
+export function buildCustomerPayload(form:Record<string,unknown>):CustomerPayload{const payload:Record<string,unknown>={};const name=String(form.full_name??'').trim();if(!name)throw new Error('Họ tên khách hàng là bắt buộc');payload.full_name=name;const phone=normalizeCustomerPhone(String(form.primary_phone??''));if(!phone)throw new Error('Số điện thoại chính là bắt buộc');payload.primary_phone=phone;payload.secondary_phone=normalizeCustomerPhone(String(form.secondary_phone??''));const email=String(form.email??'').trim();if(email&&!EMAIL_PATTERN.test(email))throw new Error('Email không hợp lệ');payload.email=email?email.toLowerCase():null;NUMERIC_FIELDS.forEach(f=>{const raw=form[f];const value=raw===''||raw==null?null:Number(raw);if(value!==null&&value<0)throw new Error('Giá trị tài chính không hợp lệ');if(f==='loan_ratio'&&value!==null&&value>100)throw new Error('Tỷ lệ vay phải từ 0 đến 100');payload[f]=value});Object.entries(form).forEach(([k,v])=>{if(k in payload||NUMERIC_FIELDS.includes(k as any))return;payload[k]=typeof v==='string'&&!v.trim()?null:v??null});return payload as CustomerPayload}

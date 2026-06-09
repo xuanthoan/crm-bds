@@ -1,17 +1,22 @@
 export type CustomerUser = { id: string; full_name: string; email: string };
 export type CustomerType = 'individual' | 'company' | 'investor' | 'agent' | 'other';
 export type CustomerStatus = 'active' | 'inactive' | 'potential' | 'vip' | 'blacklisted';
-export type CustomerActivityType = 'note' | 'call' | 'zalo' | 'email' | 'meeting' | 'conversion' | 'status_change' | 'owner_change' | 'other';
+export type CustomerActivityType = 'note' | 'call' | 'zalo' | 'email' | 'meeting' | 'conversion' | 'status_change' | 'owner_change' | 'update' | 'other';
 export type CustomerActivity = { id:string; activity_type:CustomerActivityType; title:string; content:string|null; old_value:string|null; new_value:string|null; user:CustomerUser|null; created_at:string };
+export type CustomerRelatedPerson = {id:string;full_name:string;relationship:string;phone:string|null;email:string|null;note:string|null;created_at:string;updated_at:string};
 export type SourceLead = { id:string; code:string; full_name:string; status:string };
 export type RelatedTask = { id:string; title:string; status:string; priority:string; due_at:string; assigned_to:CustomerUser|null };
 export type RelatedAppointment = { id:string; title:string; status:string; appointment_type:string; start_at:string; location:string|null; assigned_to:CustomerUser|null };
 export type Customer = {
  id:string; customer_code:string; full_name:string; customer_type:CustomerType; status:CustomerStatus;
  primary_phone:string; secondary_phone:string|null; email:string|null; zalo:string|null; facebook:string|null; address:string|null;
+ gender:string|null;date_of_birth:string|null;province:string|null;district:string|null;occupation:string|null;company:string|null;job_title:string|null;
+ expected_budget:string|number|null;available_cash:string|number|null;loan_needed:string|number|null;loan_ratio:string|number|null;preferred_bank:string|null;monthly_income:string|number|null;financial_rating:string|null;
+ buying_purpose:string|null;interested_property_type:string|null;preferred_direction:string|null;preferred_view:string|null;buying_timeline:string|null;related_people_note:string|null;
+ score_total:number;score_label:string|null;score_updated_at:string|null;score_note:string|null;
  source:string|null; source_lead_id:string|null; source_note:string|null; interested_project:string|null; interested_area:string|null;
  budget_min:string|number|null; budget_max:string|number|null; bedroom_count:number|null; area_min:string|number|null; area_max:string|number|null; purpose:string|null;
  owner:CustomerUser|null; created_by:CustomerUser; first_contact_at:string|null; last_contact_at:string|null; next_follow_up_at:string|null; converted_at:string|null;
- note:string|null; created_at:string; updated_at:string; source_lead:SourceLead|null; activities?:CustomerActivity[]; lead_activities?:any[]; related_tasks?:RelatedTask[]; related_appointments?:RelatedAppointment[];
+ note:string|null; created_at:string; updated_at:string; source_lead:SourceLead|null; activities?:CustomerActivity[]; lead_activities?:any[]; related_tasks?:RelatedTask[]; related_appointments?:RelatedAppointment[];related_people?:CustomerRelatedPerson[];
 };
-export type CustomerPayload = Partial<Omit<Customer,'id'|'customer_code'|'owner'|'created_by'|'created_at'|'updated_at'|'source_lead'|'activities'|'lead_activities'|'related_tasks'|'related_appointments'>> & { full_name:string; primary_phone:string; owner_id?:string|null };
+export type CustomerPayload = Partial<Omit<Customer,'id'|'customer_code'|'owner'|'created_by'|'created_at'|'updated_at'|'source_lead'|'activities'|'lead_activities'|'related_tasks'|'related_appointments'|'related_people'|'score_total'|'score_label'|'score_updated_at'|'score_note'>> & { full_name:string; primary_phone:string; owner_id?:string|null };

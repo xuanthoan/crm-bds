@@ -1,108 +1,11 @@
-import { useEffect, useState } from 'react';
-
-import { FormError } from '../../components/FormError';
-import { Modal } from '../../components/Modal';
-import { formatApiError } from '../../services/apiClient';
-import { createCustomer, updateCustomer } from './api';
-import { CUSTOMER_STATUS_LABELS, CUSTOMER_TYPE_LABELS } from './constants';
-import type { Customer } from './types';
-import { buildCustomerPayload } from './validation';
-
-const emptyForm = {
-  full_name: '',
-  primary_phone: '',
-  secondary_phone: '',
-  email: '',
-  customer_type: 'individual',
-  status: 'active',
-  source: '',
-  interested_project: '',
-  interested_area: '',
-  budget_min: '',
-  budget_max: '',
-  bedroom_count: '',
-  area_min: '',
-  area_max: '',
-  purpose: '',
-  next_follow_up_at: '',
-  note: '',
-};
-
-type CustomerFormModalProps = {
-  customer?: Customer | null;
-  onClose: () => void;
-  onSaved: () => void;
-};
-
-export function CustomerFormModal({ customer, onClose, onSaved }: CustomerFormModalProps) {
-  const [form, setForm] = useState<Record<string, unknown>>(emptyForm);
-  const [errors, setErrors] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!customer) return;
-    setForm({
-      ...emptyForm,
-      ...customer,
-      next_follow_up_at: customer.next_follow_up_at?.slice(0, 16) ?? '',
-    });
-  }, [customer]);
-
-  function set(field: string, value: unknown) {
-    setForm((current) => ({ ...current, [field]: value }));
-  }
-
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setErrors([]);
-
-    let payload;
-    try {
-      payload = buildCustomerPayload(form);
-    } catch (error) {
-      setErrors(formatApiError(error));
-      return;
-    }
-
-    setSaving(true);
-    try {
-      if (customer) await updateCustomer(customer.id, payload);
-      else await createCustomer(payload);
-      onSaved();
-    } catch (error) {
-      setErrors(formatApiError(error));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Modal title={customer ? 'Chỉnh sửa khách hàng' : 'Tạo khách hàng'} onClose={onClose}>
-      <form className="admin-form lead-form" onSubmit={submit} noValidate>
-        <div className="form-grid">
-          <label>Họ tên *<input required value={String(form.full_name ?? '')} onChange={(event) => set('full_name', event.target.value)} /></label>
-          <label>Số điện thoại chính *<input required value={String(form.primary_phone ?? '')} onChange={(event) => set('primary_phone', event.target.value)} /></label>
-          <label>Số điện thoại phụ<input value={String(form.secondary_phone ?? '')} onChange={(event) => set('secondary_phone', event.target.value)} /></label>
-          <label>Email<input type="email" value={String(form.email ?? '')} onChange={(event) => set('email', event.target.value)} /></label>
-          <label>Loại<select value={String(form.customer_type ?? 'individual')} onChange={(event) => set('customer_type', event.target.value)}>{Object.entries(CUSTOMER_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-          <label>Trạng thái<select value={String(form.status ?? 'active')} onChange={(event) => set('status', event.target.value)}>{Object.entries(CUSTOMER_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-          <label>Nguồn<input value={String(form.source ?? '')} onChange={(event) => set('source', event.target.value)} /></label>
-          <label>Dự án quan tâm<input value={String(form.interested_project ?? '')} onChange={(event) => set('interested_project', event.target.value)} /></label>
-          <label>Khu vực<input value={String(form.interested_area ?? '')} onChange={(event) => set('interested_area', event.target.value)} /></label>
-          <label>Ngân sách tối thiểu<input type="number" min="0" value={String(form.budget_min ?? '')} onChange={(event) => set('budget_min', event.target.value)} /></label>
-          <label>Ngân sách tối đa<input type="number" min="0" value={String(form.budget_max ?? '')} onChange={(event) => set('budget_max', event.target.value)} /></label>
-          <label>Phòng ngủ<input type="number" min="0" value={String(form.bedroom_count ?? '')} onChange={(event) => set('bedroom_count', event.target.value)} /></label>
-          <label>Diện tích tối thiểu<input type="number" min="0" value={String(form.area_min ?? '')} onChange={(event) => set('area_min', event.target.value)} /></label>
-          <label>Diện tích tối đa<input type="number" min="0" value={String(form.area_max ?? '')} onChange={(event) => set('area_max', event.target.value)} /></label>
-          <label>Chăm sóc tiếp<input type="datetime-local" value={String(form.next_follow_up_at ?? '')} onChange={(event) => set('next_follow_up_at', event.target.value)} /></label>
-          <label className="full-span">Ghi chú<textarea rows={3} value={String(form.note ?? '')} onChange={(event) => set('note', event.target.value)} /></label>
-        </div>
-        <FormError messages={errors} />
-        <footer className="modal-actions">
-          <button type="button" className="secondary-button" onClick={onClose}>Hủy</button>
-          <button disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu khách hàng'}</button>
-        </footer>
-      </form>
-    </Modal>
-  );
-}
+import {useEffect,useState} from 'react';
+import {FormError} from '../../components/FormError';import {Modal} from '../../components/Modal';import {formatApiError} from '../../services/apiClient';import {createCustomer,updateCustomer} from './api';import {BUYING_PURPOSE_LABELS,BUYING_TIMELINE_LABELS,CUSTOMER_STATUS_LABELS,CUSTOMER_TYPE_LABELS,FINANCIAL_RATING_LABELS,GENDER_LABELS,PROPERTY_TYPE_LABELS} from './constants';import type {Customer} from './types';import {buildCustomerPayload} from './validation';
+const emptyForm={full_name:'',primary_phone:'',secondary_phone:'',email:'',zalo:'',facebook:'',address:'',customer_type:'individual',status:'active',source:'',gender:'',date_of_birth:'',province:'',district:'',occupation:'',company:'',job_title:'',expected_budget:'',available_cash:'',loan_needed:'',loan_ratio:'',preferred_bank:'',monthly_income:'',financial_rating:'unknown',buying_purpose:'',interested_property_type:'',interested_project:'',interested_area:'',budget_min:'',budget_max:'',bedroom_count:'',area_min:'',area_max:'',preferred_direction:'',preferred_view:'',buying_timeline:'unknown',next_follow_up_at:'',related_people_note:'',note:''};
+const options=(labels:Record<string,string>,placeholder='Chưa cập nhật')=><>{placeholder&&<option value="">{placeholder}</option>}{Object.entries(labels).map(([v,l])=><option key={v} value={v}>{l}</option>)}</>;
+export function CustomerFormModal({customer,onClose,onSaved}:{customer?:Customer|null;onClose:()=>void;onSaved:()=>void}){const[form,setForm]=useState<Record<string,unknown>>(emptyForm);const[errors,setErrors]=useState<string[]>([]);const[saving,setSaving]=useState(false);useEffect(()=>{if(customer)setForm({...emptyForm,...customer,date_of_birth:customer.date_of_birth??'',next_follow_up_at:customer.next_follow_up_at?.slice(0,16)??''})},[customer]);const set=(field:string,value:unknown)=>setForm(c=>({...c,[field]:value}));async function submit(e:React.FormEvent){e.preventDefault();setErrors([]);let payload;try{payload=buildCustomerPayload(form)}catch(error){setErrors(formatApiError(error));return}setSaving(true);try{customer?await updateCustomer(customer.id,payload):await createCustomer(payload);onSaved()}catch(error){setErrors(formatApiError(error))}finally{setSaving(false)}}const input=(field:string,type='text')=><input type={type} min={type==='number'?'0':undefined} value={String(form[field]??'')} onChange={e=>set(field,e.target.value)}/>;return <Modal title={customer?'Chỉnh sửa khách hàng':'Tạo khách hàng'} onClose={onClose}><form className="admin-form lead-form customer-advanced-form" onSubmit={submit} noValidate>
+<details open><summary>1. Thông tin cơ bản</summary><div className="form-grid"><label>Họ tên *{input('full_name')}</label><label>Số điện thoại chính *{input('primary_phone')}</label><label>Số điện thoại phụ{input('secondary_phone')}</label><label>Email{input('email','email')}</label><label>Zalo{input('zalo')}</label><label>Facebook{input('facebook')}</label><label>Loại<select value={String(form.customer_type)} onChange={e=>set('customer_type',e.target.value)}>{options(CUSTOMER_TYPE_LABELS,'')}</select></label><label>Trạng thái<select value={String(form.status)} onChange={e=>set('status',e.target.value)}>{options(CUSTOMER_STATUS_LABELS,'')}</select></label><label>Nguồn{input('source')}</label><label className="full-span">Địa chỉ{input('address')}</label></div></details>
+<details><summary>2. Hồ sơ cá nhân</summary><div className="form-grid"><label>Giới tính<select value={String(form.gender??'')} onChange={e=>set('gender',e.target.value)}>{options(GENDER_LABELS)}</select></label><label>Ngày sinh{input('date_of_birth','date')}</label><label>Tỉnh/Thành phố{input('province')}</label><label>Quận/Huyện{input('district')}</label><label>Nghề nghiệp{input('occupation')}</label><label>Công ty{input('company')}</label><label>Chức vụ{input('job_title')}</label></div></details>
+<details><summary>3. Hồ sơ tài chính</summary><div className="form-grid"><label>Ngân sách dự kiến{input('expected_budget','number')}</label><label>Tiền mặt hiện có{input('available_cash','number')}</label><label>Số tiền cần vay{input('loan_needed','number')}</label><label>Tỷ lệ vay (%)<input type="number" min="0" max="100" value={String(form.loan_ratio??'')} onChange={e=>set('loan_ratio',e.target.value)}/></label><label>Ngân hàng dự kiến vay{input('preferred_bank')}</label><label>Thu nhập hàng tháng{input('monthly_income','number')}</label><label>Xếp hạng tài chính<select value={String(form.financial_rating??'')} onChange={e=>set('financial_rating',e.target.value)}>{options(FINANCIAL_RATING_LABELS)}</select></label></div></details>
+<details><summary>4. Nhu cầu & tiêu chí</summary><div className="form-grid"><label>Mục đích mua<select value={String(form.buying_purpose??'')} onChange={e=>set('buying_purpose',e.target.value)}>{options(BUYING_PURPOSE_LABELS)}</select></label><label>Loại hình quan tâm<select value={String(form.interested_property_type??'')} onChange={e=>set('interested_property_type',e.target.value)}>{options(PROPERTY_TYPE_LABELS)}</select></label><label>Dự án quan tâm{input('interested_project')}</label><label>Khu vực quan tâm{input('interested_area')}</label><label>Ngân sách từ{input('budget_min','number')}</label><label>Ngân sách đến{input('budget_max','number')}</label><label>Số phòng ngủ{input('bedroom_count','number')}</label><label>Diện tích từ{input('area_min','number')}</label><label>Diện tích đến{input('area_max','number')}</label><label>Hướng{input('preferred_direction')}</label><label>View{input('preferred_view')}</label><label>Timeline mua<select value={String(form.buying_timeline??'')} onChange={e=>set('buying_timeline',e.target.value)}>{options(BUYING_TIMELINE_LABELS)}</select></label><label>Chăm sóc tiếp{input('next_follow_up_at','datetime-local')}</label></div></details>
+<details><summary>5. Ghi chú bổ sung</summary><div className="form-grid"><label className="full-span">Ghi chú về người liên quan<textarea rows={3} value={String(form.related_people_note??'')} onChange={e=>set('related_people_note',e.target.value)}/></label><label className="full-span">Ghi chú chung<textarea rows={3} value={String(form.note??'')} onChange={e=>set('note',e.target.value)}/></label></div></details>
+<FormError messages={errors}/><footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Hủy</button><button disabled={saving}>{saving?'Đang lưu…':'Lưu khách hàng'}</button></footer></form></Modal>}
