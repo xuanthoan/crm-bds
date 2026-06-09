@@ -27,7 +27,12 @@ import { DealsPage } from '../features/deals/DealsPage';
 import { DealDetailPage } from '../features/deals/DealDetailPage';
 import { DEAL_VIEW_PERMISSIONS } from '../features/deals/constants';
 import { ForbiddenPage } from '../pages/ForbiddenPage';
-import { PropertiesPage } from '../pages/PropertiesPage';
+import { ProjectsPage } from '../features/projects/ProjectsPage';
+import { ProjectDetailPage } from '../features/projects/ProjectDetailPage';
+import { PROJECT_VIEW_PERMISSIONS } from '../features/projects/constants';
+import { PropertiesPage } from '../features/properties/PropertiesPage';
+import { PropertyDetailPage } from '../features/properties/PropertyDetailPage';
+import { PROPERTY_VIEW_PERMISSIONS } from '../features/properties/constants';
 import { ReportsPage } from '../pages/ReportsPage';
 
 export function navigateTo(path: string): void {
@@ -58,7 +63,8 @@ const protectedPages: Record<string, ProtectedPage> = {
   '/admin/teams': { element: <TeamsPage />, permission: 'settings.manage_master_data' },
   '/admin/memberships': { element: <MembershipsPage />, permission: 'users.update' },
   '/customers': { element: <CustomersPage />, permission: CUSTOMER_VIEW_PERMISSIONS },
-  '/properties': { element: <PropertiesPage />, permission: 'inventory.view.available' },
+  '/projects': { element: <ProjectsPage />, permission: PROJECT_VIEW_PERMISSIONS },
+  '/properties': { element: <PropertiesPage />, permission: PROPERTY_VIEW_PERMISSIONS },
   '/deals': { element: <DealsPage />, permission: DEAL_VIEW_PERMISSIONS },
   '/reports': { element: <ReportsPage />, permission: 'reports.view.own' },
 };
@@ -99,6 +105,10 @@ export function AppRoutes() {
   }, [authenticated, normalizedPath]);
 
   const page = useMemo(() => {
+    const propertyDetailMatch = normalizedPath.match(/^\/properties\/([0-9a-f-]+)$/i);
+    if (propertyDetailMatch) return { element: <PropertyDetailPage propertyId={propertyDetailMatch[1]} />, permission: PROPERTY_VIEW_PERMISSIONS };
+    const projectDetailMatch = normalizedPath.match(/^\/projects\/([0-9a-f-]+)$/i);
+    if (projectDetailMatch) return { element: <ProjectDetailPage projectId={projectDetailMatch[1]} />, permission: PROJECT_VIEW_PERMISSIONS };
     const dealDetailMatch = normalizedPath.match(/^\/deals\/([0-9a-f-]+)$/i);
     if (dealDetailMatch) return { element: <DealDetailPage dealId={dealDetailMatch[1]} />, permission: DEAL_VIEW_PERMISSIONS };
     const customerDetailMatch = normalizedPath.match(/^\/customers\/([0-9a-f-]+)$/i);

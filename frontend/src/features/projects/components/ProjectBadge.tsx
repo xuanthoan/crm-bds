@@ -1,0 +1,1 @@
+import{PROJECT_STATUS_LABELS}from'../constants';export function ProjectBadge({status}:{status:string}){return <span className={`inventory-badge status-${status}`}>{PROJECT_STATUS_LABELS[status]||status}</span>}

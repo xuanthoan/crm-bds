@@ -710,3 +710,68 @@ The customer form now uses five collapsible sections. Customer Detail adds perso
 ### Suggested Sprint 10 scope
 
 Add location master data, configurable score rules/history, related-person duplicate matching, qualification reports, and customer segmentation. Inventory, contracts, payments, invoices, commissions, and marketing should remain separate approved modules.
+
+## Sprint 10 — Property Inventory Foundation
+
+Sprint 10 introduces the production foundation for the real-estate inventory domain without changing Customer Profile/Scoring, Lead → Customer conversion, or Deal Pipeline behavior.
+
+### Database
+
+Migration: `backend/alembic/versions/20260611_0008_property_inventory.py` (`20260610_0007` → `20260611_0008`). It creates `projects`, `property_units`, `property_price_history`, and `property_status_history`, including soft-delete/audit actor columns and inventory filter indexes.
+
+Project statuses: `planning`, `opening`, `selling`, `handover`, `completed`, `paused`, `cancelled`.
+
+Inventory statuses: `available`, `reserved`, `negotiating`, `deposited`, `sold`, `locked`, `unavailable`.
+
+### API and frontend
+
+* Projects: `GET/POST /api/v1/projects`, `GET/PUT/DELETE /api/v1/projects/{project_id}`.
+* Properties: `GET/POST /api/v1/properties`, `GET/PUT/DELETE /api/v1/properties/{property_id}`, `POST /status`, and `POST /prices`.
+* Frontend routes: `/projects`, `/projects/:id`, `/properties`, `/properties/:id`.
+* Project/property create, update, filtering, detail views, soft deletion, status history, price history, legal/owner/commission data, and text/link media references are included.
+
+### Permission mapping
+
+* Admin and Inventory Manager: all 29 Sprint 10 inventory permissions.
+* Director: project/property all-scope view/update/status/price management; no default delete.
+* Sales Manager: project management plus department-scoped property view/update/status/price.
+* Leader: project view plus team-scoped property view/update/status/price and create.
+* Sale: project view plus own-created property view/update/status, price view, and create.
+* Viewer: project view and own-created property/price read only.
+
+Property scope priority is `all > department > team > own`; Sprint 10 own scope uses `created_by_id`. Team and department scopes reuse the existing organization access helper.
+
+### Manual test checklist
+
+1. Create a project with minimal fields.
+2. Create a project with full fields.
+3. Edit a project.
+4. Soft-delete a project.
+5. Create a property without a project.
+6. Create a property under a project.
+7. Create a property with full owner, price, legal, commission, and media information.
+8. Verify an invalid price is rejected.
+9. Verify an invalid area is rejected.
+10. Verify an invalid owner phone is rejected.
+11. Verify an invalid owner email is rejected.
+12. Change property status and verify status history.
+13. Update prices and verify only changed fields create price-history rows.
+14. Soft-delete a property and verify it is hidden from the list.
+15. Verify project detail shows related properties.
+16. Verify property detail shows the project summary.
+17. Verify Sale sees own-created properties.
+18. Verify Leader sees team properties.
+19. Verify Sales Manager sees department properties.
+20. Verify Admin sees all properties.
+21. Regression-check Sprint 9 Customer Profile and Scoring.
+22. Regression-check Sprint 8 Deal Pipeline.
+
+### Known limitations and suggested Sprint 11 scope
+
+* No file upload or MinIO/S3 integration; media is stored as text/links.
+* No matching engine or inventory-to-customer recommendations.
+* No strict Deal ↔ Property foreign-key linkage; this is recommended for Sprint 11.
+* No inventory analytics dashboard or property duplicate detection.
+* Province and district remain free text.
+* Project/property codes are generated at application level and include TODOs to move to database sequences for high concurrency.
+* Suggested Sprint 11: strict deal-property linkage, availability-aware deal transitions, duplicate controls, and the first customer-property matching workflow.

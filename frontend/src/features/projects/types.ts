@@ -1,0 +1,3 @@
+export type Project={id:string;project_code:string;name:string;developer:string|null;description?:string|null;address:string|null;province:string|null;district:string|null;ward:string|null;project_type:string|null;project_type_label:string|null;status:string;status_label:string;property_count?:number;created_at:string;updated_at:string};
+export type ProjectPayload={name:string;developer?:string|null;description?:string|null;address?:string|null;province?:string|null;district?:string|null;ward?:string|null;project_type?:string|null;status?:string|null};
+export type ProjectFilters={page?:number;page_size?:number;q?:string;developer?:string;province?:string;district?:string;project_type?:string;status?:string};
