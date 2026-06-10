@@ -54,5 +54,11 @@ def update_project(db:Session,project_id:UUID,payload:ProjectUpdate,actor:User)-
     item.updated_by_id=actor.id; write_audit_log(db,action="inventory.projects.update",user_id=actor.id,entity_type="projects",entity_id=str(item.id),before_data=before,after_data={"name":item.name,"status":item.status}); db.commit(); db.refresh(item); return item
 def soft_delete_project(db:Session,project_id:UUID,actor:User)->None:
     _require(actor,"inventory.projects.delete","Bạn không có quyền xóa dự án"); item=_get(db,project_id)
+    active_property_count=db.scalar(select(func.count(PropertyUnit.id)).where(PropertyUnit.project_id==item.id,PropertyUnit.deleted_at.is_(None))) or 0
+    if active_property_count>0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Dự án hiện còn {active_property_count} bất động sản. Vui lòng xử lý các bất động sản trước khi xóa dự án.",
+        )
     item.deleted_at=datetime.now(timezone.utc); item.deleted_by_id=actor.id
     write_audit_log(db,action="inventory.projects.delete",user_id=actor.id,entity_type="projects",entity_id=str(item.id),before_data={"project_code":item.project_code,"name":item.name}); db.commit()
