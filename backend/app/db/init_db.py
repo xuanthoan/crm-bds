@@ -40,7 +40,7 @@ def seed_roles_permissions(db: Session) -> None:
         # Sprint 8 replaces the legacy deal permission vocabulary. Keep system roles
         # synchronized so obsolete deal grants do not survive an application upgrade.
         for permission in list(role.permissions):
-            if permission.module == "deals" and permission.code not in desired_codes:
+            if permission.module in {"deals", "inventory"} and permission.code not in desired_codes:
                 role.permissions.remove(permission)
         existing_codes = {permission.code for permission in role.permissions}
         for permission in desired_permissions:

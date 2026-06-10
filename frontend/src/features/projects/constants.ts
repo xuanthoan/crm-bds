@@ -1,0 +1,3 @@
+export const PROJECT_TYPE_LABELS: Record<string,string>={apartment_complex:'Chung cư / Tổ hợp căn hộ',urban_area:'Khu đô thị',townhouse_area:'Khu nhà phố',villa_area:'Khu biệt thự',land_project:'Dự án đất nền',mixed_use:'Phức hợp',other:'Khác'};
+export const PROJECT_STATUS_LABELS: Record<string,string>={planning:'Đang quy hoạch',opening:'Đang mở bán',selling:'Đang bán',handover:'Đang bàn giao',completed:'Đã hoàn thành',paused:'Tạm dừng',cancelled:'Đã hủy'};
+export const PROJECT_VIEW_PERMISSIONS=['inventory.projects.view.all','inventory.properties.view.own','inventory.properties.view.team','inventory.properties.view.department','inventory.properties.view.all'];

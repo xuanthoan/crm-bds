@@ -1,0 +1,1 @@
+"""Property inventory domain."""

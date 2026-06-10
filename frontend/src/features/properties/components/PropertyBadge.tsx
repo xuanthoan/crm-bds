@@ -1,0 +1,1 @@
+import{INVENTORY_STATUS_LABELS,PROPERTY_TYPE_LABELS}from'../constants';export function PropertyBadge({value,type='status'}:{value:string;type?:'status'|'type'}){return <span className={`inventory-badge ${type==='status'?`status-${value}`:'type-badge'}`}>{(type==='status'?INVENTORY_STATUS_LABELS:PROPERTY_TYPE_LABELS)[value]||value}</span>}
