@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 from app.inventory.constants import INVENTORY_STATUS_LABELS, LEGAL_STATUS_LABELS, PRICE_FIELD_LABELS, PROPERTY_TYPE_LABELS
+from app.inventory.history import collect_price_changes
 from app.models.project import Project
 from app.models.property_price_history import PropertyPriceHistory
 from app.models.property_status_history import PropertyStatusHistory
@@ -84,12 +85,12 @@ def create_property(db:Session,payload:PropertyUnitCreate,actor:User)->PropertyU
 def update_property(db:Session,property_id:UUID,payload:PropertyUnitUpdate,actor:User)->PropertyUnit:
     item=_get(db,property_id); _require(db,actor,item,"inventory.properties.update","Bạn không có quyền cập nhật bất động sản này")
     data=payload.model_dump(exclude_unset=True); _project(db,data.get("project_id")) if "project_id" in data else None
-    price_changes={field:(getattr(item,field),data[field]) for field in PRICE_FIELDS if field in data and getattr(item,field)!=data[field]}
+    price_changes=collect_price_changes(item,data,PRICE_FIELDS)
     if price_changes:_require(db,actor,item,"inventory.properties.price.update","Bạn không có quyền cập nhật giá bất động sản này")
     old_status=item.inventory_status
     for key,value in data.items():setattr(item,key,value)
     _validate_prices(item); item.updated_by_id=actor.id
-    for field,(old,new) in price_changes:db.add(PropertyPriceHistory(property_unit_id=item.id,changed_by_id=actor.id,field_name=field,old_value=old,new_value=new))
+    for field,old,new in price_changes:db.add(PropertyPriceHistory(property_unit_id=item.id,changed_by_id=actor.id,field_name=field,old_value=old,new_value=new))
     if "inventory_status" in data and item.inventory_status!=old_status:
         _require(db,actor,item,"inventory.properties.status","Bạn không có quyền đổi trạng thái bất động sản này"); db.add(PropertyStatusHistory(property_unit_id=item.id,changed_by_id=actor.id,old_status=old_status,new_status=item.inventory_status))
     write_audit_log(db,action="inventory.properties.update",user_id=actor.id,entity_type="property_units",entity_id=str(item.id),after_data={"title":item.title}); db.commit(); db.refresh(item); return item
@@ -101,10 +102,8 @@ def change_property_status(db:Session,property_id:UUID,payload:PropertyStatusCha
     write_audit_log(db,action="inventory.properties.status_change",user_id=actor.id,entity_type="property_units",entity_id=str(item.id),before_data={"inventory_status":old},after_data={"inventory_status":item.inventory_status}); db.commit(); db.refresh(item); return item
 def update_property_prices(db:Session,property_id:UUID,payload:PropertyPriceUpdate,actor:User)->PropertyUnit:
     item=_get(db,property_id); _require(db,actor,item,"inventory.properties.price.update","Bạn không có quyền cập nhật giá bất động sản này")
-    data=payload.model_dump(exclude={"note"},exclude_unset=True); changes=[]
-    for field,value in data.items():
-        old=getattr(item,field)
-        if old!=value:changes.append((field,old,value));setattr(item,field,value)
+    data=payload.model_dump(exclude={"note"},exclude_unset=True); changes=collect_price_changes(item,data,PRICE_FIELDS)
+    for field,_old,new in changes:setattr(item,field,new)
     _validate_prices(item); item.updated_by_id=actor.id
     for field,old,new in changes:db.add(PropertyPriceHistory(property_unit_id=item.id,changed_by_id=actor.id,field_name=field,old_value=old,new_value=new,note=payload.note))
     write_audit_log(db,action="inventory.properties.price_update",user_id=actor.id,entity_type="property_units",entity_id=str(item.id),after_data={"changed_fields":[x[0] for x in changes]}); db.commit(); db.refresh(item); return item
