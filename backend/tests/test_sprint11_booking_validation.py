@@ -8,23 +8,63 @@ from app.schemas.booking import BookingCreate, BookingStatusChange
 
 IDS={"customer_id":"00000000-0000-0000-0000-000000000001","property_unit_id":"00000000-0000-0000-0000-000000000002","assigned_user_id":"00000000-0000-0000-0000-000000000003"}
 class Sprint11BookingValidationTests(unittest.TestCase):
-    def test_amount_validation(self):
-        with self.assertRaises(ValidationError) as context: BookingCreate(**IDS,booking_amount=Decimal("-1"))
-        self.assertIn("Số tiền không hợp lệ",str(context.exception))
+    def test_create_requires_positive_booking_amount(self):
+        cases = [
+            ({}, "Tiền giữ chỗ là bắt buộc"),
+            ({"booking_amount": None}, "Tiền giữ chỗ là bắt buộc"),
+            ({"booking_amount": ""}, "Tiền giữ chỗ là bắt buộc"),
+            ({"booking_amount": Decimal("0")}, "Tiền giữ chỗ phải lớn hơn 0"),
+            ({"booking_amount": Decimal("-1")}, "Tiền giữ chỗ phải lớn hơn 0"),
+        ]
+        for values, message in cases:
+            with self.subTest(values=values):
+                with self.assertRaises(ValidationError) as context:
+                    BookingCreate(**IDS, **values)
+                self.assertIn(message, str(context.exception))
+        booking = BookingCreate(**IDS, booking_amount=Decimal("1000000"))
+        self.assertEqual(Decimal("1000000"), booking.booking_amount)
+
     def test_deposit_cancel_and_refund_requirements(self):
-        cases=[({"status":"deposited"},"Số tiền cọc là bắt buộc"),({"status":"cancelled"},"Lý do hủy là bắt buộc"),({"status":"refunded","refund_reason":"x"},"Số tiền hoàn là bắt buộc"),({"status":"refunded","refund_amount":0},"Lý do hoàn tiền là bắt buộc")]
-        for payload,message in cases:
+        cases = [
+            ({"status": "deposited"}, "Tiền cọc là bắt buộc khi đặt cọc"),
+            ({"status": "deposited", "deposit_amount": 0}, "Tiền cọc phải lớn hơn 0"),
+            ({"status": "cancelled"}, "Lý do hủy là bắt buộc"),
+            ({"status": "refunded", "refund_reason": "x"}, "Số tiền hoàn là bắt buộc"),
+            ({"status": "refunded", "refund_amount": 0}, "Lý do hoàn tiền là bắt buộc"),
+        ]
+        for payload, message in cases:
             with self.subTest(payload=payload):
-                with self.assertRaises(ValidationError) as context: BookingStatusChange(**payload)
-                self.assertIn(message,str(context.exception))
+                with self.assertRaises(ValidationError) as context:
+                    BookingStatusChange(**payload)
+                self.assertIn(message, str(context.exception))
+
     def test_valid_status_payloads(self):
-        self.assertEqual("deposited",BookingStatusChange(status="deposited",deposit_amount=0).status)
-        self.assertEqual("refunded",BookingStatusChange(status="refunded",refund_amount=0,refund_reason="Khách đổi ý").status)
-    def test_service_contains_inventory_duplicate_and_delete_guards(self):
-        source=Path("backend/app/services/booking_service.py").read_text()
-        for text in ("Khách hàng không tồn tại","Bất động sản không tồn tại","Bất động sản hiện không khả dụng để giữ chỗ","Bất động sản đã có booking đang hoạt động","_change_property_status","Không thể xóa booking đang giữ chỗ hoặc đã cọc"):
-            self.assertIn(text,source)
-        self.assertIn('DELETE_ALLOWED_STATUSES = {"draft", "cancelled", "expired", "refunded"}',source)
+        deposited = BookingStatusChange(status="deposited", deposit_amount=Decimal("5000000"))
+        self.assertEqual(Decimal("5000000"), deposited.deposit_amount)
+        self.assertEqual("refunded", BookingStatusChange(status="refunded", refund_amount=0, refund_reason="Khách đổi ý").status)
+
+    def test_service_enforces_status_amounts_and_duplicate_guard(self):
+        source = Path("backend/app/services/booking_service.py").read_text()
+        for text in (
+            "Khách hàng không tồn tại",
+            "Bất động sản không tồn tại",
+            "Bất động sản hiện không khả dụng để giữ chỗ",
+            "Bất động sản đã có booking đang hoạt động",
+            "Tiền giữ chỗ là bắt buộc khi giữ chỗ",
+            "Tiền giữ chỗ là bắt buộc trước khi đặt cọc",
+            "Tiền cọc là bắt buộc khi đặt cọc",
+            "_change_property_status",
+        ):
+            self.assertIn(text, source)
+        self.assertIn("_validate_status_amounts(booking, payload)", source)
+
+    def test_delete_only_allows_final_statuses(self):
+        source = Path("backend/app/services/booking_service.py").read_text()
+        self.assertIn('DELETE_ALLOWED_STATUSES = {"cancelled", "expired", "refunded"}', source)
+        self.assertNotIn('DELETE_ALLOWED_STATUSES = {"draft"', source)
+        self.assertIn("status_code=409", source)
+        self.assertIn("Không thể xóa booking đang hoạt động. Vui lòng hủy booking trước.", source)
+
     def test_property_lock_query_targets_only_the_base_table(self):
         source = Path("backend/app/services/booking_service.py").read_text()
         tree = ast.parse(source)

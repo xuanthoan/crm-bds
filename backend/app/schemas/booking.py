@@ -7,8 +7,35 @@ from app.bookings.constants import BOOKING_STATUS_LABELS
 
 BookingStatus = Literal["draft", "reserved", "deposited", "cancelled", "expired", "refunded"]
 
-def _amount(value: Decimal | None) -> Decimal | None:
-    if value is not None and value < 0: raise ValueError("Số tiền không hợp lệ")
+def _non_negative_amount(value: Decimal | None) -> Decimal | None:
+    if value is not None and value < 0:
+        raise ValueError("Số tiền không hợp lệ")
+    return value
+
+
+def _require_booking_amount_input(value):
+    if value is None or (isinstance(value, str) and not value.strip()):
+        raise ValueError("Tiền giữ chỗ là bắt buộc")
+    return value
+
+
+def _positive_booking_amount(value: Decimal | None) -> Decimal | None:
+    if value is None:
+        raise ValueError("Tiền giữ chỗ là bắt buộc")
+    if value <= 0:
+        raise ValueError("Tiền giữ chỗ phải lớn hơn 0")
+    return value
+
+
+def _optional_positive_booking_amount(value: Decimal | None) -> Decimal | None:
+    if value is not None and value <= 0:
+        raise ValueError("Tiền giữ chỗ phải lớn hơn 0")
+    return value
+
+
+def _positive_deposit_amount(value: Decimal | None) -> Decimal | None:
+    if value is not None and value <= 0:
+        raise ValueError("Tiền cọc phải lớn hơn 0")
     return value
 
 class BookingCreate(BaseModel):
@@ -16,24 +43,36 @@ class BookingCreate(BaseModel):
     source_lead_id: UUID | None = None; source_deal_id: UUID | None = None
     booking_amount: Decimal | None = None; deposit_amount: Decimal | None = None
     booking_date: datetime | None = None; reservation_expires_at: datetime | None = None; deposit_date: datetime | None = None; note: str | None = None
-    _validate_booking_amount = field_validator("booking_amount", "deposit_amount")(_amount)
+    _require_booking_amount_input = field_validator("booking_amount", mode="before")(_require_booking_amount_input)
+    _validate_booking_amount = field_validator("booking_amount")(_positive_booking_amount)
+    _validate_deposit_amount = field_validator("deposit_amount")(_positive_deposit_amount)
+
+    @model_validator(mode="after")
+    def require_booking_amount(self):
+        if self.booking_amount is None:
+            raise ValueError("Tiền giữ chỗ là bắt buộc")
+        return self
 
 class BookingUpdate(BaseModel):
     assigned_user_id: UUID | None = None; booking_amount: Decimal | None = None; deposit_amount: Decimal | None = None
     reservation_expires_at: datetime | None = None; deposit_date: datetime | None = None; note: str | None = None
-    _validate_amounts = field_validator("booking_amount", "deposit_amount")(_amount)
+    _require_booking_amount_input = field_validator("booking_amount", mode="before")(_require_booking_amount_input)
+    _validate_booking_amount = field_validator("booking_amount")(_positive_booking_amount)
+    _validate_deposit_amount = field_validator("deposit_amount")(_positive_deposit_amount)
 
 class BookingStatusChange(BaseModel):
     status: BookingStatus
     booking_amount: Decimal | None = None; deposit_amount: Decimal | None = None; refund_amount: Decimal | None = None
     reservation_expires_at: datetime | None = None; deposit_date: datetime | None = None
     cancel_reason: str | None = None; refund_reason: str | None = None; note: str | None = None
-    _validate_amounts = field_validator("booking_amount", "deposit_amount", "refund_amount")(_amount)
+    _validate_booking_amount = field_validator("booking_amount")(_optional_positive_booking_amount)
+    _validate_deposit_amount = field_validator("deposit_amount")(_positive_deposit_amount)
+    _validate_refund_amount = field_validator("refund_amount")(_non_negative_amount)
 
     @model_validator(mode="after")
     def validate_status_requirements(self):
         if self.status not in BOOKING_STATUS_LABELS: raise ValueError("Trạng thái booking không hợp lệ")
-        if self.status == "deposited" and self.deposit_amount is None: raise ValueError("Số tiền cọc là bắt buộc")
+        if self.status == "deposited" and self.deposit_amount is None: raise ValueError("Tiền cọc là bắt buộc khi đặt cọc")
         if self.status == "cancelled" and not (self.cancel_reason or "").strip(): raise ValueError("Lý do hủy là bắt buộc")
         if self.status == "refunded":
             if self.refund_amount is None: raise ValueError("Số tiền hoàn là bắt buộc")

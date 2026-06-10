@@ -20,7 +20,7 @@ from app.services.organization_service import get_accessible_user_ids_for_lead_s
 
 CREATE_PROPERTY_STATUSES = {"available", "negotiating"}
 PROPERTY_RELEASE_BLOCKED_STATUSES = {"sold", "locked", "unavailable"}
-DELETE_ALLOWED_STATUSES = {"draft", "cancelled", "expired", "refunded"}
+DELETE_ALLOWED_STATUSES = {"cancelled", "expired", "refunded"}
 
 def _scope(user: User, prefix: str) -> str | None:
     if user.is_superuser: return "all"
@@ -114,6 +114,20 @@ def _active_booking_exists(db: Session, property_id: UUID, exclude_id: UUID | No
     if exclude_id: conditions.append(Booking.id != exclude_id)
     return db.scalar(select(Booking.id).where(*conditions).limit(1)) is not None
 
+def _effective_amount(payload_amount, current_amount):
+    return payload_amount if payload_amount is not None else current_amount
+
+
+def _validate_status_amounts(booking: Booking, payload: BookingStatusChange) -> None:
+    booking_amount = _effective_amount(payload.booking_amount, booking.booking_amount)
+    if payload.status == "reserved" and (booking_amount is None or booking_amount <= 0):
+        raise HTTPException(status_code=400, detail="Tiền giữ chỗ là bắt buộc khi giữ chỗ")
+    if payload.status == "deposited":
+        if booking_amount is None or booking_amount <= 0:
+            raise HTTPException(status_code=400, detail="Tiền giữ chỗ là bắt buộc trước khi đặt cọc")
+        if payload.deposit_amount is None or payload.deposit_amount <= 0:
+            raise HTTPException(status_code=400, detail="Tiền cọc là bắt buộc khi đặt cọc")
+
 def _add_activity(db: Session, booking: Booking, actor: User, activity_type: str, title: str | None = None, content: str | None = None, old_value: str | None = None, new_value: str | None = None) -> BookingActivity:
     item = BookingActivity(booking_id=booking.id, actor_id=actor.id, activity_type=activity_type, title=title or BOOKING_ACTIVITY_LABELS[activity_type], content=content, old_value=old_value, new_value=new_value)
     db.add(item); return item
@@ -157,6 +171,10 @@ def list_bookings(db: Session, actor: User, *, page: int = 1, page_size: int = 2
     return items, {"page": page, "page_size": page_size, "total": total, "total_pages": ceil(total / page_size) if total else 0}
 
 def create_booking(db: Session, payload: BookingCreate, actor: User) -> Booking:
+    if payload.booking_amount is None:
+        raise HTTPException(status_code=400, detail="Tiền giữ chỗ là bắt buộc")
+    if payload.booking_amount <= 0:
+        raise HTTPException(status_code=400, detail="Tiền giữ chỗ phải lớn hơn 0")
     _validate_customer(db, payload.customer_id)
     _lock_property_row(db, payload.property_unit_id)
     prop = _validate_property(db, payload.property_unit_id)
@@ -191,6 +209,7 @@ def change_booking_status(db: Session, booking_id: UUID, payload: BookingStatusC
     _lock_property_row(db, booking.property_unit_id)
     booking.property_unit = _validate_property(db, booking.property_unit_id)
     now = datetime.now(timezone.utc)
+    _validate_status_amounts(booking, payload)
     if payload.status == "reserved" and payload.reservation_expires_at and payload.reservation_expires_at <= now: raise HTTPException(status_code=400, detail="Ngày hết hạn giữ chỗ không hợp lệ")
     if payload.status in ACTIVE_BOOKING_STATUSES and _active_booking_exists(db, booking.property_unit_id, booking.id): raise HTTPException(status_code=409, detail="Bất động sản đã có booking đang hoạt động")
     old_status = booking.status; data = payload.model_dump(exclude_unset=True); data.pop("status", None)
@@ -225,7 +244,8 @@ def soft_delete_booking(db: Session, booking_id: UUID, actor: User) -> None:
     booking = get_booking(db, booking_id)
     if not booking: raise HTTPException(status_code=404, detail="Không tìm thấy booking")
     _require(db, actor, booking, "bookings.delete")
-    if booking.status not in DELETE_ALLOWED_STATUSES: raise HTTPException(status_code=400, detail="Không thể xóa booking đang giữ chỗ hoặc đã cọc. Vui lòng hủy booking trước.")
+    if booking.status not in DELETE_ALLOWED_STATUSES:
+        raise HTTPException(status_code=409, detail="Không thể xóa booking đang hoạt động. Vui lòng hủy booking trước.")
     _add_activity(db, booking, actor, "deleted"); booking.deleted_at = datetime.now(timezone.utc); booking.deleted_by_id = actor.id
     write_audit_log(db, action="bookings.delete", user_id=actor.id, entity_type="bookings", entity_id=str(booking.id)); db.commit()
 

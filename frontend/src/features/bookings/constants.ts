@@ -3,3 +3,5 @@ export const BOOKING_ACTIVITY_LABELS={created:'Tạo booking',updated:'Cập nh�
 export const BOOKING_VIEW_PERMISSIONS=['bookings.view.own','bookings.view.team','bookings.view.department','bookings.view.all'];
 export const ACTIVE_BOOKING_STATUSES=['draft','reserved','deposited'] as const;
 export const FINAL_BOOKING_STATUSES=['cancelled','expired','refunded'] as const;
+
+export const isFinalBookingStatus=(status:string):status is typeof FINAL_BOOKING_STATUSES[number]=>(FINAL_BOOKING_STATUSES as readonly string[]).includes(status);
