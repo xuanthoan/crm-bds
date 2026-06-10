@@ -87,5 +87,6 @@ class Customer(Base):
     updated_by = relationship("User", foreign_keys=[updated_by_id], lazy="joined")
     source_lead = relationship("Lead", foreign_keys=[source_lead_id], back_populates="source_customer", lazy="joined")
     deals = relationship("Deal", back_populates="customer", lazy="select")
+    bookings = relationship("Booking", back_populates="customer", lazy="select")
     activities = relationship("CustomerActivity", back_populates="customer", cascade="all, delete-orphan", order_by="CustomerActivity.created_at.desc()")
     related_people = relationship("CustomerRelatedPerson", back_populates="customer", cascade="all, delete-orphan", order_by="CustomerRelatedPerson.created_at.desc()")

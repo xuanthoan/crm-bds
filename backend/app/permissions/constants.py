@@ -546,3 +546,20 @@ ROLE_PERMISSION_MAP = {'accountant': ['payments.view',
             'inventory.projects.view.all',
             'inventory.properties.view.own',
             'inventory.properties.price.view.own']}
+
+# Sprint 11: Booking / reservation / deposit permissions.
+BOOKING_PERMISSIONS = [
+    *[f"bookings.view.{scope}" for scope in ("own", "team", "department", "all")],
+    "bookings.create",
+    *[f"bookings.update.{scope}" for scope in ("own", "team", "department", "all")],
+    *[f"bookings.status.{scope}" for scope in ("own", "team", "department", "all")],
+    *[f"bookings.delete.{scope}" for scope in ("own", "team", "department", "all")],
+    *[f"bookings.refund.{scope}" for scope in ("own", "team", "department", "all")],
+]
+PERMISSION_CODES_BY_MODULE["bookings"] = BOOKING_PERMISSIONS
+ROLE_PERMISSION_MAP["admin"].extend(BOOKING_PERMISSIONS)
+ROLE_PERMISSION_MAP["director"].extend(["bookings.view.all", "bookings.update.all", "bookings.status.all", "bookings.refund.all"])
+ROLE_PERMISSION_MAP["sales_manager"].extend(["bookings.view.department", "bookings.create", "bookings.update.department", "bookings.status.department", "bookings.refund.department"])
+ROLE_PERMISSION_MAP["leader"].extend(["bookings.view.team", "bookings.create", "bookings.update.team", "bookings.status.team", "bookings.refund.team"])
+ROLE_PERMISSION_MAP["sale"].extend(["bookings.view.own", "bookings.create", "bookings.update.own", "bookings.status.own"])
+ROLE_PERMISSION_MAP["viewer"].append("bookings.view.own")

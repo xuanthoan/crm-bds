@@ -775,3 +775,93 @@ Property scope priority is `all > department > team > own`; Sprint 10 own scope 
 * Province and district remain free text.
 * Project/property codes are generated at application level and include TODOs to move to database sequences for high concurrency.
 * Suggested Sprint 11: strict deal-property linkage, availability-aware deal transitions, duplicate controls, and the first customer-property matching workflow.
+
+## Sprint 11 — Booking / Giữ chỗ / Đặt cọc Foundation
+
+Sprint 11 adds the first production-oriented reservation layer between Customer and Property Inventory without changing Customer Scoring, Lead → Customer conversion, Deal Pipeline, or Sprint 10 inventory behavior.
+
+### Migration and tables
+
+- Migration: `backend/alembic/versions/20260612_0009_booking_reservation.py` (`20260611_0008` → `20260612_0009`).
+- New table `bookings` stores the customer, property, optional source lead/deal, assignee, reservation/deposit/refund amounts and dates, lifecycle reasons, audit users, and soft-delete timestamps.
+- New table `booking_activities` stores the booking timeline and actor.
+- A PostgreSQL partial unique index prevents more than one non-deleted `draft`, `reserved`, or `deposited` booking for the same property. The service also validates this rule while holding a row lock on creation.
+
+### Booking lifecycle
+
+| Code | Vietnamese label |
+| --- | --- |
+| `draft` | Mới tạo |
+| `reserved` | Đã giữ chỗ |
+| `deposited` | Đã cọc |
+| `cancelled` | Đã hủy |
+| `expired` | Hết hạn giữ chỗ |
+| `refunded` | Đã hoàn tiền |
+
+Activity types are `created`, `updated`, `status_change`, `reserved`, `deposited`, `cancelled`, `expired`, `refunded`, `deleted`, and `note`.
+
+### API routes
+
+- `GET /api/v1/bookings` supports pagination, search, customer/property/assignee/status, created-date, and expiry-date filters.
+- `POST /api/v1/bookings`
+- `GET /api/v1/bookings/assignees`
+- `GET /api/v1/bookings/{booking_id}`
+- `PUT /api/v1/bookings/{booking_id}`
+- `POST /api/v1/bookings/{booking_id}/status`
+- `POST /api/v1/bookings/{booking_id}/activities`
+- `DELETE /api/v1/bookings/{booking_id}`
+
+### Frontend routes and integrations
+
+- `/bookings` — booking list, filters, create/edit/status/delete actions.
+- `/bookings/:id` — booking financial information, dates, reasons, links, and timeline.
+- Customer Detail includes **Booking của khách hàng**.
+- Property Detail includes **Booking liên quan**.
+- Sidebar and route guards require any `bookings.view.*` permission.
+
+### Permission mapping
+
+- **Admin:** every booking permission.
+- **Director:** view/update/status/refund all; no delete by default.
+- **Sales Manager:** create and department view/update/status/refund.
+- **Leader:** create and team view/update/status/refund.
+- **Sale:** create and own view/update/status; no refund/delete.
+- **Viewer:** own view only.
+- Scope priority is `all > department > team > own`; access matches bookings assigned to or created by accessible users.
+
+### Property status integration
+
+- `reserved` changes the property to `reserved` and records property status history.
+- `deposited` requires a deposit amount, defaults the deposit date to now, changes the property to `deposited`, and records history.
+- `cancelled` requires a reason and releases a non-sold property to `available`.
+- `expired` releases a non-sold property to `available`.
+- `refunded` requires a non-negative amount and reason, and releases the property unless it is `sold`, `locked`, or `unavailable`.
+- A property in `reserved`, `deposited`, `sold`, `locked`, or `unavailable` cannot receive a new booking. Only `available` and `negotiating` properties can be booked.
+- Sold properties are never automatically returned to available.
+- Soft delete is limited to `draft`, `cancelled`, `expired`, and `refunded`; reserved/deposited bookings must be cancelled first.
+
+### Manual test checklist
+
+1. Create a booking with an available property and confirm code `BK-000001`.
+2. Try missing customer and missing property payloads.
+3. Try a second active booking for the same property.
+4. Move the booking to reserved and verify property status/history.
+5. Move it to deposited; verify deposit amount is required and property becomes deposited.
+6. Cancel it; verify cancellation reason and property release.
+7. Refund it; verify refund amount/reason and property release safety rules.
+8. Verify booking timeline and audit logs.
+9. Verify related bookings on Property Detail and Customer Detail.
+10. Soft delete a draft/cancelled booking and reject deletion of reserved/deposited bookings.
+11. Test Sale own, Leader team, Sales Manager department, and Admin all scope.
+12. Regression-check Sprint 10 Project/Property, Sprint 9 Customer, and Sprint 8 Deal flows.
+
+### Known limitations
+
+- No contract generation, payment schedule, invoice, commission payout, reporting dashboard, or deposit-proof file upload.
+- No strict Deal ↔ Booking linkage yet; `source_deal_id` is informational and no `booking_id` is added to deals.
+- No automatic expiry background job; expiry is changed manually through booking status.
+- Booking code generation is application-level and has a TODO to move to a database sequence for high-concurrency production.
+
+### Suggested Sprint 12
+
+Add controlled Deal ↔ Booking ↔ Property linkage, contract preparation, transition validation, and a database-backed booking code sequence before contract/payment modules are introduced.

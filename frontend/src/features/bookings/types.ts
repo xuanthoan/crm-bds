@@ -1,0 +1,10 @@
+export type BookingStatus='draft'|'reserved'|'deposited'|'cancelled'|'expired'|'refunded';
+export type BookingUser={id:string;full_name:string;email:string};
+export type BookingCustomer={id:string;customer_code:string;full_name:string;primary_phone:string|null};
+export type BookingProject={id:string;project_code:string;name:string};
+export type BookingProperty={id:string;property_code:string;title:string;inventory_status:string;project:BookingProject|null};
+export type BookingActivity={id:string;activity_type:string;activity_label:string;title:string;content:string|null;old_value:string|null;new_value:string|null;actor:BookingUser;created_at:string};
+export type Booking={id:string;booking_code:string;customer:BookingCustomer;property:BookingProperty;assigned_user:BookingUser;status:BookingStatus;status_label:string;booking_amount:number|null;deposit_amount:number|null;reservation_expires_at:string|null;created_at:string};
+export type BookingDetail=Booking&{customer_id:string;property_unit_id:string;source_lead_id:string|null;source_deal_id:string|null;assigned_user_id:string;refund_amount:number|null;booking_date:string|null;deposit_date:string|null;cancelled_at:string|null;refunded_at:string|null;cancel_reason:string|null;refund_reason:string|null;note:string|null;source_lead:{id:string;code:string;title:string|null}|null;source_deal:{id:string;code:string;title:string|null}|null;created_by:BookingUser;updated_by:BookingUser|null;updated_at:string;activities:BookingActivity[]};
+export type BookingPayload={customer_id:string;property_unit_id:string;assigned_user_id:string;source_lead_id?:string|null;source_deal_id?:string|null;booking_amount?:number|null;deposit_amount?:number|null;booking_date?:string|null;reservation_expires_at?:string|null;deposit_date?:string|null;note?:string|null};
+export type BookingFilters={page?:number;page_size?:number;q?:string;customer_id?:string;property_unit_id?:string;assigned_user_id?:string;status?:string;created_from?:string;created_to?:string;expires_from?:string;expires_to?:string};
