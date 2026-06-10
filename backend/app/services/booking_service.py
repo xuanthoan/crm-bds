@@ -67,10 +67,33 @@ def _validate_customer(db: Session, customer_id: UUID) -> Customer:
     if not value: raise HTTPException(status_code=400, detail="Khách hàng không tồn tại")
     return value
 
-def _validate_property(db: Session, property_id: UUID, *, lock: bool = False) -> PropertyUnit:
-    query = select(PropertyUnit).where(PropertyUnit.id == property_id, PropertyUnit.deleted_at.is_(None))
-    value = db.scalar(query.with_for_update() if lock else query)
-    if not value: raise HTTPException(status_code=400, detail="Bất động sản không tồn tại")
+def _lock_property_row(db: Session, property_id: UUID) -> None:
+    """Lock only the property_units row, without ORM eager joins.
+
+    PropertyUnit.project is configured with joined eager loading. Selecting the
+    entity while applying FOR UPDATE therefore adds a nullable LEFT OUTER JOIN
+    that PostgreSQL cannot lock. Selecting only the primary-key column keeps
+    this statement on the base table while retaining the row lock until the
+    transaction completes.
+    """
+    locked_id = db.scalar(
+        select(PropertyUnit.id)
+        .where(PropertyUnit.id == property_id, PropertyUnit.deleted_at.is_(None))
+        .with_for_update(of=PropertyUnit)
+    )
+    if locked_id is None:
+        raise HTTPException(status_code=400, detail="Bất động sản không tồn tại")
+
+
+def _validate_property(db: Session, property_id: UUID) -> PropertyUnit:
+    query = (
+        select(PropertyUnit)
+        .where(PropertyUnit.id == property_id, PropertyUnit.deleted_at.is_(None))
+        .execution_options(populate_existing=True)
+    )
+    value = db.scalar(query)
+    if not value:
+        raise HTTPException(status_code=400, detail="Bất động sản không tồn tại")
     return value
 
 def _validate_user(db: Session, user_id: UUID) -> User:
@@ -134,7 +157,10 @@ def list_bookings(db: Session, actor: User, *, page: int = 1, page_size: int = 2
     return items, {"page": page, "page_size": page_size, "total": total, "total_pages": ceil(total / page_size) if total else 0}
 
 def create_booking(db: Session, payload: BookingCreate, actor: User) -> Booking:
-    _validate_customer(db, payload.customer_id); prop = _validate_property(db, payload.property_unit_id, lock=True); _validate_user(db, payload.assigned_user_id)
+    _validate_customer(db, payload.customer_id)
+    _lock_property_row(db, payload.property_unit_id)
+    prop = _validate_property(db, payload.property_unit_id)
+    _validate_user(db, payload.assigned_user_id)
     _validate_source(db, Lead, payload.source_lead_id, "Lead nguồn không tồn tại"); _validate_source(db, Deal, payload.source_deal_id, "Giao dịch nguồn không tồn tại")
     if prop.inventory_status not in CREATE_PROPERTY_STATUSES: raise HTTPException(status_code=400, detail="Bất động sản hiện không khả dụng để giữ chỗ")
     if _active_booking_exists(db, prop.id): raise HTTPException(status_code=409, detail="Bất động sản đã có booking đang hoạt động")
@@ -162,6 +188,8 @@ def change_booking_status(db: Session, booking_id: UUID, payload: BookingStatusC
     if not booking: raise HTTPException(status_code=404, detail="Không tìm thấy booking")
     prefix = "bookings.refund" if payload.status == "refunded" else "bookings.status"
     _require(db, actor, booking, prefix)
+    _lock_property_row(db, booking.property_unit_id)
+    booking.property_unit = _validate_property(db, booking.property_unit_id)
     now = datetime.now(timezone.utc)
     if payload.status == "reserved" and payload.reservation_expires_at and payload.reservation_expires_at <= now: raise HTTPException(status_code=400, detail="Ngày hết hạn giữ chỗ không hợp lệ")
     if payload.status in ACTIVE_BOOKING_STATUSES and _active_booking_exists(db, booking.property_unit_id, booking.id): raise HTTPException(status_code=409, detail="Bất động sản đã có booking đang hoạt động")
