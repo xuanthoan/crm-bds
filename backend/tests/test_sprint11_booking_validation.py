@@ -3,65 +3,124 @@ import importlib.util
 import unittest
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 from pydantic import ValidationError
 from app.schemas.booking import BookingCreate, BookingStatusChange
 
 IDS={"customer_id":"00000000-0000-0000-0000-000000000001","property_unit_id":"00000000-0000-0000-0000-000000000002","assigned_user_id":"00000000-0000-0000-0000-000000000003"}
 class Sprint11BookingValidationTests(unittest.TestCase):
-    def test_create_requires_positive_booking_amount(self):
-        cases = [
-            ({}, "Tiền giữ chỗ là bắt buộc"),
-            ({"booking_amount": None}, "Tiền giữ chỗ là bắt buộc"),
-            ({"booking_amount": ""}, "Tiền giữ chỗ là bắt buộc"),
+    def test_draft_create_allows_missing_money_and_rejects_non_positive_values(self):
+        for values in ({}, {"booking_amount": None}, {"deposit_amount": None}):
+            with self.subTest(values=values):
+                booking = BookingCreate(**IDS, **values)
+                self.assertIsNone(booking.booking_amount)
+        for values, message in (
             ({"booking_amount": Decimal("0")}, "Tiền giữ chỗ phải lớn hơn 0"),
             ({"booking_amount": Decimal("-1")}, "Tiền giữ chỗ phải lớn hơn 0"),
-        ]
-        for values, message in cases:
+            ({"deposit_amount": Decimal("0")}, "Tiền cọc phải lớn hơn 0"),
+            ({"deposit_amount": Decimal("-1")}, "Tiền cọc phải lớn hơn 0"),
+        ):
             with self.subTest(values=values):
                 with self.assertRaises(ValidationError) as context:
                     BookingCreate(**IDS, **values)
                 self.assertIn(message, str(context.exception))
-        booking = BookingCreate(**IDS, booking_amount=Decimal("1000000"))
+        booking = BookingCreate(**IDS, booking_amount=Decimal("1000000"), deposit_amount=Decimal("5000000"))
         self.assertEqual(Decimal("1000000"), booking.booking_amount)
+        self.assertEqual(Decimal("5000000"), booking.deposit_amount)
 
-    def test_deposit_cancel_and_refund_requirements(self):
-        cases = [
+    def test_status_validation_only_checks_relevant_money_fields(self):
+        invalid = [
             ({"status": "deposited"}, "Tiền cọc là bắt buộc khi đặt cọc"),
             ({"status": "deposited", "deposit_amount": 0}, "Tiền cọc phải lớn hơn 0"),
             ({"status": "cancelled"}, "Lý do hủy là bắt buộc"),
             ({"status": "refunded", "refund_reason": "x"}, "Số tiền hoàn là bắt buộc"),
-            ({"status": "refunded", "refund_amount": 0}, "Lý do hoàn tiền là bắt buộc"),
+            ({"status": "refunded", "refund_amount": 0, "refund_reason": "x"}, "Số tiền hoàn phải lớn hơn 0"),
         ]
-        for payload, message in cases:
+        for payload, message in invalid:
             with self.subTest(payload=payload):
                 with self.assertRaises(ValidationError) as context:
                     BookingStatusChange(**payload)
                 self.assertIn(message, str(context.exception))
 
-    def test_valid_status_payloads(self):
-        deposited = BookingStatusChange(status="deposited", deposit_amount=Decimal("5000000"))
-        self.assertEqual(Decimal("5000000"), deposited.deposit_amount)
-        self.assertEqual("refunded", BookingStatusChange(status="refunded", refund_amount=0, refund_reason="Khách đổi ý").status)
+        cancelled = BookingStatusChange(status="cancelled", cancel_reason="Khách đổi ý", deposit_amount=0)
+        expired = BookingStatusChange(status="expired", deposit_amount=0)
+        refunded = BookingStatusChange(status="refunded", refund_amount=1, refund_reason="Hoàn tiền", deposit_amount=0)
+        self.assertEqual("cancelled", cancelled.status)
+        self.assertEqual("expired", expired.status)
+        self.assertEqual("refunded", refunded.status)
 
-    def test_service_enforces_status_amounts_and_duplicate_guard(self):
+    def test_valid_reserved_deposited_and_refunded_payloads(self):
+        reserved = BookingStatusChange(status="reserved", booking_amount=Decimal("1000000"))
+        deposited = BookingStatusChange(status="deposited", deposit_amount=Decimal("5000000"))
+        refunded = BookingStatusChange(status="refunded", refund_amount=Decimal("1000000"), refund_reason="Khách đổi ý")
+        self.assertEqual(Decimal("1000000"), reserved.booking_amount)
+        self.assertEqual(Decimal("5000000"), deposited.deposit_amount)
+        self.assertEqual(Decimal("1000000"), refunded.refund_amount)
+
+    def test_service_enforces_transition_amounts_and_filters_stale_fields(self):
         source = Path("backend/app/services/booking_service.py").read_text()
         for text in (
-            "Khách hàng không tồn tại",
-            "Bất động sản không tồn tại",
-            "Bất động sản hiện không khả dụng để giữ chỗ",
             "Bất động sản đã có booking đang hoạt động",
             "Tiền giữ chỗ là bắt buộc khi giữ chỗ",
-            "Tiền giữ chỗ là bắt buộc trước khi đặt cọc",
             "Tiền cọc là bắt buộc khi đặt cọc",
-            "_change_property_status",
+            "_validate_status_amounts(booking, payload)",
+            "_status_update_data(payload)",
         ):
             self.assertIn(text, source)
-        self.assertIn("_validate_status_amounts(booking, payload)", source)
+        self.assertNotIn('detail="Tiền giữ chỗ là bắt buộc"', ast.get_source_segment(
+            source,
+            next(node for node in ast.parse(source).body if isinstance(node, ast.FunctionDef) and node.name == "create_booking"),
+        ))
+        self.assertIn('"cancelled": common | {"cancel_reason"}', source)
+        self.assertIn('"expired": common', source)
+        self.assertIn('"refunded": common | {"refund_amount", "refund_reason"}', source)
+
+    @unittest.skipUnless(importlib.util.find_spec("sqlalchemy"), "SQLAlchemy is not installed")
+    def test_status_update_data_drops_irrelevant_stale_money(self):
+        from app.services.booking_service import _status_update_data
+
+        cancelled = _status_update_data(BookingStatusChange(
+            status="cancelled", cancel_reason="Khách đổi ý", deposit_amount=0,
+        ))
+        expired = _status_update_data(BookingStatusChange(status="expired", deposit_amount=0))
+        refunded = _status_update_data(BookingStatusChange(
+            status="refunded", refund_amount=1, refund_reason="Hoàn tiền", deposit_amount=0,
+        ))
+        self.assertEqual({"cancel_reason": "Khách đổi ý"}, cancelled)
+        self.assertEqual({}, expired)
+        self.assertEqual({"refund_amount": Decimal("1"), "refund_reason": "Hoàn tiền"}, refunded)
+
+    @unittest.skipUnless(importlib.util.find_spec("sqlalchemy"), "SQLAlchemy is not installed")
+    def test_reserved_and_deposited_service_amount_rules(self):
+        from fastapi import HTTPException
+        from app.services.booking_service import _validate_status_amounts
+
+        booking_without_money = SimpleNamespace(booking_amount=None)
+        with self.assertRaisesRegex(HTTPException, "Tiền giữ chỗ là bắt buộc khi giữ chỗ"):
+            _validate_status_amounts(booking_without_money, BookingStatusChange(status="reserved"))
+        _validate_status_amounts(
+            booking_without_money,
+            BookingStatusChange(status="reserved", booking_amount=Decimal("1")),
+        )
+        _validate_status_amounts(
+            booking_without_money,
+            BookingStatusChange(status="deposited", deposit_amount=Decimal("1")),
+        )
+
+    def test_frontend_status_payload_is_status_specific(self):
+        source = Path("frontend/src/features/bookings/statusPayload.ts").read_text()
+        modal = Path("frontend/src/features/bookings/BookingStatusModal.tsx").read_text()
+        self.assertIn("if (status === 'reserved')", source)
+        self.assertIn("else if (status === 'deposited')", source)
+        self.assertIn("else if (status === 'cancelled')", source)
+        self.assertIn("else if (status === 'refunded')", source)
+        self.assertNotIn("deposit_amount", source[source.index("else if (status === 'cancelled')"):source.index("else if (status === 'refunded')")])
+        self.assertIn("setForm(nextStatus === 'reserved'", modal)
+        self.assertIn("buildBookingStatusPayload(status, form)", modal)
 
     def test_delete_only_allows_final_statuses(self):
         source = Path("backend/app/services/booking_service.py").read_text()
         self.assertIn('DELETE_ALLOWED_STATUSES = {"cancelled", "expired", "refunded"}', source)
-        self.assertNotIn('DELETE_ALLOWED_STATUSES = {"draft"', source)
         self.assertIn("status_code=409", source)
         self.assertIn("Không thể xóa booking đang hoạt động. Vui lòng hủy booking trước.", source)
 

@@ -831,14 +831,15 @@ Activity types are `created`, `updated`, `status_change`, `reserved`, `deposited
 
 ### Property status integration
 
-- `reserved` changes the property to `reserved` and records property status history.
+- `draft` may be created without money; any submitted reservation or deposit amount must be greater than zero, and the draft remains active for duplicate-booking protection.
+- `reserved` requires a positive reservation amount, changes the property to `reserved`, and records property status history.
 - `deposited` requires a deposit amount, defaults the deposit date to now, changes the property to `deposited`, and records history.
 - `cancelled` requires a reason and releases a non-sold property to `available`.
 - `expired` releases a non-sold property to `available`.
-- `refunded` requires a non-negative amount and reason, and releases the property unless it is `sold`, `locked`, or `unavailable`.
+- `refunded` requires a positive refund amount and reason, and releases the property unless it is `sold`, `locked`, or `unavailable`.
 - A property in `reserved`, `deposited`, `sold`, `locked`, or `unavailable` cannot receive a new booking. Only `available` and `negotiating` properties can be booked.
 - Sold properties are never automatically returned to available.
-- Soft delete is limited to `draft`, `cancelled`, `expired`, and `refunded`; reserved/deposited bookings must be cancelled first.
+- Soft delete is limited to final statuses `cancelled`, `expired`, and `refunded`; active draft/reserved/deposited bookings must transition to a final status first.
 
 ### Manual test checklist
 
@@ -851,7 +852,7 @@ Activity types are `created`, `updated`, `status_change`, `reserved`, `deposited
 7. Refund it; verify refund amount/reason and property release safety rules.
 8. Verify booking timeline and audit logs.
 9. Verify related bookings on Property Detail and Customer Detail.
-10. Soft delete a draft/cancelled booking and reject deletion of reserved/deposited bookings.
+10. Reject deletion of draft/reserved/deposited bookings and allow soft deletion only after cancelled/expired/refunded.
 11. Test Sale own, Leader team, Sales Manager department, and Admin all scope.
 12. Regression-check Sprint 10 Project/Property, Sprint 9 Customer, and Sprint 8 Deal flows.
 

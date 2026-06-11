@@ -122,11 +122,22 @@ def _validate_status_amounts(booking: Booking, payload: BookingStatusChange) -> 
     booking_amount = _effective_amount(payload.booking_amount, booking.booking_amount)
     if payload.status == "reserved" and (booking_amount is None or booking_amount <= 0):
         raise HTTPException(status_code=400, detail="Tiền giữ chỗ là bắt buộc khi giữ chỗ")
-    if payload.status == "deposited":
-        if booking_amount is None or booking_amount <= 0:
-            raise HTTPException(status_code=400, detail="Tiền giữ chỗ là bắt buộc trước khi đặt cọc")
-        if payload.deposit_amount is None or payload.deposit_amount <= 0:
-            raise HTTPException(status_code=400, detail="Tiền cọc là bắt buộc khi đặt cọc")
+    if payload.status == "deposited" and (payload.deposit_amount is None or payload.deposit_amount <= 0):
+        raise HTTPException(status_code=400, detail="Tiền cọc là bắt buộc khi đặt cọc")
+
+
+def _status_update_data(payload: BookingStatusChange) -> dict:
+    common = {"note"}
+    fields_by_status = {
+        "draft": common,
+        "reserved": common | {"booking_amount", "reservation_expires_at"},
+        "deposited": common | {"deposit_amount", "deposit_date"},
+        "cancelled": common | {"cancel_reason"},
+        "expired": common,
+        "refunded": common | {"refund_amount", "refund_reason"},
+    }
+    data = payload.model_dump(exclude_unset=True, include=fields_by_status[payload.status])
+    return {key: value for key, value in data.items() if value is not None}
 
 def _add_activity(db: Session, booking: Booking, actor: User, activity_type: str, title: str | None = None, content: str | None = None, old_value: str | None = None, new_value: str | None = None) -> BookingActivity:
     item = BookingActivity(booking_id=booking.id, actor_id=actor.id, activity_type=activity_type, title=title or BOOKING_ACTIVITY_LABELS[activity_type], content=content, old_value=old_value, new_value=new_value)
@@ -171,10 +182,6 @@ def list_bookings(db: Session, actor: User, *, page: int = 1, page_size: int = 2
     return items, {"page": page, "page_size": page_size, "total": total, "total_pages": ceil(total / page_size) if total else 0}
 
 def create_booking(db: Session, payload: BookingCreate, actor: User) -> Booking:
-    if payload.booking_amount is None:
-        raise HTTPException(status_code=400, detail="Tiền giữ chỗ là bắt buộc")
-    if payload.booking_amount <= 0:
-        raise HTTPException(status_code=400, detail="Tiền giữ chỗ phải lớn hơn 0")
     _validate_customer(db, payload.customer_id)
     _lock_property_row(db, payload.property_unit_id)
     prop = _validate_property(db, payload.property_unit_id)
@@ -212,7 +219,7 @@ def change_booking_status(db: Session, booking_id: UUID, payload: BookingStatusC
     _validate_status_amounts(booking, payload)
     if payload.status == "reserved" and payload.reservation_expires_at and payload.reservation_expires_at <= now: raise HTTPException(status_code=400, detail="Ngày hết hạn giữ chỗ không hợp lệ")
     if payload.status in ACTIVE_BOOKING_STATUSES and _active_booking_exists(db, booking.property_unit_id, booking.id): raise HTTPException(status_code=409, detail="Bất động sản đã có booking đang hoạt động")
-    old_status = booking.status; data = payload.model_dump(exclude_unset=True); data.pop("status", None)
+    old_status = booking.status; data = _status_update_data(payload)
     for key, value in data.items(): setattr(booking, key, value)
     booking.status = payload.status; booking.updated_by_id = actor.id
     if payload.status == "reserved":
