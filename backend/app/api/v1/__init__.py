@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import auth, bookings, customers, dashboard, deals, lead_appointments, lead_tasks, leads, organization, permissions, projects, properties, roles, users
+from app.api.v1 import auth, bookings, contracts, customers, dashboard, deals, lead_appointments, lead_tasks, leads, organization, permissions, projects, properties, roles, users
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
@@ -15,6 +15,7 @@ api_router.include_router(leads.router)
 api_router.include_router(customers.router)
 api_router.include_router(deals.router)
 api_router.include_router(bookings.router)
+api_router.include_router(contracts.router)
 api_router.include_router(projects.router)
 api_router.include_router(properties.router)
 

@@ -67,7 +67,7 @@ def serialize_booking(booking: Booking, detail: bool = False) -> dict:
     customer = booking.customer
     result = {"id": booking.id, "booking_code": booking.booking_code, "customer": {"id": customer.id, "customer_code": customer.customer_code, "full_name": customer.full_name, "primary_phone": customer.primary_phone}, "property": _property(booking.property_unit), "assigned_user": _user(booking.assigned_user), "status": booking.status, "status_label": BOOKING_STATUS_LABELS.get(booking.status, booking.status), "booking_amount": booking.booking_amount, "deposit_amount": booking.deposit_amount, "reservation_expires_at": booking.reservation_expires_at, "created_at": booking.created_at}
     if detail:
-        result.update({"customer_id": booking.customer_id, "property_unit_id": booking.property_unit_id, "source_lead_id": booking.source_lead_id, "source_deal_id": booking.source_deal_id, "assigned_user_id": booking.assigned_user_id, "refund_amount": booking.refund_amount, "booking_date": booking.booking_date, "deposit_date": booking.deposit_date, "cancelled_at": booking.cancelled_at, "refunded_at": booking.refunded_at, "cancel_reason": booking.cancel_reason, "refund_reason": booking.refund_reason, "note": booking.note, "created_by": _user(booking.creator), "updated_by": _user(booking.updater), "updated_at": booking.updated_at, "source_lead": {"id": booking.source_lead.id, "code": booking.source_lead.code, "title": booking.source_lead.full_name} if booking.source_lead else None, "source_deal": {"id": booking.source_deal.id, "code": booking.source_deal.deal_code, "title": booking.source_deal.title} if booking.source_deal else None, "activities": [_activity_dict(item) for item in booking.activities]})
+        result.update({"customer_id": booking.customer_id, "property_unit_id": booking.property_unit_id, "source_lead_id": booking.source_lead_id, "source_deal_id": booking.source_deal_id, "assigned_user_id": booking.assigned_user_id, "refund_amount": booking.refund_amount, "booking_date": booking.booking_date, "deposit_date": booking.deposit_date, "cancelled_at": booking.cancelled_at, "refunded_at": booking.refunded_at, "cancel_reason": booking.cancel_reason, "refund_reason": booking.refund_reason, "note": booking.note, "created_by": _user(booking.creator), "updated_by": _user(booking.updater), "updated_at": booking.updated_at, "source_lead": {"id": booking.source_lead.id, "code": booking.source_lead.code, "title": booking.source_lead.full_name} if booking.source_lead else None, "source_deal": {"id": booking.source_deal.id, "code": booking.source_deal.deal_code, "title": booking.source_deal.title} if booking.source_deal else None, "linked_deals": [{"id": d.id, "deal_code": d.deal_code, "title": d.title, "status": d.status, "expected_value": d.expected_value} for d in booking.deals if d.deleted_at is None], "activities": [_activity_dict(item) for item in booking.activities]})
     return result
 
 def _next_code(db: Session) -> str:
@@ -276,3 +276,26 @@ def list_booking_assignees(db: Session, actor: User) -> list[User]:
     scope = _scope(actor, "bookings.update") or _scope(actor, "bookings.view") or "own"
     ids = _ids(db, actor, scope)
     return list(db.scalars(select(User).where(User.id.in_(ids), User.status == "active", User.deleted_at.is_(None)).order_by(User.full_name)).unique())
+
+def create_deal_from_booking(db: Session, booking_id: UUID, payload, actor: User) -> Deal:
+    """Convert one deposited booking into one active closing deal."""
+    from app.contracts.constants import ACTIVE_DEAL_STATUSES
+    from app.models.deal_activity import DealActivity
+    from app.services.deal_service import _next_code as next_deal_code
+    booking = db.scalar(select(Booking).where(Booking.id == booking_id, Booking.deleted_at.is_(None)))
+    if not booking: raise HTTPException(status_code=404, detail="Booking không tồn tại")
+    if booking.status != "deposited": raise HTTPException(status_code=400, detail="Chỉ booking đã cọc mới được chuyển thành giao dịch.")
+    _require(db, actor, booking, "bookings.view", "Bạn không có quyền xem booking này")
+    if not (actor.is_superuser or "deals.create" in set(get_user_permissions(actor))): raise HTTPException(status_code=403, detail="Bạn không có quyền tạo giao dịch")
+    _lock_property_row(db, booking.property_unit_id)
+    prop = _validate_property(db, booking.property_unit_id)
+    _validate_customer(db, booking.customer_id)
+    if db.scalar(select(Deal.id).where(Deal.booking_id == booking.id, Deal.deleted_at.is_(None), Deal.status.in_(ACTIVE_DEAL_STATUSES)).limit(1)): raise HTTPException(status_code=409, detail="Booking này đã có giao dịch đang hoạt động.")
+    if db.scalar(select(Deal.id).where(Deal.property_unit_id == prop.id, Deal.deleted_at.is_(None), Deal.status.in_(ACTIVE_DEAL_STATUSES)).limit(1)): raise HTTPException(status_code=409, detail="Bất động sản này đã có giao dịch đang hoạt động.")
+    title = payload.title or f"Giao dịch từ booking {booking.booking_code} - {prop.property_code}"
+    expected = payload.expected_value if payload.expected_value is not None else (prop.listed_price or booking.deposit_amount or 0)
+    deal = Deal(deal_code=next_deal_code(db), booking_id=booking.id, property_unit_id=prop.id, project_id=prop.project_id, customer_id=booking.customer_id, source_lead_id=booking.source_lead_id, title=title, description=payload.note, deal_type=prop.property_type if prop.property_type in {"apartment","townhouse","villa","land","shophouse","other"} else "other", pipeline_stage="contract", status="contract_pending", priority="medium", project_name=prop.project.name if prop.project else None, property_code=prop.property_code, property_type=prop.property_type, expected_value=expected, deposit_amount=booking.deposit_amount, deposit_date=booking.deposit_date, owner_id=booking.assigned_user_id, created_by_id=actor.id)
+    db.add(deal); db.flush(); db.add(DealActivity(deal_id=deal.id,user_id=actor.id,activity_type="contract",title="Tạo giao dịch từ booking",content=payload.note)); _add_activity(db,booking,actor,"updated",title="Tạo giao dịch",content=f"Đã tạo giao dịch {deal.deal_code}")
+    if prop.inventory_status not in {"sold","locked","unavailable"}: prop.inventory_status="deposited"
+    write_audit_log(db,action="deals.create_from_booking",user_id=actor.id,entity_type="deals",entity_id=str(deal.id),after_data={"booking_id":str(booking.id),"property_unit_id":str(prop.id)})
+    db.commit(); db.refresh(deal); return deal

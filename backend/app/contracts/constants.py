@@ -1,0 +1,8 @@
+CONTRACT_TYPE_LABELS = {"deposit_contract": "Hợp đồng đặt cọc", "sale_contract": "Hợp đồng mua bán", "transfer_contract": "Hợp đồng chuyển nhượng", "other": "Khác"}
+CONTRACT_STATUS_LABELS = {"draft": "Bản nháp", "pending_signature": "Chờ ký", "signed": "Đã ký", "active": "Có hiệu lực", "completed": "Hoàn tất", "cancelled": "Đã hủy"}
+PAYMENT_STATUS_LABELS = {"planned": "Dự kiến", "paid": "Đã thanh toán", "overdue": "Quá hạn", "cancelled": "Đã hủy"}
+PAYMENT_TYPE_LABELS = {"deposit": "Tiền cọc", "installment": "Thanh toán đợt", "final": "Thanh toán cuối", "refund": "Hoàn tiền", "other": "Khác", "payment": "Thanh toán"}
+CONTRACT_ACTIVITY_LABELS = {"created": "Tạo hợp đồng", "updated": "Cập nhật hợp đồng", "status_change": "Đổi trạng thái hợp đồng", "payment_created": "Tạo thanh toán", "payment_paid": "Xác nhận thanh toán", "payment_cancelled": "Hủy thanh toán", "deleted": "Xóa hợp đồng", "note": "Ghi chú"}
+ACTIVE_CONTRACT_STATUSES = {"draft", "pending_signature", "signed", "active"}
+ACTIVE_DEAL_STATUSES = {"open", "negotiating", "contract_pending", "contracted", "payment_in_progress"}
+FINAL_DEAL_STATUSES = {"completed", "lost", "cancelled"}

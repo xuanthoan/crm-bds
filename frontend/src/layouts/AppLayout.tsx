@@ -9,6 +9,7 @@ import { DEAL_VIEW_PERMISSIONS } from '../features/deals/constants';
 import { PROJECT_VIEW_PERMISSIONS } from '../features/projects/constants';
 import { PROPERTY_VIEW_PERMISSIONS } from '../features/properties/constants';
 import { BOOKING_VIEW_PERMISSIONS } from '../features/bookings/constants';
+import { CONTRACT_VIEW_PERMISSIONS } from '../features/contracts/constants';
 
 type AppLayoutProps = {
   children?: ReactNode;
@@ -33,6 +34,7 @@ export function AppLayout({ children, currentPath }: AppLayoutProps) {
   const canViewProjects = PROJECT_VIEW_PERMISSIONS.some(can);
   const canViewProperties = PROPERTY_VIEW_PERMISSIONS.some(can);
   const canViewBookings = BOOKING_VIEW_PERMISSIONS.some(can);
+  const canViewContracts = CONTRACT_VIEW_PERMISSIONS.some(can);
 
   async function handleLogout() {
     const refreshToken = getRefreshToken();
@@ -50,7 +52,7 @@ export function AppLayout({ children, currentPath }: AppLayoutProps) {
     return (
       <a
         href={path}
-        className={currentPath === path || (path === '/customers' && /^\/customers\/[^/]+$/.test(currentPath)) || (path === '/leads' && /^\/leads\/[^/]+$/.test(currentPath)) || (path === '/deals' && /^\/deals\/[^/]+$/.test(currentPath)) || (path === '/projects' && /^\/projects\/[^/]+$/.test(currentPath)) || (path === '/properties' && /^\/properties\/[^/]+$/.test(currentPath)) || (path === '/bookings' && /^\/bookings\/[^/]+$/.test(currentPath)) ? 'active' : ''}
+        className={currentPath === path || (path === '/customers' && /^\/customers\/[^/]+$/.test(currentPath)) || (path === '/leads' && /^\/leads\/[^/]+$/.test(currentPath)) || (path === '/deals' && /^\/deals\/[^/]+$/.test(currentPath)) || (path === '/projects' && /^\/projects\/[^/]+$/.test(currentPath)) || (path === '/properties' && /^\/properties\/[^/]+$/.test(currentPath)) || (path === '/bookings' && /^\/bookings\/[^/]+$/.test(currentPath)) || (path === '/contracts' && /^\/contracts\/[^/]+$/.test(currentPath)) ? 'active' : ''}
         onClick={(event: any) => {
           event.preventDefault();
           navigateTo(path);
@@ -67,13 +69,14 @@ export function AppLayout({ children, currentPath }: AppLayoutProps) {
         <div className="brand">CRM BDS</div>
         <nav>
           <div className="nav-section"><span>Dashboard</span>{can('dashboard.view.own') || can('dashboard.view.team') || can('dashboard.view.all') ? <div>{renderLink('Tổng quan của tôi', '/dashboard/my-work')}</div> : null}{can('dashboard.view.team') || can('dashboard.view.all') ? <div>{renderLink('Tổng quan team', '/dashboard/team-work')}</div> : null}</div>
-          {(canViewLeads || canViewCustomers || canViewDeals || canViewBookings) && (
+          {(canViewLeads || canViewCustomers || canViewDeals || canViewBookings || canViewContracts) && (
             <div className="nav-section">
-              <span>CRM</span>
+              <span>Giao dịch CRM</span>
               {canViewLeads && <><div>{renderLink('Khách tiềm năng', '/leads')}</div><div>{renderLink('Lead quá hạn', '/leads/overdue')}</div></>}
               {canViewCustomers && <div>{renderLink('Khách hàng', '/customers')}</div>}
               {canViewDeals && <div>{renderLink('Giao dịch', '/deals')}</div>}
               {canViewBookings && <div>{renderLink('Booking / Giữ chỗ', '/bookings')}</div>}
+              {canViewContracts && <div>{renderLink('Hợp đồng', '/contracts')}</div>}
               {(can('lead_tasks.view.own') || can('lead_tasks.view.team') || can('lead_tasks.view.all')) && <><div>{renderLink('Công việc', '/tasks')}</div><div>{renderLink('Việc hôm nay', '/tasks/today')}</div><div>{renderLink('Việc quá hạn', '/tasks/overdue')}</div></>}
               {(can('lead_appointments.view.own') || can('lead_appointments.view.team') || can('lead_appointments.view.all')) && <><div>{renderLink('Lịch hẹn', '/appointments')}</div><div>{renderLink('Lịch hẹn hôm nay', '/appointments/today')}</div></>}
             </div>

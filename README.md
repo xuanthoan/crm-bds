@@ -867,3 +867,33 @@ Activity types are `created`, `updated`, `status_change`, `reserved`, `deposited
 ### Suggested Sprint 12
 
 Add controlled Deal ↔ Booking ↔ Property linkage, contract preparation, transition validation, and a database-backed booking code sequence before contract/payment modules are introduced.
+
+## Sprint 12 — Deal Closing / Contract Foundation
+
+Sprint 12 adds migration `20260613_0010_deal_closing_contracts.py`, links `deals` to Booking, Property Unit, and Project, and creates `contracts`, `contract_payments`, and `contract_activities`. Deposited bookings can be converted through `POST /api/v1/bookings/{booking_id}/create-deal`; duplicate active deals for a booking or property are rejected.
+
+Contract lifecycle: **Bản nháp → Chờ ký → Đã ký → Có hiệu lực → Hoàn tất**, with **Đã hủy** as the cancellation state. Payment lifecycle: **Dự kiến / Đã thanh toán / Quá hạn / Đã hủy**. Signing or activating a contract moves the Deal to `contracted` and the Property to `sold`, with Vietnamese property history. Payment confirmation records Vietnamese timeline and audit entries but does not automatically complete the Deal.
+
+### API and UI
+
+- Contracts: `GET/POST /api/v1/contracts`, `GET/PUT/DELETE /api/v1/contracts/{id}`, `POST /api/v1/contracts/{id}/status`.
+- Payments: `GET/POST /api/v1/contracts/{id}/payments`, update, confirm, and soft-delete nested payment routes.
+- Timeline: `POST /api/v1/contracts/{id}/activities`.
+- Frontend: `/contracts` and `/contracts/:id`; Booking details expose **Tạo giao dịch** or the linked Deal; Deal details expose Booking, Property, Project, and Contracts.
+- Permissions use own/team/department/all scopes for contract view/update/status/delete and payment view/update/confirm. Admin receives all; Director all non-delete operations; Sales Manager department; Leader team; Sale own without payment confirmation; Viewer own read-only.
+
+### Manual test checklist
+
+1. Create a Booking and move it to `deposited`.
+2. Create a Deal from the Booking; verify Customer, Booking, Property, Project, and assigned sale links.
+3. Verify duplicate Deal creation for the Booking and active Property is blocked.
+4. Create Contract `HD-000001`; verify it on Deal, Customer, and Property contexts.
+5. Add planned payment, confirm it, and verify paid/remaining totals.
+6. Change Contract to signed; verify Deal is contracted and Property is sold.
+7. Verify signed Contract deletion is blocked; cancel and soft-delete a draft/cancelled Contract.
+8. Verify Vietnamese contract/payment timeline and linked Deal on Booking details.
+9. Regression-check Sprint 11 Booking, Sprint 10 Property, and Sprint 9 Customer flows.
+
+### Known limitations / Sprint 13 preparation
+
+No invoice, VAT/tax, commission calculation or payout, contract scan upload, e-signature, payment gateway, automatic Deal completion, or advanced revenue dashboard. Booking is not auto-refunded when a Deal is lost/cancelled. Codes are generated at application level; database sequences are a future improvement. Sprint 13 can build commission and KPI calculation on confirmed payments and completed Deals.

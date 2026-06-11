@@ -1,0 +1,1 @@
+import{CONTRACT_STATUS_LABELS}from'../constants';export function ContractBadge({status}:{status:string}){return <span className={`badge contract-${status}`}>{CONTRACT_STATUS_LABELS[status]??status}</span>}

@@ -17,6 +17,6 @@ export type Customer = {
  source:string|null; source_lead_id:string|null; source_note:string|null; interested_project:string|null; interested_area:string|null;
  budget_min:string|number|null; budget_max:string|number|null; bedroom_count:number|null; area_min:string|number|null; area_max:string|number|null; purpose:string|null;
  owner:CustomerUser|null; created_by:CustomerUser; first_contact_at:string|null; last_contact_at:string|null; next_follow_up_at:string|null; converted_at:string|null;
- note:string|null; created_at:string; updated_at:string; source_lead:SourceLead|null; activities?:CustomerActivity[]; lead_activities?:any[]; related_tasks?:RelatedTask[]; related_appointments?:RelatedAppointment[];related_people?:CustomerRelatedPerson[];
+ note:string|null; created_at:string; updated_at:string; source_lead:SourceLead|null; activities?:CustomerActivity[]; lead_activities?:any[]; related_tasks?:RelatedTask[]; related_appointments?:RelatedAppointment[];related_people?:CustomerRelatedPerson[];contracts?:{id:string;contract_code:string;status:string;contract_value:number;total_paid:number;property:{id:string;property_code:string}}[];
 };
 export type CustomerPayload = Partial<Omit<Customer,'id'|'customer_code'|'owner'|'created_by'|'created_at'|'updated_at'|'source_lead'|'activities'|'lead_activities'|'related_tasks'|'related_appointments'|'related_people'|'score_total'|'score_label'|'score_updated_at'|'score_note'>> & { full_name:string; primary_phone:string; owner_id?:string|null };

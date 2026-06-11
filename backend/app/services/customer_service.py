@@ -188,6 +188,7 @@ def serialize_customer(customer: Customer, *, detail: bool = False) -> dict:
             "related_tasks": [_task_summary(item) for item in lead.tasks if item.deleted_at is None] if lead else [],
             "related_appointments": [_appointment_summary(item) for item in lead.appointments if item.deleted_at is None] if lead else [],
             "related_people": [serialize_related_person(item) for item in customer.related_people if item.deleted_at is None],
+            "contracts": [{"id": c.id, "contract_code": c.contract_code, "status": c.status, "contract_value": c.contract_value, "total_paid": sum((p.amount for p in c.payments if p.deleted_at is None and p.status == "paid"), 0), "property": {"id": c.property_unit.id, "property_code": c.property_unit.property_code}} for c in customer.contracts if c.deleted_at is None],
         })
     return data
 

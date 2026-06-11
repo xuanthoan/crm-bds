@@ -47,6 +47,8 @@ def serialize_property_detail(item:PropertyUnit)->dict:
         data[field]=getattr(item,field)
     data["created_by"]=_user(item.creator)
     data["price_history"]=[{"id":h.id,"field_name":h.field_name,"field_label":PRICE_FIELD_LABELS.get(h.field_name,h.field_name),"old_value":h.old_value,"new_value":h.new_value,"note":h.note,"changed_by":_user(h.changed_by),"created_at":h.created_at} for h in item.price_history]
+    data["deals"]=[{"id":d.id,"deal_code":d.deal_code,"title":d.title,"status":d.status} for d in item.deals if d.deleted_at is None]
+    data["contracts"]=[{"id":c.id,"contract_code":c.contract_code,"status":c.status,"contract_value":c.contract_value} for c in item.contracts if c.deleted_at is None]
     data["status_history"]=[{"id":h.id,"old_status":h.old_status,"old_status_label":INVENTORY_STATUS_LABELS.get(h.old_status) if h.old_status else None,"new_status":h.new_status,"new_status_label":INVENTORY_STATUS_LABELS.get(h.new_status,h.new_status),"note":h.note,"changed_by":_user(h.changed_by),"created_at":h.created_at} for h in item.status_history]
     return data
 def _next_code(db:Session)->str:
