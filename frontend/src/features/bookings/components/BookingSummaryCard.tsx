@@ -1,0 +1,2 @@
+import type{BookingDetail}from'../types';import{BookingBadge}from'./BookingBadge';
+export function BookingSummaryCard({booking}:{booking:BookingDetail}){return <section className="summary-grid"><article><span>Trạng thái</span><strong><BookingBadge status={booking.status}/></strong></article><article><span>Khách hàng</span><strong>{booking.customer.full_name}</strong></article><article><span>Bất động sản</span><strong>{booking.property.property_code}</strong></article><article><span>Người phụ trách</span><strong>{booking.assigned_user.full_name}</strong></article></section>}

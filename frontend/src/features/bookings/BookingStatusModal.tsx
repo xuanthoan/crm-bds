@@ -1,0 +1,50 @@
+import { useState, type FormEvent } from 'react';
+import { Modal } from '../../components/Modal';
+import { formatApiError } from '../../services/apiClient';
+import { changeBookingStatus } from './api';
+import { BOOKING_STATUS_LABELS } from './constants';
+import { buildBookingStatusPayload, type BookingStatusForm } from './statusPayload';
+import type { Booking, BookingStatus } from './types';
+
+export function BookingStatusModal({ booking, onClose, onSaved }: { booking: Booking; onClose: () => void; onSaved: () => void }) {
+  const [status, setStatus] = useState<BookingStatus>(booking.status);
+  const [form, setForm] = useState<BookingStatusForm>({});
+  const [error, setError] = useState('');
+  const set = (key: string, value: string) => setForm((current) => ({ ...current, [key]: value }));
+
+  function selectStatus(nextStatus: BookingStatus) {
+    setStatus(nextStatus);
+    setError('');
+    setForm(nextStatus === 'reserved' && booking.booking_amount != null
+      ? { booking_amount: String(booking.booking_amount) }
+      : {});
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (status === 'reserved' && (!form.booking_amount || Number(form.booking_amount) <= 0)) return setError('Tiền giữ chỗ là bắt buộc khi giữ chỗ');
+    if (status === 'deposited' && (!form.deposit_amount || Number(form.deposit_amount) <= 0)) return setError('Tiền cọc là bắt buộc khi đặt cọc');
+    if (status === 'cancelled' && !form.cancel_reason?.trim()) return setError('Lý do hủy là bắt buộc');
+    if (status === 'refunded' && (!form.refund_amount || Number(form.refund_amount) <= 0)) return setError('Số tiền hoàn phải lớn hơn 0');
+    if (status === 'refunded' && !form.refund_reason?.trim()) return setError('Lý do hoàn tiền là bắt buộc');
+    try {
+      await changeBookingStatus(booking.id, buildBookingStatusPayload(status, form));
+      onSaved();
+    } catch (requestError) {
+      setError(formatApiError(requestError).join('. '));
+    }
+  }
+
+  return <Modal title="Đổi trạng thái booking" onClose={onClose}>
+    <form className="property-form" onSubmit={submit}>
+      <label>Trạng thái<select value={status} onChange={(event) => selectStatus(event.target.value as BookingStatus)}>{Object.entries(BOOKING_STATUS_LABELS).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></label>
+      {status === 'reserved' && <><label>Hết hạn giữ chỗ<input type="datetime-local" onChange={(event) => set('reservation_expires_at', event.target.value)} /></label><label>Tiền giữ chỗ *<input type="number" min="1" required value={form.booking_amount || ''} onChange={(event) => set('booking_amount', event.target.value)} /></label></>}
+      {status === 'deposited' && <><label>Tiền cọc *<input type="number" min="1" required value={form.deposit_amount || ''} onChange={(event) => set('deposit_amount', event.target.value)} /></label><label>Ngày cọc<input type="datetime-local" onChange={(event) => set('deposit_date', event.target.value)} /></label></>}
+      {status === 'cancelled' && <label>Lý do hủy *<textarea value={form.cancel_reason || ''} onChange={(event) => set('cancel_reason', event.target.value)} /></label>}
+      {status === 'refunded' && <><label>Số tiền hoàn *<input type="number" min="1" required value={form.refund_amount || ''} onChange={(event) => set('refund_amount', event.target.value)} /></label><label>Lý do hoàn tiền *<textarea value={form.refund_reason || ''} onChange={(event) => set('refund_reason', event.target.value)} /></label></>}
+      <label>Ghi chú<textarea value={form.note || ''} onChange={(event) => set('note', event.target.value)} /></label>
+      {error && <div className="form-error">{error}</div>}
+      <footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Hủy</button><button type="submit">Cập nhật</button></footer>
+    </form>
+  </Modal>;
+}

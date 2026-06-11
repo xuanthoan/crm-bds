@@ -34,6 +34,9 @@ import { PropertiesPage } from '../features/properties/PropertiesPage';
 import { PropertyDetailPage } from '../features/properties/PropertyDetailPage';
 import { PROPERTY_VIEW_PERMISSIONS } from '../features/properties/constants';
 import { ReportsPage } from '../pages/ReportsPage';
+import { BookingsPage } from '../features/bookings/BookingsPage';
+import { BookingDetailPage } from '../features/bookings/BookingDetailPage';
+import { BOOKING_VIEW_PERMISSIONS } from '../features/bookings/constants';
 
 export function navigateTo(path: string): void {
   window.history.pushState({}, '', path);
@@ -66,6 +69,7 @@ const protectedPages: Record<string, ProtectedPage> = {
   '/projects': { element: <ProjectsPage />, permission: PROJECT_VIEW_PERMISSIONS },
   '/properties': { element: <PropertiesPage />, permission: PROPERTY_VIEW_PERMISSIONS },
   '/deals': { element: <DealsPage />, permission: DEAL_VIEW_PERMISSIONS },
+  '/bookings': { element: <BookingsPage />, permission: BOOKING_VIEW_PERMISSIONS },
   '/reports': { element: <ReportsPage />, permission: 'reports.view.own' },
 };
 
@@ -105,6 +109,8 @@ export function AppRoutes() {
   }, [authenticated, normalizedPath]);
 
   const page = useMemo(() => {
+    const bookingDetailMatch = normalizedPath.match(/^\/bookings\/([0-9a-f-]+)$/i);
+    if (bookingDetailMatch) return { element: <BookingDetailPage bookingId={bookingDetailMatch[1]} />, permission: BOOKING_VIEW_PERMISSIONS };
     const propertyDetailMatch = normalizedPath.match(/^\/properties\/([0-9a-f-]+)$/i);
     if (propertyDetailMatch) return { element: <PropertyDetailPage propertyId={propertyDetailMatch[1]} />, permission: PROPERTY_VIEW_PERMISSIONS };
     const projectDetailMatch = normalizedPath.match(/^\/projects\/([0-9a-f-]+)$/i);

@@ -40,3 +40,4 @@ class PropertyUnit(Base):
     creator = relationship("User", foreign_keys=[created_by_id], lazy="joined"); updater = relationship("User", foreign_keys=[updated_by_id], lazy="joined"); deleter = relationship("User", foreign_keys=[deleted_by_id], lazy="joined")
     price_history = relationship("PropertyPriceHistory", back_populates="property_unit", order_by="PropertyPriceHistory.created_at.desc()", cascade="all, delete-orphan")
     status_history = relationship("PropertyStatusHistory", back_populates="property_unit", order_by="PropertyStatusHistory.created_at.desc()", cascade="all, delete-orphan")
+    bookings = relationship("Booking", back_populates="property_unit", lazy="select")

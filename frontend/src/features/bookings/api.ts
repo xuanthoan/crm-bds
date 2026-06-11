@@ -1,0 +1,10 @@
+import{apiRequest}from'../../services/apiClient';import type{Booking,BookingActivity,BookingDetail,BookingFilters,BookingPayload,BookingUser}from'./types';
+const query=(filters:BookingFilters)=>{const p=new URLSearchParams();Object.entries(filters).forEach(([k,v])=>{if(v!==undefined&&v!==null&&v!=='')p.set(k,String(v))});return p.toString()};
+export const listBookings=(filters:BookingFilters={})=>apiRequest<Booking[]>(`/api/v1/bookings?${query(filters)}`);
+export const getBooking=(id:string)=>apiRequest<BookingDetail>(`/api/v1/bookings/${id}`);
+export const createBooking=(payload:BookingPayload)=>apiRequest<BookingDetail>('/api/v1/bookings',{method:'POST',body:JSON.stringify(payload)});
+export const updateBooking=(id:string,payload:Partial<BookingPayload>)=>apiRequest<BookingDetail>(`/api/v1/bookings/${id}`,{method:'PUT',body:JSON.stringify(payload)});
+export const changeBookingStatus=(id:string,payload:Record<string,unknown>)=>apiRequest<BookingDetail>(`/api/v1/bookings/${id}/status`,{method:'POST',body:JSON.stringify(payload)});
+export const addBookingActivity=(id:string,payload:{title:string;content?:string})=>apiRequest<BookingActivity>(`/api/v1/bookings/${id}/activities`,{method:'POST',body:JSON.stringify(payload)});
+export const deleteBooking=(id:string)=>apiRequest<null>(`/api/v1/bookings/${id}`,{method:'DELETE'});
+export const listBookingAssignees=()=>apiRequest<BookingUser[]>('/api/v1/bookings/assignees');

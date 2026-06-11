@@ -642,17 +642,37 @@ th {
 .lead-timeline {
   container-type: inline-size;
   min-width: 0;
+  width: 100%;
+}
+
+.timeline-item {
+  min-width: 0;
 }
 
 .timeline-item > div,
 .timeline-item header,
-.timeline-item p,
 .timeline-item h4,
+.timeline-item p,
+.timeline-item time,
 .timeline-item small,
 .value-change {
   min-width: 0;
   max-width: 100%;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  white-space: normal;
+  word-break: normal;
+}
+
+.timeline-item > div {
+  grid-column: 2;
+  width: 100%;
+}
+
+.timeline-item time {
+  flex-shrink: 0;
+  overflow-wrap: normal;
+  white-space: nowrap;
+  word-break: keep-all;
 }
 
 @container (max-width: 32rem) {
@@ -660,10 +680,6 @@ th {
     align-items: flex-start;
     flex-direction: column;
     gap: 0.25rem;
-  }
-
-  .timeline-item time {
-    white-space: normal;
   }
 }
 
@@ -697,3 +713,6 @@ th {
   margin-top: 1rem;
   white-space: pre-line;
 }
+.booking-status-draft{background:#eef2ff;color:#3730a3}.booking-status-reserved{background:#fef3c7;color:#92400e}.booking-status-deposited{background:#dbeafe;color:#1d4ed8}.booking-status-cancelled,.booking-status-expired{background:#fee2e2;color:#991b1b}.booking-status-refunded{background:#dcfce7;color:#166534}.booking-form label,.booking-filters label{display:grid;gap:.35rem}.booking-table{min-width:92rem}
+.booking-activity-context{display:grid;gap:.35rem;margin:.55rem 0}.booking-activity-context p{margin:0}.booking-activity-actor{display:block;margin-top:.5rem}
+.booking-timeline-transition{align-items:center;display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.55rem;max-width:100%;min-width:0}.booking-timeline-transition-arrow{color:#667085;flex:0 0 auto;font-weight:800}.booking-timeline-status-badge{border-radius:999px;display:inline-flex;font-size:.78rem;font-weight:800;line-height:1.2;max-width:100%;overflow-wrap:break-word;padding:.32rem .62rem;white-space:normal;word-break:normal}.booking-timeline-status-badge--draft{background:#eef2ff;color:#3730a3}.booking-timeline-status-badge--reserved{background:#fef3c7;color:#92400e}.booking-timeline-status-badge--deposited{background:#dbeafe;color:#1d4ed8}.booking-timeline-status-badge--cancelled,.booking-timeline-status-badge--expired{background:#fee2e2;color:#991b1b}.booking-timeline-status-badge--refunded{background:#dcfce7;color:#166534}

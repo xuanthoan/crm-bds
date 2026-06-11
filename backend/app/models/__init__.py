@@ -1,3 +1,5 @@
+from app.models.booking import Booking
+from app.models.booking_activity import BookingActivity
 from app.models.audit_log import AuditLog
 from app.models.customer import Customer
 from app.models.customer_activity import CustomerActivity
@@ -20,4 +22,4 @@ from app.models.team import Team
 from app.models.user import User
 from app.models.user_organization_membership import UserOrganizationMembership
 
-__all__ = ["AuditLog", "Customer", "CustomerActivity", "CustomerRelatedPerson", "Deal", "DealActivity", "Department", "Lead", "LeadActivity", "LeadAppointment", "LeadTask", "Permission", "Project", "PropertyUnit", "PropertyPriceHistory", "PropertyStatusHistory", "RefreshToken", "Role", "Team", "User", "UserOrganizationMembership"]
+__all__ = ["Booking", "BookingActivity", "AuditLog", "Customer", "CustomerActivity", "CustomerRelatedPerson", "Deal", "DealActivity", "Department", "Lead", "LeadActivity", "LeadAppointment", "LeadTask", "Permission", "Project", "PropertyUnit", "PropertyPriceHistory", "PropertyStatusHistory", "RefreshToken", "Role", "Team", "User", "UserOrganizationMembership"]
