@@ -815,6 +815,7 @@ Activity types are `created`, `updated`, `status_change`, `reserved`, `deposited
 
 - `/bookings` — booking list, filters, create/edit/status/delete actions.
 - `/bookings/:id` — booking financial information, dates, reasons, links, and timeline.
+- Booking status timeline transitions use Vietnamese labels and retain notes, cancellation/refund reasons, and relevant reservation/deposit/refund amounts.
 - Customer Detail includes **Booking của khách hàng**.
 - Property Detail includes **Booking liên quan**.
 - Sidebar and route guards require any `bookings.view.*` permission.

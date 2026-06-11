@@ -5,6 +5,7 @@ from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from pydantic import ValidationError
+from app.bookings.activity import decode_activity_context, is_status_transition, status_activity_content, status_label
 from app.schemas.booking import BookingCreate, BookingStatusChange
 
 IDS={"customer_id":"00000000-0000-0000-0000-000000000001","property_unit_id":"00000000-0000-0000-0000-000000000002","assigned_user_id":"00000000-0000-0000-0000-000000000003"}
@@ -117,6 +118,59 @@ class Sprint11BookingValidationTests(unittest.TestCase):
         self.assertNotIn("deposit_amount", source[source.index("else if (status === 'cancelled')"):source.index("else if (status === 'refunded')")])
         self.assertIn("setForm(nextStatus === 'reserved'", modal)
         self.assertIn("buildBookingStatusPayload(status, form)", modal)
+
+    def test_booking_timeline_status_labels_are_vietnamese(self):
+        expected = {
+            "draft": "Mới tạo",
+            "reserved": "Đã giữ chỗ",
+            "deposited": "Đã cọc",
+            "cancelled": "Đã hủy",
+            "expired": "Hết hạn giữ chỗ",
+            "refunded": "Đã hoàn tiền",
+        }
+        for code, label in expected.items():
+            with self.subTest(code=code):
+                self.assertEqual(label, status_label(code))
+        for old_status, new_status in (
+            ("draft", "reserved"),
+            ("reserved", "deposited"),
+            ("deposited", "cancelled"),
+            ("deposited", "refunded"),
+            ("reserved", "expired"),
+        ):
+            self.assertTrue(is_status_transition(old_status, new_status))
+            self.assertNotEqual(old_status, status_label(old_status))
+            self.assertNotEqual(new_status, status_label(new_status))
+
+    def test_status_activity_content_preserves_notes_reasons_and_amounts(self):
+        cases = [
+            (SimpleNamespace(status="reserved", booking_amount=Decimal("1000000"), deposit_amount=None, refund_amount=None, cancel_reason=None, refund_reason=None, note="Khách đã chuyển tiền giữ chỗ"), {"booking_amount": "1000000", "note": "Khách đã chuyển tiền giữ chỗ"}),
+            (SimpleNamespace(status="deposited", booking_amount=None, deposit_amount=Decimal("5000000"), refund_amount=None, cancel_reason=None, refund_reason=None, note="Đã nhận tiền cọc"), {"deposit_amount": "5000000", "note": "Đã nhận tiền cọc"}),
+            (SimpleNamespace(status="cancelled", booking_amount=None, deposit_amount=None, refund_amount=None, cancel_reason="Khách đổi ý", refund_reason=None, note="Đã xác nhận hủy"), {"cancel_reason": "Khách đổi ý", "note": "Đã xác nhận hủy"}),
+            (SimpleNamespace(status="refunded", booking_amount=None, deposit_amount=None, refund_amount=Decimal("50000000"), cancel_reason=None, refund_reason="Khách đổi ý", note="Đã hoàn tiền qua chuyển khoản"), {"refund_amount": "50000000", "refund_reason": "Khách đổi ý", "note": "Đã hoàn tiền qua chuyển khoản"}),
+        ]
+        for payload, expected in cases:
+            with self.subTest(status=payload.status):
+                self.assertEqual(expected, decode_activity_context(status_activity_content(payload)))
+
+    def test_booking_timeline_renderer_separates_transition_actor_and_context(self):
+        source = Path("frontend/src/features/bookings/components/BookingTimeline.tsx").read_text()
+        self.assertIn("{activity.old_value || '—'} → {activity.new_value || '—'}", source)
+        self.assertIn("Người thực hiện: {activity.actor.full_name}", source)
+        for label in ("Ghi chú", "Lý do hủy", "Lý do hoàn tiền", "Số tiền hoàn", "Tiền giữ chỗ", "Tiền cọc"):
+            self.assertIn(label, source)
+        for raw_status in (">draft<", ">reserved<", ">deposited<", ">cancelled<", ">expired<", ">refunded<"):
+            self.assertNotIn(raw_status, source)
+
+    def test_status_change_activity_uses_standard_title_and_structured_content(self):
+        source = Path("backend/app/services/booking_service.py").read_text()
+        self.assertIn('title="Đổi trạng thái booking"', source)
+        self.assertIn('activity_content = status_activity_content(payload)', source)
+        self.assertIn('content=activity_content', source)
+        self.assertIn('"old_value": status_label(item.old_value)', source)
+        self.assertIn('"new_value": status_label(item.new_value)', source)
+        self.assertIn('"context": context', source)
+        self.assertIn('after_data={"status": booking.status, **activity_context}', source)
 
     def test_delete_only_allows_final_statuses(self):
         source = Path("backend/app/services/booking_service.py").read_text()

@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 from pydantic import BaseModel, Field, field_validator, model_validator
 from app.bookings.constants import BOOKING_STATUS_LABELS
@@ -75,7 +75,7 @@ class ProjectSummary(BaseModel): id: UUID; project_code: str; name: str
 class PropertySummary(BaseModel): id: UUID; property_code: str; title: str; inventory_status: str; project: ProjectSummary | None = None
 class SourceSummary(BaseModel): id: UUID; code: str; title: str | None = None
 class BookingActivityRead(BaseModel):
-    id: UUID; activity_type: str; activity_label: str; title: str; content: str | None; old_value: str | None; new_value: str | None; actor: UserSummary; created_at: datetime
+    id: UUID; activity_type: str; activity_label: str; title: str; content: str | None; old_value: str | None; new_value: str | None; context: dict[str, Any]; actor: UserSummary; created_at: datetime
 class BookingRead(BaseModel):
     id: UUID; booking_code: str; customer: CustomerSummary; property: PropertySummary; assigned_user: UserSummary
     status: str; status_label: str; booking_amount: Decimal | None; deposit_amount: Decimal | None; reservation_expires_at: datetime | None; created_at: datetime

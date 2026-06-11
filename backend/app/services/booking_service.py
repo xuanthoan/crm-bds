@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
+from app.bookings.activity import decode_activity_context, is_status_transition, status_activity_content, status_label
 from app.bookings.constants import ACTIVE_BOOKING_STATUSES, BOOKING_ACTIVITY_LABELS, BOOKING_STATUS_LABELS
 from app.models.booking import Booking
 from app.models.booking_activity import BookingActivity
@@ -47,7 +48,20 @@ def _property(value: PropertyUnit) -> dict:
     return {"id": value.id, "property_code": value.property_code, "title": value.title, "inventory_status": value.inventory_status, "project": {"id": project.id, "project_code": project.project_code, "name": project.name} if project else None}
 
 def _activity_dict(item: BookingActivity) -> dict:
-    return {"id": item.id, "activity_type": item.activity_type, "activity_label": BOOKING_ACTIVITY_LABELS.get(item.activity_type, item.activity_type), "title": item.title, "content": item.content, "old_value": item.old_value, "new_value": item.new_value, "actor": _user(item.actor), "created_at": item.created_at}
+    context = decode_activity_context(item.content)
+    transition = is_status_transition(item.old_value, item.new_value)
+    return {
+        "id": item.id,
+        "activity_type": "status_change" if transition else item.activity_type,
+        "activity_label": BOOKING_ACTIVITY_LABELS["status_change"] if transition else BOOKING_ACTIVITY_LABELS.get(item.activity_type, item.activity_type),
+        "title": "Đổi trạng thái booking" if transition else item.title,
+        "content": context.get("note") if transition else item.content,
+        "old_value": status_label(item.old_value) if transition else item.old_value,
+        "new_value": status_label(item.new_value) if transition else item.new_value,
+        "context": context,
+        "actor": _user(item.actor),
+        "created_at": item.created_at,
+    }
 
 def serialize_booking(booking: Booking, detail: bool = False) -> dict:
     customer = booking.customer
@@ -235,8 +249,10 @@ def change_booking_status(db: Session, booking_id: UUID, payload: BookingStatusC
     elif payload.status == "refunded":
         booking.refunded_at = now
         if booking.property_unit.inventory_status not in PROPERTY_RELEASE_BLOCKED_STATUSES: _change_property_status(db, booking, actor, "available", f"Booking {booking.booking_code} đã hoàn tiền")
-    _add_activity(db, booking, actor, payload.status if payload.status != "draft" else "status_change", content=payload.note, old_value=old_status, new_value=payload.status)
-    write_audit_log(db, action="bookings.status_change", user_id=actor.id, entity_type="bookings", entity_id=str(booking.id), before_data={"status": old_status}, after_data={"status": booking.status})
+    activity_content = status_activity_content(payload)
+    activity_context = decode_activity_context(activity_content)
+    _add_activity(db, booking, actor, "status_change", title="Đổi trạng thái booking", content=activity_content, old_value=old_status, new_value=payload.status)
+    write_audit_log(db, action="bookings.status_change", user_id=actor.id, entity_type="bookings", entity_id=str(booking.id), before_data={"status": old_status}, after_data={"status": booking.status, **activity_context})
     db.commit(); db.refresh(booking); return booking
 
 def add_booking_activity(db: Session, booking_id: UUID, payload: BookingActivityCreate, actor: User) -> BookingActivity:
