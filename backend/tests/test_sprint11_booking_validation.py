@@ -153,14 +153,40 @@ class Sprint11BookingValidationTests(unittest.TestCase):
             with self.subTest(status=payload.status):
                 self.assertEqual(expected, decode_activity_context(status_activity_content(payload)))
 
-    def test_booking_timeline_renderer_separates_transition_actor_and_context(self):
+    def test_booking_timeline_renderer_uses_action_titles_badges_and_context(self):
         source = Path("frontend/src/features/bookings/components/BookingTimeline.tsx").read_text()
-        self.assertIn("{activity.old_value || '—'} → {activity.new_value || '—'}", source)
+        constants = Path("backend/app/bookings/constants.py").read_text()
+        self.assertIn('"created": "Tạo booking"', constants)
+        expected_titles = {
+            "Mới tạo": "Mới tạo",
+            "Đã giữ chỗ": "Giữ chỗ",
+            "Đã cọc": "Đặt cọc",
+            "Đã hủy": "Hủy booking",
+            "Hết hạn giữ chỗ": "Hết hạn giữ chỗ",
+            "Đã hoàn tiền": "Hoàn tiền",
+        }
+        for status_label, title in expected_titles.items():
+            self.assertIn(f"'{status_label}': {{ title: '{title}'", source)
+        self.assertIn("activityTitle(activity)", source)
+        self.assertNotIn("<h4>{activity.title || activity.activity_label}</h4>", source)
+        self.assertIn('<div className="booking-timeline-transition">', source)
+        self.assertIn("<StatusBadge label={activity.old_value} />", source)
+        self.assertIn("<StatusBadge label={activity.new_value} />", source)
+        self.assertIn("booking-timeline-status-badge--${modifier}", source)
         self.assertIn("Người thực hiện: {activity.actor.full_name}", source)
         for label in ("Ghi chú", "Lý do hủy", "Lý do hoàn tiền", "Số tiền hoàn", "Tiền giữ chỗ", "Tiền cọc"):
             self.assertIn(label, source)
         for raw_status in (">draft<", ">reserved<", ">deposited<", ">cancelled<", ">expired<", ">refunded<"):
             self.assertNotIn(raw_status, source)
+
+    def test_booking_timeline_badges_cover_all_statuses_and_wrap_responsively(self):
+        styles = Path("frontend/src/styles.css").read_text()
+        self.assertIn(".booking-timeline-transition{", styles)
+        self.assertIn("flex-wrap:wrap", styles)
+        self.assertIn("overflow-wrap:break-word", styles)
+        self.assertIn("word-break:normal", styles)
+        for modifier in ("draft", "reserved", "deposited", "cancelled", "expired", "refunded"):
+            self.assertIn(f"booking-timeline-status-badge--{modifier}", styles)
 
     def test_status_change_activity_uses_standard_title_and_structured_content(self):
         source = Path("backend/app/services/booking_service.py").read_text()
