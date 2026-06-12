@@ -1,1 +1,49 @@
-import{useEffect,useState}from'react';import{navigateTo}from'../../routes/AppRoutes';import{getContract}from'./api';import type{Contract,ContractPayment}from'./types';import{ContractBadge}from'./components/ContractBadge';import{ContractSummaryCard}from'./components/ContractSummaryCard';import{ContractPaymentTable}from'./components/ContractPaymentTable';import{ContractTimeline}from'./components/ContractTimeline';import{ContractPaymentModal}from'./ContractPaymentModal';import{ContractStatusModal}from'./ContractStatusModal';import{ContractActivityForm}from'./ContractActivityForm';const show=(v:unknown)=>v||'Chưa cập nhật';export function ContractDetailPage({contractId}:{contractId:string}){const[c,setC]=useState<Contract|null>(null);const[modal,setModal]=useState<'payment'|'status'|ContractPayment|null>(null);const load=()=>getContract(contractId).then(r=>setC(r.data));useEffect(()=>{void load()},[contractId]);if(!c)return <p>Đang tải hợp đồng...</p>;const close=()=>{setModal(null);void load()};return <section className="admin-page"><header className="detail-hero"><div><p>Hợp đồng</p><h1>{c.contract_code}</h1><ContractBadge status={c.status}/></div><div><button onClick={()=>setModal('status')}>Đổi trạng thái</button><button onClick={()=>setModal('payment')}>Thêm thanh toán</button></div></header><section className="detail-card"><h2>Tổng quan</h2><dl className="info-grid"><div><dt>Số hợp đồng</dt><dd>{show(c.contract_number)}</dd></div><div><dt>Loại hợp đồng</dt><dd>{c.contract_type_label}</dd></div><div><dt>Giao dịch</dt><dd><button onClick={()=>navigateTo(`/deals/${c.deal.id}`)}>{c.deal.deal_code}</button></dd></div><div><dt>Booking</dt><dd>{c.booking?<button onClick={()=>navigateTo(`/bookings/${c.booking!.id}`)}>{c.booking.booking_code}</button>:'Chưa cập nhật'}</dd></div><div><dt>Khách hàng</dt><dd>{c.customer.full_name}</dd></div><div><dt>Bất động sản</dt><dd>{c.property.property_code}</dd></div><div><dt>Dự án</dt><dd>{c.project?.name||'Chưa cập nhật'}</dd></div></dl></section><ContractSummaryCard contract={c}/><section className="detail-card"><h2>Thời gian</h2><p>Ngày ký: {show(c.signed_date)}</p><p>Ngày hiệu lực: {show(c.effective_date)}</p><p>Ngày bàn giao: {show(c.handover_date)}</p></section><section className="detail-card"><h2>Người mua</h2><p>{show(c.buyer_name)} · {show(c.buyer_phone)} · {show(c.buyer_email)}</p><p>{show(c.buyer_id_number)} · {show(c.buyer_address)}</p></section><section className="detail-card"><h2>Bên bán</h2><p>{show(c.seller_name)} · {show(c.seller_phone)} · {show(c.seller_email)}</p><p>Đại diện: {show(c.seller_representative)}</p></section><section className="detail-card"><h2>Thanh toán</h2><ContractPaymentTable items={c.payments||[]} onConfirm={p=>setModal(p)}/></section><section className="detail-card"><h2>Timeline</h2><ContractActivityForm contractId={c.id} onSaved={load}/><ContractTimeline items={c.activities||[]}/></section>{modal==='payment'&&<ContractPaymentModal contractId={c.id} onClose={()=>setModal(null)} onSaved={close}/>} {modal==='status'&&<ContractStatusModal contract={c} onClose={()=>setModal(null)} onSaved={close}/>} {typeof modal==='object'&&modal&&<ContractPaymentModal contractId={c.id} payment={modal} onClose={()=>setModal(null)} onSaved={close}/>}</section>}
+import { useCallback, useEffect, useState } from 'react';
+
+import { navigateTo } from '../../routes/AppRoutes';
+import { getContract } from './api';
+import { ContractActivityForm } from './ContractActivityForm';
+import { ContractPaymentModal } from './ContractPaymentModal';
+import { ContractStatusModal } from './ContractStatusModal';
+import { ContractBadge } from './components/ContractBadge';
+import { ContractPaymentTable } from './components/ContractPaymentTable';
+import { ContractSummaryCard } from './components/ContractSummaryCard';
+import { ContractTimeline } from './components/ContractTimeline';
+import type { Contract, ContractPayment } from './types';
+
+const show = (value: unknown) => value || 'Chưa cập nhật';
+
+export function ContractDetailPage({ contractId }: { contractId: string }) {
+  const [contract, setContract] = useState<Contract | null>(null);
+  const [modal, setModal] = useState<'payment' | 'status' | ContractPayment | null>(null);
+  const load = useCallback(async () => setContract((await getContract(contractId)).data), [contractId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (!contract) return <p>Đang tải hợp đồng...</p>;
+  const close = () => {
+    setModal(null);
+    void load();
+  };
+
+  return (
+    <section className="admin-page contract-detail">
+      <header className="detail-hero">
+        <div><p>Hợp đồng</p><h1>{contract.contract_code}</h1><ContractBadge status={contract.status} /></div>
+        <div><button onClick={() => setModal('status')}>Đổi trạng thái</button><button onClick={() => setModal('payment')}>Thêm thanh toán</button></div>
+      </header>
+      <section className="detail-card"><h2>Tổng quan</h2><dl className="info-grid"><div><dt>Số hợp đồng</dt><dd>{show(contract.contract_number)}</dd></div><div><dt>Loại hợp đồng</dt><dd>{contract.contract_type_label}</dd></div><div><dt>Giao dịch</dt><dd><button onClick={() => navigateTo(`/deals/${contract.deal.id}`)}>{contract.deal.deal_code}</button></dd></div><div><dt>Booking</dt><dd>{contract.booking ? <button onClick={() => navigateTo(`/bookings/${contract.booking!.id}`)}>{contract.booking.booking_code}</button> : 'Chưa cập nhật'}</dd></div><div><dt>Khách hàng</dt><dd>{contract.customer.full_name}</dd></div><div><dt>Bất động sản</dt><dd>{contract.property.property_code}</dd></div><div><dt>Dự án</dt><dd>{contract.project?.name || 'Chưa cập nhật'}</dd></div></dl></section>
+      <ContractSummaryCard contract={contract} />
+      <section className="detail-card"><h2>Thời gian</h2><dl className="info-grid"><div><dt>Ngày ký</dt><dd>{show(contract.signed_date)}</dd></div><div><dt>Ngày hiệu lực</dt><dd>{show(contract.effective_date)}</dd></div><div><dt>Ngày bàn giao</dt><dd>{show(contract.handover_date)}</dd></div></dl></section>
+      <section className="detail-card"><h2>Người mua</h2><dl className="info-grid"><div><dt>Tên</dt><dd>{show(contract.buyer_name)}</dd></div><div><dt>SĐT</dt><dd>{show(contract.buyer_phone)}</dd></div><div><dt>Email</dt><dd>{show(contract.buyer_email)}</dd></div><div><dt>CCCD/CMND</dt><dd>{show(contract.buyer_id_number)}</dd></div><div className="full-span"><dt>Địa chỉ</dt><dd>{show(contract.buyer_address)}</dd></div></dl></section>
+      <section className="detail-card"><h2>Bên bán</h2><dl className="info-grid"><div><dt>Tên</dt><dd>{show(contract.seller_name)}</dd></div><div><dt>SĐT</dt><dd>{show(contract.seller_phone)}</dd></div><div><dt>Email</dt><dd>{show(contract.seller_email)}</dd></div><div><dt>Đại diện</dt><dd>{show(contract.seller_representative)}</dd></div></dl></section>
+      <section className="detail-card"><h2>Thanh toán</h2><ContractPaymentTable items={contract.payments || []} onConfirm={(payment) => setModal(payment)} /></section>
+      <section className="detail-card"><h2>Timeline</h2><ContractActivityForm contractId={contract.id} onSaved={load} /><ContractTimeline items={contract.activities || []} /></section>
+      {modal === 'payment' && <ContractPaymentModal contractId={contract.id} onClose={() => setModal(null)} onSaved={close} />}
+      {modal === 'status' && <ContractStatusModal contract={contract} onClose={() => setModal(null)} onSaved={close} />}
+      {typeof modal === 'object' && modal && <ContractPaymentModal contractId={contract.id} payment={modal} onClose={() => setModal(null)} onSaved={close} />}
+    </section>
+  );
+}

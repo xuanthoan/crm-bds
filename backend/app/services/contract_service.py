@@ -10,6 +10,7 @@ from app.models.contract import Contract
 from app.models.contract_activity import ContractActivity
 from app.models.contract_payment import ContractPayment
 from app.models.deal import Deal
+from app.models.deal_activity import DealActivity
 from app.models.property_status_history import PropertyStatusHistory
 from app.models.user import User
 from app.permissions.dependencies import get_user_permissions
@@ -47,9 +48,52 @@ def _sell_property(db,contract,actor):
     prop=contract.property_unit
     if prop.inventory_status!="sold":
         old=prop.inventory_status; prop.inventory_status="sold"; prop.updated_by_id=actor.id; db.add(PropertyStatusHistory(property_unit_id=prop.id,changed_by_id=actor.id,old_status=old,new_status="sold",note=f"Tự động cập nhật từ giao dịch {contract.deal.deal_code}"))
-def _apply_status(db,contract,actor,status):
-    if status in {"signed","active"}: contract.deal.status="contracted"; contract.deal.pipeline_stage="contract"; _sell_property(db,contract,actor)
-    elif status=="completed": contract.deal.status="completed"; contract.deal.pipeline_stage="completed"; contract.deal.closed_at=datetime.now(timezone.utc); _sell_property(db,contract,actor)
+def _deal_contract_activity(db, contract, actor, old_status, new_status, note=None):
+    titles = {
+        "signed": "Hợp đồng đã ký",
+        "active": "Hợp đồng có hiệu lực",
+        "completed": "Hợp đồng hoàn tất",
+        "cancelled": "Hợp đồng đã hủy",
+    }
+    if new_status not in titles:
+        return None
+    old_label = CONTRACT_STATUS_LABELS[old_status]
+    new_label = CONTRACT_STATUS_LABELS[new_status]
+    content = f"Hợp đồng {contract.contract_code} đã chuyển sang trạng thái {new_label}."
+    if note:
+        content += f"\nGhi chú: {note.strip()}"
+    activity = DealActivity(
+        deal_id=contract.deal_id,
+        user_id=actor.id,
+        activity_type="contract_status",
+        title=titles[new_status],
+        content=content,
+        old_value=old_label,
+        new_value=new_label,
+        metadata_json={
+            "contract_id": str(contract.id),
+            "contract_code": contract.contract_code,
+            "old_status_label": old_label,
+            "new_status_label": new_label,
+            "note": note.strip() if note else None,
+        },
+    )
+    db.add(activity)
+    return activity
+
+
+def _apply_status(db, contract, actor, status):
+    if status in {"signed", "active"}:
+        contract.deal.status = "contracted"
+        contract.deal.pipeline_stage = "contract_signed"
+        contract.deal.contract_date = contract.signed_date or contract.deal.contract_date or datetime.now(timezone.utc)
+        _sell_property(db, contract, actor)
+    elif status == "completed":
+        contract.deal.status = "completed"
+        contract.deal.pipeline_stage = "completed"
+        contract.deal.closed_at = datetime.now(timezone.utc)
+        _sell_property(db, contract, actor)
+
 def totals(contract):
     active=[p for p in contract.payments if p.deleted_at is None]; paid=sum((p.amount for p in active if p.status=="paid"),Decimal("0")); planned=sum((p.amount for p in active if p.status in {"planned","overdue"}),Decimal("0")); return paid,planned,max(contract.contract_value-paid,Decimal("0"))
 def serialize_contract(item,detail=False):
@@ -79,10 +123,34 @@ def create_contract(db,payload:ContractCreate,actor):
     item=Contract(**data); db.add(item); db.flush(); add_contract_activity(db,item,actor,"created",content=f"Hợp đồng {item.contract_code} được tạo từ giao dịch {deal.deal_code}"); _apply_status(db,item,actor,item.status); write_audit_log(db,action="contracts.create",user_id=actor.id,entity_type="contracts",entity_id=str(item.id)); db.commit(); db.refresh(item); return item
 def update_contract(db,id,payload,actor):
     item=_get(db,id); _require(db,actor,item,"contracts.update"); data=payload.model_dump(exclude_unset=True); old={k:str(getattr(item,k)) for k in data}; [setattr(item,k,v) for k,v in data.items()]; item.updated_by_id=actor.id; add_contract_activity(db,item,actor,"updated",content=", ".join(data)); write_audit_log(db,action="contracts.update",user_id=actor.id,entity_type="contracts",entity_id=str(item.id),before_data=old,after_data={k:str(v) for k,v in data.items()}); db.commit(); db.refresh(item); return item
-def change_contract_status(db,id,payload:ContractStatusChange,actor):
-    item=_get(db,id); _require(db,actor,item,"contracts.status");
-    if payload.status not in CONTRACT_STATUS_LABELS:raise HTTPException(400,"Trạng thái hợp đồng không hợp lệ")
-    old=item.status; item.status=payload.status; item.updated_by_id=actor.id; _apply_status(db,item,actor,payload.status); add_contract_activity(db,item,actor,"status_change",content=payload.note,old_value=CONTRACT_STATUS_LABELS[old],new_value=CONTRACT_STATUS_LABELS[payload.status]); write_audit_log(db,action="contracts.status_change",user_id=actor.id,entity_type="contracts",entity_id=str(item.id)); db.commit(); db.refresh(item); return item
+def change_contract_status(db, id, payload: ContractStatusChange, actor):
+    item = _get(db, id)
+    _require(db, actor, item, "contracts.status")
+    if payload.status not in CONTRACT_STATUS_LABELS:
+        raise HTTPException(400, "Trạng thái hợp đồng không hợp lệ")
+    old = item.status
+    item.status = payload.status
+    item.updated_by_id = actor.id
+    _apply_status(db, item, actor, payload.status)
+    add_contract_activity(
+        db,
+        item,
+        actor,
+        "status_change",
+        content=payload.note.strip() if payload.note else None,
+        old_value=CONTRACT_STATUS_LABELS[old],
+        new_value=CONTRACT_STATUS_LABELS[payload.status],
+        metadata={
+            "old_status_label": CONTRACT_STATUS_LABELS[old],
+            "new_status_label": CONTRACT_STATUS_LABELS[payload.status],
+            "note": payload.note.strip() if payload.note else None,
+        },
+    )
+    _deal_contract_activity(db, item, actor, old, payload.status, payload.note)
+    write_audit_log(db, action="contracts.status_change", user_id=actor.id, entity_type="contracts", entity_id=str(item.id))
+    db.commit()
+    db.refresh(item)
+    return item
 def soft_delete_contract(db,id,actor):
     item=_get(db,id); _require(db,actor,item,"contracts.delete")
     if item.status not in {"draft","cancelled"}:raise HTTPException(409,"Không thể xóa hợp đồng đã ký hoặc hoàn tất.")
@@ -91,10 +159,10 @@ def list_contract_payments(db,contract_id,actor):return [p for p in get_contract
 def create_contract_payment(db,contract_id,payload:ContractPaymentCreate,actor):
     c=_get(db,contract_id); _require(db,actor,c,"contracts.payment.update" if False else "contracts.payment.view");
     if not (actor.is_superuser or "contracts.payment.create" in set(get_user_permissions(actor))):raise HTTPException(403,"Bạn không có quyền tạo thanh toán")
-    d=payload.model_dump(exclude={"contract_id"}); p=ContractPayment(**d,payment_code=_next(db,ContractPayment,ContractPayment.payment_code,"PAY"),contract_id=c.id,deal_id=c.deal_id,customer_id=c.customer_id,property_unit_id=c.property_unit_id,created_by_id=actor.id); db.add(p); db.flush(); add_contract_activity(db,c,actor,"payment_created",content=f"Số tiền: {p.amount}",metadata={"payment_code":p.payment_code,"amount":str(p.amount)}); write_audit_log(db,action="contracts.payment.create",user_id=actor.id,entity_type="contract_payments",entity_id=str(p.id)); db.commit(); db.refresh(p); return p
+    d=payload.model_dump(exclude={"contract_id"}); p=ContractPayment(**d,payment_code=_next(db,ContractPayment,ContractPayment.payment_code,"PAY"),contract_id=c.id,deal_id=c.deal_id,customer_id=c.customer_id,property_unit_id=c.property_unit_id,created_by_id=actor.id); db.add(p); db.flush(); add_contract_activity(db,c,actor,"payment_created",metadata={"payment_code":p.payment_code,"amount":str(p.amount),"payment_type_label":PAYMENT_TYPE_LABELS[p.payment_type],"payment_status_label":PAYMENT_STATUS_LABELS[p.status]}); write_audit_log(db,action="contracts.payment.create",user_id=actor.id,entity_type="contract_payments",entity_id=str(p.id)); db.commit(); db.refresh(p); return p
 def update_contract_payment(db,contract_id,id,payload:ContractPaymentUpdate,actor):
     c=_get(db,contract_id); _require(db,actor,c,"contracts.payment.update"); p=_payment(db,contract_id,id); [setattr(p,k,v) for k,v in payload.model_dump(exclude_unset=True).items()]; p.updated_by_id=actor.id; db.commit(); db.refresh(p); return p
 def confirm_contract_payment(db,contract_id,id,payload:ContractPaymentConfirm,actor):
-    c=_get(db,contract_id); _require(db,actor,c,"contracts.payment.confirm"); p=_payment(db,contract_id,id); p.status="paid"; p.paid_date=payload.paid_date or datetime.now(timezone.utc); p.payment_method=payload.payment_method or p.payment_method; p.reference_number=payload.reference_number or p.reference_number; p.note=payload.note or p.note; p.updated_by_id=actor.id; add_contract_activity(db,c,actor,"payment_paid",content=f"Số tiền: {p.amount}\nPhương thức: {p.payment_method or 'Chưa cập nhật'}\nMã tham chiếu: {p.reference_number or 'Chưa cập nhật'}",metadata={"amount":str(p.amount)}); write_audit_log(db,action="contracts.payment.confirm",user_id=actor.id,entity_type="contract_payments",entity_id=str(p.id)); db.commit(); db.refresh(p); return p
+    c=_get(db,contract_id); _require(db,actor,c,"contracts.payment.confirm"); p=_payment(db,contract_id,id); p.status="paid"; p.paid_date=payload.paid_date or datetime.now(timezone.utc); p.payment_method=payload.payment_method or p.payment_method; p.reference_number=payload.reference_number or p.reference_number; p.note=payload.note or p.note; p.updated_by_id=actor.id; add_contract_activity(db,c,actor,"payment_paid",content=p.note,metadata={"payment_code":p.payment_code,"amount":str(p.amount),"payment_method":p.payment_method,"reference_number":p.reference_number,"payment_status_label":PAYMENT_STATUS_LABELS[p.status]}); write_audit_log(db,action="contracts.payment.confirm",user_id=actor.id,entity_type="contract_payments",entity_id=str(p.id)); db.commit(); db.refresh(p); return p
 def soft_delete_contract_payment(db,contract_id,id,actor):
     c=_get(db,contract_id); _require(db,actor,c,"contracts.payment.update"); p=_payment(db,contract_id,id); p.deleted_at=datetime.now(timezone.utc); p.deleted_by_id=actor.id; add_contract_activity(db,c,actor,"payment_cancelled",content=p.payment_code); db.commit()

@@ -1,8 +1,8 @@
 DEAL_TYPE_LABELS = {"apartment": "Căn hộ", "townhouse": "Nhà phố", "villa": "Biệt thự", "land": "Đất nền", "shophouse": "Shophouse", "other": "Khác"}
-PIPELINE_STAGE_LABELS = {"new": "Mới tạo", "consulting": "Đang tư vấn", "viewing": "Đã xem nhà / xem dự án", "negotiating": "Đang đàm phán", "deposit": "Đặt cọc", "contract": "Ký hợp đồng", "completed": "Hoàn tất", "lost": "Thất bại / Hủy"}
+PIPELINE_STAGE_LABELS = {"new": "Mới tạo", "consulting": "Đang tư vấn", "viewing": "Đã xem nhà / xem dự án", "negotiating": "Đang đàm phán", "deposit": "Đặt cọc", "contract": "Ký hợp đồng", "contract_signed": "Đã ký hợp đồng", "completed": "Hoàn tất", "lost": "Thất bại / Hủy"}
 DEAL_STATUS_LABELS = {"open": "Đang mở", "negotiating": "Đang thương lượng", "contract_pending": "Chờ hợp đồng", "contracted": "Đã ký hợp đồng", "payment_in_progress": "Đang thanh toán", "completed": "Hoàn tất", "won": "Thành công", "lost": "Thất bại", "cancelled": "Đã hủy"}
 DEAL_PRIORITY_LABELS = {"low": "Thấp", "medium": "Trung bình", "high": "Cao", "urgent": "Khẩn cấp"}
-DEAL_ACTIVITY_TYPE_LABELS = {"note": "Ghi chú", "call": "Cuộc gọi", "meeting": "Gặp khách", "viewing": "Xem nhà / xem dự án", "stage_change": "Đổi giai đoạn", "status_change": "Đổi trạng thái", "assign": "Phân công", "deposit": "Đặt cọc", "contract": "Ký hợp đồng", "close_won": "Chốt thành công", "close_lost": "Thất bại / Hủy", "update": "Cập nhật"}
+DEAL_ACTIVITY_TYPE_LABELS = {"note": "Ghi chú", "call": "Cuộc gọi", "meeting": "Gặp khách", "viewing": "Xem nhà / xem dự án", "stage_change": "Đổi giai đoạn", "status_change": "Đổi trạng thái", "assign": "Phân công", "deposit": "Đặt cọc", "contract": "Ký hợp đồng", "contract_status": "Hợp đồng", "close_won": "Chốt thành công", "close_lost": "Thất bại / Hủy", "update": "Cập nhật"}
 DEAL_TYPES = set(DEAL_TYPE_LABELS)
 PIPELINE_STAGES = set(PIPELINE_STAGE_LABELS)
 DEAL_STATUSES = set(DEAL_STATUS_LABELS)

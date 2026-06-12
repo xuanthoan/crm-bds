@@ -803,3 +803,22 @@ th {
     grid-column: auto;
   }
 }
+
+/* Sprint 12 bugfix - readable contract payment timeline */
+.contract-timeline-details {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.75rem 0;
+}
+.contract-timeline-details div {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(8rem, auto) minmax(0, 1fr);
+}
+.contract-timeline-details dt { color: #667085; font-weight: 700; }
+.contract-timeline-details dd { margin: 0; overflow-wrap: anywhere; }
+.contract-timeline-note { white-space: pre-wrap; }
+.contract-timeline .timeline-item small { display: block; margin-top: 0.35rem; }
+@media (max-width: 520px) {
+  .contract-timeline-details div { gap: 0.2rem; grid-template-columns: 1fr; }
+}
