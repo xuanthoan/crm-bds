@@ -1,16 +1,53 @@
 import unittest
+import importlib.util
 from decimal import Decimal
 from types import SimpleNamespace
 from pathlib import Path
 from fastapi import HTTPException
 from pydantic import ValidationError
-from app.schemas.contract import ContractCreate,ContractPaymentCreate
+from app.schemas.contract import ContractCreate,ContractPaymentConfirm,ContractPaymentCreate
 from uuid import uuid4
+HAS_SQLALCHEMY = importlib.util.find_spec("sqlalchemy") is not None
 class Sprint12ValidationTest(unittest.TestCase):
  def test_contract_value_positive(self):
   with self.assertRaises(ValidationError):ContractCreate(deal_id=uuid4(),contract_value=0)
  def test_payment_positive(self):
   with self.assertRaises(ValidationError):ContractPaymentCreate(contract_id=uuid4(),amount=0)
+  with self.assertRaises(ValidationError):ContractPaymentCreate(contract_id=uuid4(),amount=-1)
+ def test_payment_method_vocabulary(self):
+  self.assertEqual(ContractPaymentConfirm(payment_method="bank_transfer").payment_method,"bank_transfer")
+  with self.assertRaises(ValidationError):ContractPaymentConfirm(payment_method="free text")
+ @unittest.skipUnless(HAS_SQLALCHEMY, "SQLAlchemy is not installed")
+ def test_contract_totals_deduct_booking_deposit_and_paid_payments(self):
+  from app.services.contract_service import totals
+  contract=SimpleNamespace(
+   contract_value=Decimal("1000"),deposit_value=Decimal("200"),
+   payments=[
+    SimpleNamespace(amount=Decimal("300"),status="paid",deleted_at=None),
+    SimpleNamespace(amount=Decimal("100"),status="planned",deleted_at=None),
+    SimpleNamespace(amount=Decimal("50"),status="paid",deleted_at=object()),
+   ],
+  )
+  paid,planned,remaining=totals(contract)
+  self.assertEqual(paid,Decimal("300"))
+  self.assertEqual(planned,Decimal("100"))
+  self.assertEqual(remaining,Decimal("500"))
+ @unittest.skipUnless(HAS_SQLALCHEMY, "SQLAlchemy is not installed")
+ def test_contract_remaining_never_negative(self):
+  from app.services.contract_service import totals
+  contract=SimpleNamespace(
+   contract_value=Decimal("1000"),deposit_value=Decimal("800"),
+   payments=[SimpleNamespace(amount=Decimal("300"),status="paid",deleted_at=None)],
+  )
+  self.assertEqual(totals(contract)[2],Decimal("0"))
+ @unittest.skipUnless(HAS_SQLALCHEMY, "SQLAlchemy is not installed")
+ def test_payment_capacity_blocks_planned_or_paid_overpayment(self):
+  from app.services.contract_service import _validate_payment_capacity
+  contract=SimpleNamespace(id=uuid4(),contract_value=Decimal("1000"),deposit_value=Decimal("200"))
+  db=SimpleNamespace(scalar=lambda _query:Decimal("700"))
+  with self.assertRaisesRegex(HTTPException,"Số tiền thanh toán vượt quá số tiền còn phải thu của hợp đồng"):
+   _validate_payment_capacity(db,contract,Decimal("101"))
+  _validate_payment_capacity(db,contract,Decimal("100"))
  def test_booking_conversion_guards(self):
   s=Path("backend/app/services/booking_service.py").read_text();self.assertIn("Chỉ booking đã cọc mới được chuyển thành giao dịch.",s);self.assertIn("Booking này đã có giao dịch đang hoạt động.",s);self.assertIn("Bất động sản này đã có giao dịch đang hoạt động.",s);self.assertIn('status="contract_pending"',s)
  def test_contract_guards_and_integrations(self):
@@ -34,6 +71,7 @@ class Sprint12ValidationTest(unittest.TestCase):
   self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr))",styles)
   self.assertIn("@media (max-width: 640px)",styles)
   self.assertIn("grid-template-columns: 1fr",styles)
+ @unittest.skipUnless(HAS_SQLALCHEMY, "SQLAlchemy is not installed")
  def test_contract_status_helpers_update_deal_and_create_localized_activity(self):
   from app.services.contract_service import _apply_status, _deal_contract_activity
   actor=SimpleNamespace(id=uuid4())
@@ -73,16 +111,36 @@ class Sprint12ValidationTest(unittest.TestCase):
   self.assertIn('"payment_type_label":PAYMENT_TYPE_LABELS[p.payment_type]',service)
   self.assertIn('"payment_method":p.payment_method',service)
   self.assertIn('"reference_number":p.reference_number',service)
+  self.assertIn('"paid_date":p.paid_date.isoformat()',service)
+  self.assertIn('"payment_method_label":PAYMENT_METHOD_LABELS.get(p.payment_method)',service)
   self.assertIn("Intl.NumberFormat('vi-VN'",timeline)
   self.assertIn("maximumFractionDigits: 0",timeline)
-  for label in ("Số tiền", "Loại thanh toán", "Trạng thái", "Phương thức", "Mã tham chiếu"):
+  for label in ("Số tiền", "Loại thanh toán", "Trạng thái", "Phương thức", "Mã tham chiếu", "Ngày thanh toán"):
    self.assertIn(label,timeline)
   self.assertIn('contract-timeline-details',timeline)
+ def test_contract_inherits_booking_deposit_and_payment_ui_is_structured(self):
+  service=Path("backend/app/services/contract_service.py").read_text()
+  modal=Path("frontend/src/features/contracts/ContractPaymentModal.tsx").read_text()
+  table=Path("frontend/src/features/contracts/components/ContractPaymentTable.tsx").read_text()
+  summary=Path("frontend/src/features/contracts/components/ContractSummaryCard.tsx").read_text()
+  self.assertIn("deal.booking.deposit_amount",service)
+  self.assertIn('"inherited_deposit_amount"',service)
+  self.assertIn('"deposit_amount":item.deposit_value or Decimal("0")',service)
+  self.assertIn("contract.contract_value - deposit - paid",service)
+  self.assertIn("Số tiền thanh toán vượt quá số tiền còn phải thu của hợp đồng.",service)
+  self.assertIn("<select required value={method}",modal)
+  self.assertNotIn('placeholder="Phương thức thanh toán"',modal)
+  for label in ("Mã tham chiếu / mã giao dịch","Ngày thanh toán","Hạn thanh toán","Ghi chú"):
+   self.assertIn(label,modal)
+  self.assertIn("payment_method_label",table)
+  self.assertIn("payment.paid_date",table)
+  self.assertIn("c.deposit_amount",summary)
  def test_contract_parties_use_labeled_fields_not_noisy_separators(self):
   detail=Path("frontend/src/features/contracts/ContractDetailPage.tsx").read_text()
   for label in ("Tên", "SĐT", "Email", "CCCD/CMND", "Địa chỉ", "Đại diện"):
    self.assertIn(f"<dt>{label}</dt>",detail)
   self.assertNotIn(" · ",detail)
+ @unittest.skipUnless(HAS_SQLALCHEMY, "SQLAlchemy is not installed")
  def test_deal_property_link_derives_inventory_fields(self):
   from app.services.deal_service import _property_link_data
   project_id=uuid4()
@@ -101,6 +159,7 @@ class Sprint12ValidationTest(unittest.TestCase):
   self.assertEqual(result["project_name"],"Hồng Hạc City")
   self.assertEqual(result["area"],"68.5")
   self.assertEqual(result["_listed_price"],Decimal("1000"))
+ @unittest.skipUnless(HAS_SQLALCHEMY, "SQLAlchemy is not installed")
  def test_deal_property_link_rejects_conflicting_deleted_and_sold_inventory(self):
   from app.services.deal_service import _property_link_data
   project_id=uuid4()

@@ -34,8 +34,9 @@ function PaymentDetails({ activity }: { activity: ContractActivity }) {
     return (
       <dl className="contract-timeline-details">
         <div><dt>Số tiền</dt><dd>{formatVnd(metadata.amount)}</dd></div>
-        <div><dt>Phương thức</dt><dd>{show(metadata.payment_method)}</dd></div>
+        <div><dt>Phương thức</dt><dd>{show(metadata.payment_method_label)}</dd></div>
         <div><dt>Mã tham chiếu</dt><dd>{show(metadata.reference_number)}</dd></div>
+        <div><dt>Ngày thanh toán</dt><dd>{metadata.paid_date ? formatTime(metadata.paid_date) : 'Chưa cập nhật'}</dd></div>
       </dl>
     );
   }

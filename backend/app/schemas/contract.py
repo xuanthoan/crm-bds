@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 from pydantic import BaseModel, field_validator, model_validator
-from app.contracts.constants import CONTRACT_STATUS_LABELS, CONTRACT_TYPE_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_TYPE_LABELS
+from app.contracts.constants import CONTRACT_STATUS_LABELS, CONTRACT_TYPE_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_TYPE_LABELS
 
 def positive(value: Decimal | None, message: str):
     if value is None: raise ValueError("Giá trị hợp đồng là bắt buộc")
@@ -31,7 +31,22 @@ class ContractPaymentCreate(BaseModel):
         if self.status not in PAYMENT_STATUS_LABELS: raise ValueError("Trạng thái thanh toán không hợp lệ")
         if self.payment_type not in PAYMENT_TYPE_LABELS: raise ValueError("Loại thanh toán không hợp lệ")
         return self
-class ContractPaymentUpdate(BaseModel): payment_type:str|None=None; status:str|None=None; amount:Decimal|None=None; due_date:datetime|None=None; paid_date:datetime|None=None; payment_method:str|None=None; reference_number:str|None=None; note:str|None=None
-class ContractPaymentConfirm(BaseModel): paid_date:datetime|None=None; payment_method:str|None=None; reference_number:str|None=None; note:str|None=None
+class ContractPaymentUpdate(BaseModel):
+    payment_type:str|None=None; status:str|None=None; amount:Decimal|None=None; due_date:datetime|None=None; paid_date:datetime|None=None; payment_method:str|None=None; reference_number:str|None=None; note:str|None=None
+    @field_validator("amount")
+    @classmethod
+    def amount_positive(cls,v): return positive(v,"Số tiền thanh toán phải lớn hơn 0") if v is not None else v
+    @field_validator("payment_method")
+    @classmethod
+    def method(cls,v):
+        if v is not None and v not in PAYMENT_METHOD_LABELS: raise ValueError("Phương thức thanh toán không hợp lệ")
+        return v
+class ContractPaymentConfirm(BaseModel):
+    paid_date:datetime|None=None; payment_method:str|None=None; reference_number:str|None=None; note:str|None=None
+    @field_validator("payment_method")
+    @classmethod
+    def method(cls,v):
+        if v is not None and v not in PAYMENT_METHOD_LABELS: raise ValueError("Phương thức thanh toán không hợp lệ")
+        return v
 class ContractActivityCreate(BaseModel): title:str; content:str|None=None; metadata:dict[str,Any]|None=None
 class BookingDealCreate(BaseModel): expected_value:Decimal|None=None; title:str|None=None; note:str|None=None
