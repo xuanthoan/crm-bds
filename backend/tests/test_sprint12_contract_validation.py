@@ -86,7 +86,7 @@ class Sprint12ValidationTest(unittest.TestCase):
  def test_deal_property_link_derives_inventory_fields(self):
   from app.services.deal_service import _property_link_data
   project_id=uuid4()
-  project=SimpleNamespace(id=project_id,name="Hồng Hạc City")
+  project=SimpleNamespace(id=project_id,name="Hồng Hạc City",status="paused")
   property_unit=SimpleNamespace(
    id=uuid4(),deleted_at=None,inventory_status="available",project_id=project_id,project=project,
    property_code="PROP-000015",property_type="apartment",area_net=Decimal("68.5"),
@@ -117,18 +117,38 @@ class Sprint12ValidationTest(unittest.TestCase):
    _property_link_data(SimpleNamespace(scalar=lambda _query:SimpleNamespace(**sold)),base["id"],project_id,reject_sold=True)
  def test_deal_form_uses_inventory_dropdowns_and_preserves_legacy_warning(self):
   form=Path("frontend/src/features/deals/DealFormModal.tsx").read_text()
+  combobox=Path("frontend/src/features/deals/components/SearchableCombobox.tsx").read_text()
   detail=Path("frontend/src/features/deals/DealDetailPage.tsx").read_text()
-  for source in ("listProjects({page_size: 100})","listProperties({page_size: 100})","<label>Dự án<select","<label>Bất động sản<select"):
+  for source in ("listProjects({page_size: 100})","listProperties({page_size: 100})",'ariaLabel="Dự án"','ariaLabel="Bất động sản"'):
    self.assertIn(source,form)
+  self.assertNotIn("ACTIVE_PROJECT_STATUSES",form)
+  self.assertNotIn("<label>Dự án<select",form)
+  self.assertNotIn("<label>Bất động sản<select",form)
   self.assertNotIn("value={form.project_name}",form)
   self.assertNotIn("value={form.property_code}",form)
   self.assertIn("Không thuộc dự án",form)
+  self.assertIn("Không chọn / Tất cả dự án",form)
+  self.assertIn("Không tìm thấy dự án phù hợp",form)
+  self.assertIn("Không tìm thấy bất động sản phù hợp",form)
+  self.assertIn("PROJECT_STATUS_LABELS[project.status]",form)
+  self.assertIn("property.inventory_status === 'sold' && !isCurrent",form)
+  for search_field in ("property.property_code","property.project?.name","property.block","property.tower","property.floor","property.unit_number"):
+   self.assertIn(search_field,form)
+  self.assertIn(".normalize('NFD')",combobox)
+  self.assertIn("role=\"combobox\"",combobox)
+  self.assertIn("event.key === 'ArrowDown'",combobox)
+  self.assertIn("event.key === 'Escape'",combobox)
   self.assertIn("Mã BĐS cũ",form)
+  self.assertIn("BĐS này hiện đã bán nhưng đang được liên kết với giao dịch này.",form)
   self.assertIn("deal-property-preview",form)
   self.assertIn("property_unit_id: preserveUnmatchedLegacyProperty ? undefined : form.property_unit_id || null",form)
   self.assertIn("project_id: preserveUnmatchedLegacyProperty ? undefined : form.project_id && form.project_id !== NO_PROJECT",form)
   self.assertIn("navigateTo(`/properties/${deal.property!.id}`)",detail)
   self.assertIn("navigateTo(`/projects/${deal.project!.id}`)",detail)
+ def test_property_list_exposes_location_fields_for_deal_combobox_search(self):
+  service=Path("backend/app/services/property_service.py").read_text()
+  for field in ('"block":item.block','"tower":item.tower','"floor":item.floor','"unit_number":item.unit_number','"area_gross":item.area_gross'):
+   self.assertIn(field,service)
  def test_migration(self):
   s=Path("backend/alembic/versions/20260613_0010_deal_closing_contracts.py").read_text();self.assertIn('revision="20260613_0010"',s);self.assertIn('down_revision="20260612_0009"',s)
   for table in ("contracts","contract_payments","contract_activities"):self.assertIn(f'op.create_table("{table}"',s)

@@ -5,17 +5,18 @@ import {formatApiError} from '../../services/apiClient';
 import {listCustomers} from '../customers/api';
 import type {Customer} from '../customers/types';
 import {listProjects} from '../projects/api';
+import {PROJECT_STATUS_LABELS} from '../projects/constants';
 import type {Project} from '../projects/types';
 import {INVENTORY_STATUS_LABELS} from '../properties/constants';
 import {listProperties} from '../properties/api';
 import type {PropertyUnit} from '../properties/types';
 import {createDeal, listDealAssignees, updateDeal} from './api';
+import {SearchableCombobox, type ComboboxOption} from './components/SearchableCombobox';
 import {DEAL_PRIORITY_LABELS, DEAL_TYPE_LABELS} from './constants';
 import type {Deal, DealPayload, DealUser} from './types';
 
 type Props = {deal?: Deal | null; customer?: Customer | null; onClose: () => void; onSaved: () => void};
 const NO_PROJECT = '__no_project__';
-const ACTIVE_PROJECT_STATUSES = new Set(['opening', 'selling', 'handover']);
 const blank = (value: string) => value.trim() || null;
 const numeric = (value: string) => value.trim() === '' ? null : Number(value);
 const formatVnd = (value: number | null) => value == null
@@ -80,17 +81,50 @@ export function DealFormModal({deal, customer, onClose, onSaved}: Props) {
   const legacyPropertyUnmatched = Boolean(
     deal?.property_code && !deal.property_unit_id && !properties.some(item => item.property_code === deal.property_code),
   );
-  const activeProjects = useMemo(
-    () => projects.filter(project => ACTIVE_PROJECT_STATUSES.has(project.status) || project.id === deal?.project_id),
-    [projects, deal?.project_id],
-  );
   const selectableProperties = useMemo(() => properties.filter(property => {
     const isCurrent = property.id === deal?.property_unit_id || property.property_code === deal?.property_code;
-    if (property.inventory_status !== 'available' && !isCurrent) return false;
+    if (property.inventory_status === 'sold' && !isCurrent) return false;
     if (form.project_id === NO_PROJECT) return !property.project_id;
     if (form.project_id) return property.project_id === form.project_id;
     return true;
   }), [properties, form.project_id, deal?.property_unit_id, deal?.property_code]);
+  const projectOptions = useMemo<ComboboxOption[]>(() => [
+    {value: '', label: 'Không chọn / Tất cả dự án', className: 'special-option'},
+    {value: NO_PROJECT, label: 'Không thuộc dự án', className: 'special-option'},
+    ...projects.map(project => {
+      const statusLabel = PROJECT_STATUS_LABELS[project.status] || project.status_label || project.status;
+      const description = project.developer ? ` (${project.developer})` : '';
+      return {
+        value: project.id,
+        label: `${project.project_code} — ${project.name}${description} — ${statusLabel}`,
+        searchText: [
+          project.project_code,
+          project.name,
+          project.developer,
+          project.province,
+          project.district,
+          project.address,
+          statusLabel,
+        ].filter(Boolean).join(' '),
+      };
+    }),
+  ], [projects]);
+  const propertyOptions = useMemo<ComboboxOption[]>(() => selectableProperties.map(property => ({
+    value: property.id,
+    label: `${property.property_code} — ${property.title} — ${property.project?.name || 'Không thuộc dự án'} — ${property.inventory_status_label || INVENTORY_STATUS_LABELS[property.inventory_status]} — ${formatVnd(property.listed_price)}`,
+    searchText: [
+      property.property_code,
+      property.title,
+      property.project?.name,
+      property.block,
+      property.tower,
+      property.floor,
+      property.unit_number,
+      property.inventory_status_label,
+      INVENTORY_STATUS_LABELS[property.inventory_status],
+      String(property.listed_price ?? ''),
+    ].filter(Boolean).join(' '),
+  })), [selectableProperties]);
 
   const set = (key: string, value: string) => setForm(current => ({...current, [key]: value}));
   const selectProject = (projectId: string) => {
@@ -186,21 +220,34 @@ export function DealFormModal({deal, customer, onClose, onSaved}: Props) {
         <label>Người phụ trách *<select required value={form.owner_id} onChange={event => set('owner_id', event.target.value)}><option value="">Chọn người phụ trách</option>{owners.map(item => <option key={item.id} value={item.id}>{item.full_name}</option>)}</select></label>
         <label>Loại giao dịch<select value={form.deal_type} onChange={event => set('deal_type', event.target.value)}>{Object.entries(DEAL_TYPE_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         <label>Ưu tiên<select value={form.priority} onChange={event => set('priority', event.target.value)}>{Object.entries(DEAL_PRIORITY_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
-        <label>Dự án<select value={form.project_id} disabled={loadingInventory} onChange={event => selectProject(event.target.value)}>
-          <option value="">Không chọn / Tất cả dự án</option><option value={NO_PROJECT}>Không thuộc dự án</option>
-          {activeProjects.map(item => <option key={item.id} value={item.id}>{item.project_code} — {item.name}</option>)}
-        </select></label>
-        <label>Bất động sản<select value={form.property_unit_id} disabled={loadingInventory || selectableProperties.length === 0} onChange={event => selectProperty(event.target.value)}>
-          <option value="">{selectableProperties.length === 0 ? 'Không có bất động sản phù hợp' : form.project_id ? 'Chọn bất động sản thuộc dự án này' : 'Chọn bất động sản'}</option>
-          {selectableProperties.map(item => <option key={item.id} value={item.id}>{item.property_code} — {item.title} — {item.project?.name || 'Không thuộc dự án'} — {formatVnd(item.listed_price)}</option>)}
-        </select></label>
+        <label>Dự án<SearchableCombobox
+          ariaLabel="Dự án"
+          value={form.project_id}
+          options={projectOptions}
+          loading={loadingInventory}
+          loadingMessage="Đang tải dự án..."
+          placeholder="Tìm theo mã, tên, chủ đầu tư, địa chỉ hoặc trạng thái"
+          emptyMessage="Không tìm thấy dự án phù hợp"
+          onChange={selectProject}
+        /></label>
+        <label>Bất động sản<SearchableCombobox
+          ariaLabel="Bất động sản"
+          value={form.property_unit_id}
+          options={propertyOptions}
+          loading={loadingInventory}
+          loadingMessage="Đang tải bất động sản..."
+          placeholder={form.project_id ? 'Tìm bất động sản thuộc dự án này' : 'Tìm theo mã, tên, dự án hoặc vị trí'}
+          emptyMessage="Không tìm thấy bất động sản phù hợp"
+          onChange={selectProperty}
+        /></label>
         {legacyPropertyUnmatched && <p className="form-warning full-span">Mã BĐS cũ <strong>{deal?.property_code}</strong> chưa liên kết với kho hàng. Vui lòng chọn bất động sản hợp lệ.</p>}
         {selectedProperty && <section className="deal-property-preview full-span"><strong>BĐS đã chọn</strong><dl>
           <div><dt>Mã</dt><dd>{selectedProperty.property_code}</dd></div><div><dt>Tên</dt><dd>{selectedProperty.title}</dd></div>
           <div><dt>Dự án</dt><dd>{selectedProperty.project?.name || 'Không thuộc dự án'}</dd></div>
           <div><dt>Trạng thái</dt><dd>{selectedProperty.inventory_status_label || INVENTORY_STATUS_LABELS[selectedProperty.inventory_status]}</dd></div>
           <div><dt>Giá niêm yết</dt><dd>{formatVnd(selectedProperty.listed_price)}</dd></div>
-        </dl></section>}
+        </dl>{selectedProperty.inventory_status === 'sold' && deal?.property_unit_id === selectedProperty.id
+          && <p className="form-warning">BĐS này hiện đã bán nhưng đang được liên kết với giao dịch này.</p>}</section>}
         <label>Loại hình<input value={selectedProperty?.property_type_label || form.property_type} readOnly/></label>
         <label>Diện tích<input value={form.area} readOnly/></label>
         <label>Giá trị dự kiến<input type="number" min="0" value={form.expected_value} onChange={event => {expectedValueEdited.current = true; set('expected_value', event.target.value)}}/>{selectedProperty?.listed_price != null && <small>Giá trị dự kiến lấy từ giá niêm yết BĐS khi trường này còn trống.</small>}</label>
