@@ -1,6 +1,8 @@
 import unittest
+from decimal import Decimal
 from types import SimpleNamespace
 from pathlib import Path
+from fastapi import HTTPException
 from pydantic import ValidationError
 from app.schemas.contract import ContractCreate,ContractPaymentCreate
 from uuid import uuid4
@@ -81,6 +83,52 @@ class Sprint12ValidationTest(unittest.TestCase):
   for label in ("Tên", "SĐT", "Email", "CCCD/CMND", "Địa chỉ", "Đại diện"):
    self.assertIn(f"<dt>{label}</dt>",detail)
   self.assertNotIn(" · ",detail)
+ def test_deal_property_link_derives_inventory_fields(self):
+  from app.services.deal_service import _property_link_data
+  project_id=uuid4()
+  project=SimpleNamespace(id=project_id,name="Hồng Hạc City")
+  property_unit=SimpleNamespace(
+   id=uuid4(),deleted_at=None,inventory_status="available",project_id=project_id,project=project,
+   property_code="PROP-000015",property_type="apartment",area_net=Decimal("68.5"),
+   area_gross=Decimal("72"),listed_price=Decimal("1000"),
+  )
+  db=SimpleNamespace(scalar=lambda _query:property_unit)
+  result=_property_link_data(db,property_unit.id,project_id,reject_sold=True)
+  self.assertEqual(result["property_unit_id"],property_unit.id)
+  self.assertEqual(result["property_code"],"PROP-000015")
+  self.assertEqual(result["property_type"],"apartment")
+  self.assertEqual(result["project_id"],project_id)
+  self.assertEqual(result["project_name"],"Hồng Hạc City")
+  self.assertEqual(result["area"],"68.5")
+  self.assertEqual(result["_listed_price"],Decimal("1000"))
+ def test_deal_property_link_rejects_conflicting_deleted_and_sold_inventory(self):
+  from app.services.deal_service import _property_link_data
+  project_id=uuid4()
+  base=dict(id=uuid4(),deleted_at=None,inventory_status="available",project_id=project_id,
+   project=SimpleNamespace(id=project_id,name="Hồng Hạc City"),property_code="PROP-000015",
+   property_type="apartment",area_net=None,area_gross=None,listed_price=None)
+  with self.assertRaisesRegex(HTTPException,"Dự án không khớp với bất động sản đã chọn"):
+   _property_link_data(SimpleNamespace(scalar=lambda _query:SimpleNamespace(**base)),base["id"],uuid4(),reject_sold=True)
+  deleted={**base,"deleted_at":object()}
+  with self.assertRaisesRegex(HTTPException,"Bất động sản đã bị xóa"):
+   _property_link_data(SimpleNamespace(scalar=lambda _query:SimpleNamespace(**deleted)),base["id"],project_id,reject_sold=True)
+  sold={**base,"inventory_status":"sold"}
+  with self.assertRaisesRegex(HTTPException,"Bất động sản đã bán không thể tạo giao dịch mới"):
+   _property_link_data(SimpleNamespace(scalar=lambda _query:SimpleNamespace(**sold)),base["id"],project_id,reject_sold=True)
+ def test_deal_form_uses_inventory_dropdowns_and_preserves_legacy_warning(self):
+  form=Path("frontend/src/features/deals/DealFormModal.tsx").read_text()
+  detail=Path("frontend/src/features/deals/DealDetailPage.tsx").read_text()
+  for source in ("listProjects({page_size: 100})","listProperties({page_size: 100})","<label>Dự án<select","<label>Bất động sản<select"):
+   self.assertIn(source,form)
+  self.assertNotIn("value={form.project_name}",form)
+  self.assertNotIn("value={form.property_code}",form)
+  self.assertIn("Không thuộc dự án",form)
+  self.assertIn("Mã BĐS cũ",form)
+  self.assertIn("deal-property-preview",form)
+  self.assertIn("property_unit_id: preserveUnmatchedLegacyProperty ? undefined : form.property_unit_id || null",form)
+  self.assertIn("project_id: preserveUnmatchedLegacyProperty ? undefined : form.project_id && form.project_id !== NO_PROJECT",form)
+  self.assertIn("navigateTo(`/properties/${deal.property!.id}`)",detail)
+  self.assertIn("navigateTo(`/projects/${deal.project!.id}`)",detail)
  def test_migration(self):
   s=Path("backend/alembic/versions/20260613_0010_deal_closing_contracts.py").read_text();self.assertIn('revision="20260613_0010"',s);self.assertIn('down_revision="20260612_0009"',s)
   for table in ("contracts","contract_payments","contract_activities"):self.assertIn(f'op.create_table("{table}"',s)
