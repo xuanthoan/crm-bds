@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from pathlib import Path
 from fastapi import HTTPException
 from pydantic import ValidationError
-from app.schemas.contract import ContractCreate,ContractPaymentConfirm,ContractPaymentCreate
+from app.schemas.contract import ContractCreate,ContractPaymentConfirm,ContractPaymentCreate,ContractPaymentUpdate
 from uuid import uuid4
 HAS_SQLALCHEMY = importlib.util.find_spec("sqlalchemy") is not None
 class Sprint12ValidationTest(unittest.TestCase):
@@ -14,6 +14,8 @@ class Sprint12ValidationTest(unittest.TestCase):
  def test_payment_positive(self):
   with self.assertRaises(ValidationError):ContractPaymentCreate(contract_id=uuid4(),amount=0)
   with self.assertRaises(ValidationError):ContractPaymentCreate(contract_id=uuid4(),amount=-1)
+  with self.assertRaises(ValidationError):ContractPaymentUpdate(amount=0)
+  with self.assertRaises(ValidationError):ContractPaymentUpdate(amount=-1)
  def test_payment_method_vocabulary(self):
   self.assertEqual(ContractPaymentConfirm(payment_method="bank_transfer").payment_method,"bank_transfer")
   with self.assertRaises(ValidationError):ContractPaymentConfirm(payment_method="free text")
@@ -105,6 +107,55 @@ class Sprint12ValidationTest(unittest.TestCase):
   self.assertIn('old_value=old_label',service)
   self.assertIn('new_value=new_label',service)
   self.assertIn('Ghi chú: {note.strip()}',service)
+ def test_cancelled_contract_rolls_back_deal_property_and_histories(self):
+  service=Path("backend/app/services/contract_service.py").read_text()
+  self.assertIn("def _rollback_cancelled_contract",service)
+  self.assertIn('deal.pipeline_stage = "contract"',service)
+  self.assertIn('deal.status = "contract_pending"',service)
+  self.assertIn('Booking.status == "deposited"',service)
+  self.assertIn('target_property_status = "deposited" if active_deposit_booking else "available"',service)
+  self.assertIn('title="Khôi phục giao dịch do hủy hợp đồng"',service)
+  self.assertIn("PropertyStatusHistory(",service)
+  self.assertIn('"rollback_property_status"',service)
+  self.assertIn('if payload.status == "cancelled"',service)
+ @unittest.skipUnless(HAS_SQLALCHEMY, "SQLAlchemy is not installed")
+ def test_cancelled_signed_contract_with_deposit_booking_restores_deposited(self):
+  from app.models.deal_activity import DealActivity
+  from app.models.property_status_history import PropertyStatusHistory
+  from app.services.contract_service import _rollback_cancelled_contract
+  actor=SimpleNamespace(id=uuid4())
+  deal=SimpleNamespace(id=uuid4(),deal_code="DL-000007",pipeline_stage="contract_signed",status="contracted",closed_at=None)
+  prop=SimpleNamespace(id=uuid4(),inventory_status="sold",updated_by_id=None)
+  contract=SimpleNamespace(id=uuid4(),property_unit_id=prop.id,deal=deal,property_unit=prop,contract_code="HD-000001")
+  class FakeDb:
+   def __init__(self):self.results=iter([None,uuid4()]);self.added=[]
+   def scalar(self,_query):return next(self.results)
+   def add(self,item):self.added.append(item)
+  db=FakeDb()
+  activity=_rollback_cancelled_contract(db,contract,actor,"signed","Khách hủy")
+  self.assertEqual(deal.pipeline_stage,"contract")
+  self.assertEqual(deal.status,"contract_pending")
+  self.assertEqual(prop.inventory_status,"deposited")
+  self.assertIsInstance(activity,DealActivity)
+  self.assertTrue(any(isinstance(item,PropertyStatusHistory) and item.new_status=="deposited" for item in db.added))
+ @unittest.skipUnless(HAS_SQLALCHEMY, "SQLAlchemy is not installed")
+ def test_cancelled_signed_contract_without_deposit_booking_restores_available(self):
+  from app.models.property_status_history import PropertyStatusHistory
+  from app.services.contract_service import _rollback_cancelled_contract
+  actor=SimpleNamespace(id=uuid4())
+  deal=SimpleNamespace(id=uuid4(),deal_code="DL-000008",pipeline_stage="contract_signed",status="contracted",closed_at=None)
+  prop=SimpleNamespace(id=uuid4(),inventory_status="sold",updated_by_id=None)
+  contract=SimpleNamespace(id=uuid4(),property_unit_id=prop.id,deal=deal,property_unit=prop,contract_code="HD-000002")
+  class FakeDb:
+   def __init__(self):self.results=iter([None,None]);self.added=[]
+   def scalar(self,_query):return next(self.results)
+   def add(self,item):self.added.append(item)
+  db=FakeDb()
+  _rollback_cancelled_contract(db,contract,actor,"signed")
+  self.assertEqual(deal.pipeline_stage,"contract")
+  self.assertEqual(deal.status,"contract_pending")
+  self.assertEqual(prop.inventory_status,"available")
+  self.assertTrue(any(isinstance(item,PropertyStatusHistory) and item.new_status=="available" for item in db.added))
  def test_payment_activity_uses_structured_metadata_and_vnd_rows(self):
   service=Path("backend/app/services/contract_service.py").read_text()
   timeline=Path("frontend/src/features/contracts/components/ContractTimeline.tsx").read_text()
@@ -123,6 +174,7 @@ class Sprint12ValidationTest(unittest.TestCase):
   modal=Path("frontend/src/features/contracts/ContractPaymentModal.tsx").read_text()
   table=Path("frontend/src/features/contracts/components/ContractPaymentTable.tsx").read_text()
   summary=Path("frontend/src/features/contracts/components/ContractSummaryCard.tsx").read_text()
+  styles=Path("frontend/src/styles.css").read_text()
   self.assertIn("deal.booking.deposit_amount",service)
   self.assertIn('"inherited_deposit_amount"',service)
   self.assertIn('"deposit_amount":item.deposit_value or Decimal("0")',service)
@@ -135,6 +187,11 @@ class Sprint12ValidationTest(unittest.TestCase):
   self.assertIn("payment_method_label",table)
   self.assertIn("payment.paid_date",table)
   self.assertIn("c.deposit_amount",summary)
+  self.assertIn("Số tiền thanh toán phải lớn hơn 0.",modal)
+  self.assertIn("Ngày thanh toán là bắt buộc.",modal)
+  self.assertIn(".contract-payment-form {",styles)
+  self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr))",styles)
+  self.assertIn(".contract-payment-form textarea",styles)
  def test_contract_parties_use_labeled_fields_not_noisy_separators(self):
   detail=Path("frontend/src/features/contracts/ContractDetailPage.tsx").read_text()
   for label in ("Tên", "SĐT", "Email", "CCCD/CMND", "Địa chỉ", "Đại diện"):

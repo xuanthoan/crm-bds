@@ -9,6 +9,7 @@ from app.contracts.constants import ACTIVE_CONTRACT_STATUSES, CONTRACT_ACTIVITY_
 from app.models.contract import Contract
 from app.models.contract_activity import ContractActivity
 from app.models.contract_payment import ContractPayment
+from app.models.booking import Booking
 from app.models.deal import Deal
 from app.models.deal_activity import DealActivity
 from app.models.property_status_history import PropertyStatusHistory
@@ -48,6 +49,80 @@ def _sell_property(db,contract,actor):
     prop=contract.property_unit
     if prop.inventory_status!="sold":
         old=prop.inventory_status; prop.inventory_status="sold"; prop.updated_by_id=actor.id; db.add(PropertyStatusHistory(property_unit_id=prop.id,changed_by_id=actor.id,old_status=old,new_status="sold",note=f"Tự động cập nhật từ giao dịch {contract.deal.deal_code}"))
+
+
+def _rollback_cancelled_contract(db, contract, actor, old_status, note=None):
+    if old_status not in {"signed", "active", "completed"}:
+        return None
+    other_effective_contract = db.scalar(
+        select(Contract.id).where(
+            Contract.property_unit_id == contract.property_unit_id,
+            Contract.id != contract.id,
+            Contract.deleted_at.is_(None),
+            Contract.status.in_({"signed", "active", "completed"}),
+        ).limit(1)
+    )
+    if other_effective_contract:
+        return None
+
+    deal = contract.deal
+    old_stage = deal.pipeline_stage
+    old_deal_status = deal.status
+    deal.pipeline_stage = "contract"
+    deal.status = "contract_pending"
+    deal.closed_at = None
+
+    active_deposit_booking = db.scalar(
+        select(Booking.id).where(
+            Booking.property_unit_id == contract.property_unit_id,
+            Booking.deleted_at.is_(None),
+            Booking.status == "deposited",
+        ).limit(1)
+    )
+    target_property_status = "deposited" if active_deposit_booking else "available"
+    prop = contract.property_unit
+    old_property_status = prop.inventory_status
+    if old_property_status != target_property_status:
+        prop.inventory_status = target_property_status
+        prop.updated_by_id = actor.id
+        reason = f"Hủy hợp đồng {contract.contract_code}; khôi phục trạng thái từ giao dịch {deal.deal_code}"
+        if note:
+            reason += f". Lý do: {note.strip()}"
+        db.add(PropertyStatusHistory(
+            property_unit_id=prop.id,
+            changed_by_id=actor.id,
+            old_status=old_property_status,
+            new_status=target_property_status,
+            note=reason,
+        ))
+
+    rollback_content = (
+        f"Hợp đồng {contract.contract_code} đã hủy. "
+        f"Giao dịch được đưa từ giai đoạn {old_stage} về Ký hợp đồng; "
+        f"trạng thái từ {old_deal_status} về Chờ hợp đồng. "
+        f"Bất động sản được khôi phục về {'Đã cọc' if active_deposit_booking else 'Còn hàng'}."
+    )
+    if note:
+        rollback_content += f"\nGhi chú: {note.strip()}"
+    activity = DealActivity(
+        deal_id=deal.id,
+        user_id=actor.id,
+        activity_type="contract_rollback",
+        title="Khôi phục giao dịch do hủy hợp đồng",
+        content=rollback_content,
+        old_value="Đã ký hợp đồng",
+        new_value="Ký hợp đồng",
+        metadata_json={
+            "contract_id": str(contract.id),
+            "contract_code": contract.contract_code,
+            "property_old_status": old_property_status,
+            "property_new_status": target_property_status,
+            "booking_deposit_active": bool(active_deposit_booking),
+            "note": note.strip() if note else None,
+        },
+    )
+    db.add(activity)
+    return activity
 def _deal_contract_activity(db, contract, actor, old_status, new_status, note=None):
     titles = {
         "signed": "Hợp đồng đã ký",
@@ -162,18 +237,29 @@ def change_contract_status(db, id, payload: ContractStatusChange, actor):
     item.status = payload.status
     item.updated_by_id = actor.id
     _apply_status(db, item, actor, payload.status)
+    rollback_activity = None
+    if payload.status == "cancelled":
+        rollback_activity = _rollback_cancelled_contract(db, item, actor, old, payload.note)
+    status_content = payload.note.strip() if payload.note else None
+    if rollback_activity:
+        status_content = (
+            f"{status_content + chr(10) if status_content else ''}"
+            f"Đã khôi phục giao dịch về Chờ hợp đồng và bất động sản về "
+            f"{'Đã cọc' if rollback_activity.metadata_json['booking_deposit_active'] else 'Còn hàng'}."
+        )
     add_contract_activity(
         db,
         item,
         actor,
         "status_change",
-        content=payload.note.strip() if payload.note else None,
+        content=status_content,
         old_value=CONTRACT_STATUS_LABELS[old],
         new_value=CONTRACT_STATUS_LABELS[payload.status],
         metadata={
             "old_status_label": CONTRACT_STATUS_LABELS[old],
             "new_status_label": CONTRACT_STATUS_LABELS[payload.status],
             "note": payload.note.strip() if payload.note else None,
+            "rollback_property_status": rollback_activity.metadata_json["property_new_status"] if rollback_activity else None,
         },
     )
     _deal_contract_activity(db, item, actor, old, payload.status, payload.note)

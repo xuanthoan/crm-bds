@@ -35,6 +35,14 @@ export function ContractPaymentModal({
   async function submit(event: FormEvent) {
     event.preventDefault();
     setErrors([]);
+    if (!payment && (!amount || Number(amount) <= 0)) {
+      setErrors(['Số tiền thanh toán phải lớn hơn 0.']);
+      return;
+    }
+    if (payment && !paidDate) {
+      setErrors(['Ngày thanh toán là bắt buộc.']);
+      return;
+    }
     try {
       if (payment) {
         await confirmPayment(contractId, payment.id, {
@@ -74,7 +82,7 @@ export function ContractPaymentModal({
               </select>
             </label>
             <label>Mã tham chiếu / mã giao dịch<input value={referenceNumber} onChange={(event) => setReferenceNumber(event.target.value)} /></label>
-            <label>Ngày thanh toán<input type="datetime-local" value={paidDate} onChange={(event) => setPaidDate(event.target.value)} /></label>
+            <label>Ngày thanh toán *<input required type="datetime-local" value={paidDate} onChange={(event) => setPaidDate(event.target.value)} /></label>
           </>
         )}
         <label className="full-span">Ghi chú<textarea value={note} onChange={(event) => setNote(event.target.value)} /></label>

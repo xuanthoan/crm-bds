@@ -823,6 +823,54 @@ th {
   .contract-timeline-details div { gap: 0.2rem; grid-template-columns: 1fr; }
 }
 
+.contract-payment-form {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+}
+
+.contract-payment-form > label {
+  display: grid;
+  gap: .45rem;
+  min-width: 0;
+}
+
+.contract-payment-form input,
+.contract-payment-form select,
+.contract-payment-form textarea {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+}
+
+.contract-payment-form textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+.contract-payment-form .form-error,
+.contract-payment-form .full-span,
+.contract-payment-form .modal-actions {
+  grid-column: 1 / -1;
+}
+
+.contract-payment-form .modal-actions {
+  margin-top: .25rem;
+}
+
+@media (max-width: 640px) {
+  .contract-payment-form {
+    grid-template-columns: 1fr;
+  }
+
+  .contract-payment-form .form-error,
+  .contract-payment-form .full-span,
+  .contract-payment-form .modal-actions {
+    grid-column: auto;
+  }
+}
+
 /* Sprint 12 - inventory-backed Deal project/property selection */
 .deal-property-preview { background: #f8fafc; border: 1px solid #dfe5f2; border-radius: 0.75rem; padding: 1rem; }
 .deal-property-preview > strong { color: #344054; display: block; margin-bottom: 0.65rem; }
