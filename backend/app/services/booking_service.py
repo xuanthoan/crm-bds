@@ -9,6 +9,7 @@ from app.bookings.constants import ACTIVE_BOOKING_STATUSES, BOOKING_ACTIVITY_LAB
 from app.models.booking import Booking
 from app.models.booking_activity import BookingActivity
 from app.models.customer import Customer
+from app.models.contract import Contract
 from app.models.deal import Deal
 from app.models.lead import Lead
 from app.models.property_status_history import PropertyStatusHistory
@@ -22,6 +23,8 @@ from app.services.organization_service import get_accessible_user_ids_for_lead_s
 CREATE_PROPERTY_STATUSES = {"available", "negotiating"}
 PROPERTY_RELEASE_BLOCKED_STATUSES = {"sold", "locked", "unavailable"}
 DELETE_ALLOWED_STATUSES = {"cancelled", "expired", "refunded"}
+EFFECTIVE_CONTRACT_STATUSES = {"signed", "active", "completed"}
+EFFECTIVE_CONTRACT_BOOKING_MESSAGE = "Không thể thao tác booking vì đã có hợp đồng hiệu lực. Vui lòng hủy hợp đồng trước."
 
 def _scope(user: User, prefix: str) -> str | None:
     if user.is_superuser: return "all"
@@ -39,6 +42,37 @@ def _can(db: Session, actor: User, booking: Booking, prefix: str) -> bool:
 
 def _require(db: Session, actor: User, booking: Booking, prefix: str, message: str = "Bạn không có quyền thao tác booking này") -> None:
     if not _can(db, actor, booking, prefix): raise HTTPException(status_code=403, detail=message)
+
+
+
+def _booking_has_effective_contract_loaded(booking: Booking) -> bool:
+    return any(
+        deal.deleted_at is None
+        and any(
+            contract.deleted_at is None and contract.status in EFFECTIVE_CONTRACT_STATUSES
+            for contract in deal.contracts
+        )
+        for deal in booking.deals
+    )
+
+
+def _has_effective_contract_for_booking(db: Session, booking: Booking) -> bool:
+    return db.scalar(
+        select(Contract.id)
+        .join(Deal, Contract.deal_id == Deal.id)
+        .where(
+            or_(Deal.booking_id == booking.id, Contract.booking_id == booking.id),
+            Deal.deleted_at.is_(None),
+            Contract.deleted_at.is_(None),
+            Contract.status.in_(EFFECTIVE_CONTRACT_STATUSES),
+        )
+        .limit(1)
+    ) is not None
+
+
+def _block_effective_contract_booking_actions(db: Session, booking: Booking) -> None:
+    if _has_effective_contract_for_booking(db, booking):
+        raise HTTPException(status_code=409, detail=EFFECTIVE_CONTRACT_BOOKING_MESSAGE)
 
 def _user(value: User | None) -> dict | None:
     return {"id": value.id, "full_name": value.full_name, "email": value.email} if value else None
@@ -67,7 +101,7 @@ def serialize_booking(booking: Booking, detail: bool = False) -> dict:
     customer = booking.customer
     result = {"id": booking.id, "booking_code": booking.booking_code, "customer": {"id": customer.id, "customer_code": customer.customer_code, "full_name": customer.full_name, "primary_phone": customer.primary_phone}, "property": _property(booking.property_unit), "assigned_user": _user(booking.assigned_user), "status": booking.status, "status_label": BOOKING_STATUS_LABELS.get(booking.status, booking.status), "booking_amount": booking.booking_amount, "deposit_amount": booking.deposit_amount, "reservation_expires_at": booking.reservation_expires_at, "created_at": booking.created_at}
     if detail:
-        result.update({"customer_id": booking.customer_id, "property_unit_id": booking.property_unit_id, "source_lead_id": booking.source_lead_id, "source_deal_id": booking.source_deal_id, "assigned_user_id": booking.assigned_user_id, "refund_amount": booking.refund_amount, "booking_date": booking.booking_date, "deposit_date": booking.deposit_date, "cancelled_at": booking.cancelled_at, "refunded_at": booking.refunded_at, "cancel_reason": booking.cancel_reason, "refund_reason": booking.refund_reason, "note": booking.note, "created_by": _user(booking.creator), "updated_by": _user(booking.updater), "updated_at": booking.updated_at, "source_lead": {"id": booking.source_lead.id, "code": booking.source_lead.code, "title": booking.source_lead.full_name} if booking.source_lead else None, "source_deal": {"id": booking.source_deal.id, "code": booking.source_deal.deal_code, "title": booking.source_deal.title} if booking.source_deal else None, "linked_deals": [{"id": d.id, "deal_code": d.deal_code, "title": d.title, "status": d.status, "expected_value": d.expected_value} for d in booking.deals if d.deleted_at is None], "activities": [_activity_dict(item) for item in booking.activities]})
+        result.update({"customer_id": booking.customer_id, "property_unit_id": booking.property_unit_id, "source_lead_id": booking.source_lead_id, "source_deal_id": booking.source_deal_id, "assigned_user_id": booking.assigned_user_id, "refund_amount": booking.refund_amount, "booking_date": booking.booking_date, "deposit_date": booking.deposit_date, "cancelled_at": booking.cancelled_at, "refunded_at": booking.refunded_at, "cancel_reason": booking.cancel_reason, "refund_reason": booking.refund_reason, "note": booking.note, "created_by": _user(booking.creator), "updated_by": _user(booking.updater), "updated_at": booking.updated_at, "source_lead": {"id": booking.source_lead.id, "code": booking.source_lead.code, "title": booking.source_lead.full_name} if booking.source_lead else None, "source_deal": {"id": booking.source_deal.id, "code": booking.source_deal.deal_code, "title": booking.source_deal.title} if booking.source_deal else None, "linked_deals": [{"id": d.id, "deal_code": d.deal_code, "title": d.title, "status": d.status, "expected_value": d.expected_value} for d in booking.deals if d.deleted_at is None], "has_effective_contract": _booking_has_effective_contract_loaded(booking), "activities": [_activity_dict(item) for item in booking.activities]})
     return result
 
 def _next_code(db: Session) -> str:
@@ -227,6 +261,8 @@ def change_booking_status(db: Session, booking_id: UUID, payload: BookingStatusC
     if not booking: raise HTTPException(status_code=404, detail="Không tìm thấy booking")
     prefix = "bookings.refund" if payload.status == "refunded" else "bookings.status"
     _require(db, actor, booking, prefix)
+    if payload.status in {"cancelled", "refunded"}:
+        _block_effective_contract_booking_actions(db, booking)
     _lock_property_row(db, booking.property_unit_id)
     booking.property_unit = _validate_property(db, booking.property_unit_id)
     now = datetime.now(timezone.utc)
@@ -267,6 +303,7 @@ def soft_delete_booking(db: Session, booking_id: UUID, actor: User) -> None:
     booking = get_booking(db, booking_id)
     if not booking: raise HTTPException(status_code=404, detail="Không tìm thấy booking")
     _require(db, actor, booking, "bookings.delete")
+    _block_effective_contract_booking_actions(db, booking)
     if booking.status not in DELETE_ALLOWED_STATUSES:
         raise HTTPException(status_code=409, detail="Không thể xóa booking đang hoạt động. Vui lòng hủy booking trước.")
     _add_activity(db, booking, actor, "deleted"); booking.deleted_at = datetime.now(timezone.utc); booking.deleted_by_id = actor.id

@@ -281,4 +281,62 @@ class Sprint11BookingValidationTests(unittest.TestCase):
     def test_migration_enforces_single_active_property_booking(self):
         migration=Path("backend/alembic/versions/20260612_0009_booking_reservation.py").read_text()
         self.assertIn("uq_bookings_active_property",migration); self.assertIn("deleted_at IS NULL AND status IN",migration)
+
+    def test_effective_contract_blocks_booking_cancel_refund_and_delete(self):
+        source = Path("backend/app/services/booking_service.py").read_text()
+        message = "Không thể thao tác booking vì đã có hợp đồng hiệu lực. Vui lòng hủy hợp đồng trước."
+        self.assertIn('EFFECTIVE_CONTRACT_STATUSES = {"signed", "active", "completed"}', source)
+        self.assertIn(message, source)
+        self.assertIn("def _has_effective_contract_for_booking", source)
+        self.assertIn("or_(Deal.booking_id == booking.id, Contract.booking_id == booking.id)", source)
+        self.assertIn("Contract.status.in_(EFFECTIVE_CONTRACT_STATUSES)", source)
+        self.assertIn('if payload.status in {"cancelled", "refunded"}:', source)
+        self.assertIn("_block_effective_contract_booking_actions(db, booking)", source)
+        delete_function = ast.get_source_segment(
+            source,
+            next(node for node in ast.parse(source).body if isinstance(node, ast.FunctionDef) and node.name == "soft_delete_booking"),
+        )
+        self.assertIn("_block_effective_contract_booking_actions(db, booking)", delete_function)
+
+    @unittest.skipUnless(importlib.util.find_spec("sqlalchemy"), "SQLAlchemy is not installed")
+    def test_effective_contract_guard_allows_booking_without_effective_contract(self):
+        from app.services.booking_service import _block_effective_contract_booking_actions
+
+        class DummyDb:
+            def __init__(self, result):
+                self.result = result
+            def scalar(self, statement):
+                self.statement = statement
+                return self.result
+
+        _block_effective_contract_booking_actions(DummyDb(None), SimpleNamespace(id=IDS["property_unit_id"]))
+
+    @unittest.skipUnless(importlib.util.find_spec("sqlalchemy"), "SQLAlchemy is not installed")
+    def test_effective_contract_guard_blocks_with_vietnamese_error(self):
+        from fastapi import HTTPException
+        from app.services.booking_service import _block_effective_contract_booking_actions
+
+        class DummyDb:
+            def scalar(self, statement):
+                self.statement = statement
+                return IDS["property_unit_id"]
+
+        with self.assertRaises(HTTPException) as context:
+            _block_effective_contract_booking_actions(DummyDb(), SimpleNamespace(id=IDS["property_unit_id"]))
+        self.assertEqual(409, context.exception.status_code)
+        self.assertEqual(
+            "Không thể thao tác booking vì đã có hợp đồng hiệu lực. Vui lòng hủy hợp đồng trước.",
+            context.exception.detail,
+        )
+
+    def test_booking_detail_ui_disables_status_and_delete_when_effective_contract_exists(self):
+        detail_page = Path("frontend/src/features/bookings/BookingDetailPage.tsx").read_text()
+        types = Path("frontend/src/features/bookings/types.ts").read_text()
+        message = "Không thể thao tác booking vì đã có hợp đồng hiệu lực. Vui lòng hủy hợp đồng trước."
+        self.assertIn("has_effective_contract:boolean", types)
+        self.assertIn("contractBlocked=!!booking.has_effective_contract", detail_page)
+        self.assertIn("disabled={contractBlocked}", detail_page)
+        self.assertIn("form-warning", detail_page)
+        self.assertIn(message, detail_page)
+
 if __name__=="__main__": unittest.main()
