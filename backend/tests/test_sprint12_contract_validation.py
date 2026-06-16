@@ -208,7 +208,7 @@ class Sprint12ValidationTest(unittest.TestCase):
    area_gross=Decimal("72"),listed_price=Decimal("1000"),
   )
   db=SimpleNamespace(scalar=lambda _query:property_unit)
-  result=_property_link_data(db,property_unit.id,project_id,reject_sold=True)
+  result=_property_link_data(db,property_unit.id,project_id,require_available=True)
   self.assertEqual(result["property_unit_id"],property_unit.id)
   self.assertEqual(result["property_code"],"PROP-000015")
   self.assertEqual(result["property_type"],"apartment")
@@ -217,20 +217,21 @@ class Sprint12ValidationTest(unittest.TestCase):
   self.assertEqual(result["area"],"68.5")
   self.assertEqual(result["_listed_price"],Decimal("1000"))
  @unittest.skipUnless(HAS_SQLALCHEMY, "SQLAlchemy is not installed")
- def test_deal_property_link_rejects_conflicting_deleted_and_sold_inventory(self):
+ def test_deal_property_link_rejects_conflicting_deleted_and_unavailable_inventory(self):
   from app.services.deal_service import _property_link_data
   project_id=uuid4()
   base=dict(id=uuid4(),deleted_at=None,inventory_status="available",project_id=project_id,
    project=SimpleNamespace(id=project_id,name="Hồng Hạc City"),property_code="PROP-000015",
    property_type="apartment",area_net=None,area_gross=None,listed_price=None)
   with self.assertRaisesRegex(HTTPException,"Dự án không khớp với bất động sản đã chọn"):
-   _property_link_data(SimpleNamespace(scalar=lambda _query:SimpleNamespace(**base)),base["id"],uuid4(),reject_sold=True)
+   _property_link_data(SimpleNamespace(scalar=lambda _query:SimpleNamespace(**base)),base["id"],uuid4(),require_available=True)
   deleted={**base,"deleted_at":object()}
   with self.assertRaisesRegex(HTTPException,"Bất động sản đã bị xóa"):
-   _property_link_data(SimpleNamespace(scalar=lambda _query:SimpleNamespace(**deleted)),base["id"],project_id,reject_sold=True)
-  sold={**base,"inventory_status":"sold"}
-  with self.assertRaisesRegex(HTTPException,"Bất động sản đã bán không thể tạo giao dịch mới"):
-   _property_link_data(SimpleNamespace(scalar=lambda _query:SimpleNamespace(**sold)),base["id"],project_id,reject_sold=True)
+   _property_link_data(SimpleNamespace(scalar=lambda _query:SimpleNamespace(**deleted)),base["id"],project_id,require_available=True)
+  for status in ("reserved","deposited","sold"):
+   with self.subTest(status=status), self.assertRaisesRegex(HTTPException,"Bất động sản không còn khả dụng để tạo giao dịch mới"):
+    _property_link_data(SimpleNamespace(scalar=lambda _query:SimpleNamespace(**{**base,"inventory_status":status})),base["id"],project_id,require_available=True)
+  _property_link_data(SimpleNamespace(scalar=lambda _query:SimpleNamespace(**{**base,"inventory_status":"deposited"})),base["id"],project_id,require_available=False)
  def test_deal_form_uses_inventory_dropdowns_and_preserves_legacy_warning(self):
   form=Path("frontend/src/features/deals/DealFormModal.tsx").read_text()
   combobox=Path("frontend/src/features/deals/components/SearchableCombobox.tsx").read_text()
@@ -247,7 +248,7 @@ class Sprint12ValidationTest(unittest.TestCase):
   self.assertIn("Không tìm thấy dự án phù hợp",form)
   self.assertIn("Không tìm thấy bất động sản phù hợp",form)
   self.assertIn("PROJECT_STATUS_LABELS[project.status]",form)
-  self.assertIn("property.inventory_status === 'sold' && !isCurrent",form)
+  self.assertIn("property.inventory_status !== 'available' && !isCurrent",form)
   for search_field in ("property.property_code","property.project?.name","property.block","property.tower","property.floor","property.unit_number"):
    self.assertIn(search_field,form)
   self.assertIn(".normalize('NFD')",combobox)
@@ -255,7 +256,7 @@ class Sprint12ValidationTest(unittest.TestCase):
   self.assertIn("event.key === 'ArrowDown'",combobox)
   self.assertIn("event.key === 'Escape'",combobox)
   self.assertIn("Mã BĐS cũ",form)
-  self.assertIn("BĐS này hiện đã bán nhưng đang được liên kết với giao dịch này.",form)
+  self.assertIn("BĐS này hiện không còn khả dụng nhưng đang được liên kết với giao dịch này.",form)
   self.assertIn("deal-property-preview",form)
   self.assertIn("property_unit_id: preserveUnmatchedLegacyProperty ? undefined : form.property_unit_id || null",form)
   self.assertIn("project_id: preserveUnmatchedLegacyProperty ? undefined : form.project_id && form.project_id !== NO_PROJECT",form)

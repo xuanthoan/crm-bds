@@ -86,15 +86,15 @@ def _property_link_data(
     property_unit_id: UUID,
     project_id: UUID | None,
     *,
-    reject_sold: bool,
+    require_available: bool,
 ) -> dict:
     property_unit = db.scalar(select(PropertyUnit).where(PropertyUnit.id == property_unit_id))
     if not property_unit:
         raise HTTPException(status_code=400, detail="Bất động sản không tồn tại")
     if property_unit.deleted_at is not None:
         raise HTTPException(status_code=400, detail="Bất động sản đã bị xóa")
-    if reject_sold and property_unit.inventory_status == "sold":
-        raise HTTPException(status_code=400, detail="Bất động sản đã bán không thể tạo giao dịch mới")
+    if require_available and property_unit.inventory_status != "available":
+        raise HTTPException(status_code=400, detail="Bất động sản không còn khả dụng để tạo giao dịch mới.")
     if project_id is not None and project_id != property_unit.project_id:
         raise HTTPException(status_code=400, detail="Dự án không khớp với bất động sản đã chọn.")
     project = property_unit.project
@@ -112,14 +112,14 @@ def _apply_inventory_link(
     db: Session,
     data: dict,
     *,
-    reject_sold: bool,
+    require_available: bool,
 ) -> None:
     if "property_unit_id" in data and data["property_unit_id"] is not None:
         linked = _property_link_data(
             db,
             data["property_unit_id"],
             data.get("project_id"),
-            reject_sold=reject_sold,
+            require_available=require_available,
         )
         listed_price = linked.pop("_listed_price")
         data.update(linked)
@@ -172,7 +172,7 @@ def list_deals(db: Session, actor: User, *, page: int, page_size: int, q: str | 
 
 def create_deal(db: Session, payload: DealCreate, actor: User) -> Deal:
     data=payload.model_dump(); _validate_customer(db, data.pop("customer_id")); _validate_lead(db, data.get("source_lead_id")); owner=_validate_owner(db, actor, data.pop("owner_id"))
-    _apply_inventory_link(db, data, reject_sold=True)
+    _apply_inventory_link(db, data, require_available=True)
     now=datetime.now(timezone.utc)
     if data.get("pipeline_stage") == "completed": data["status"] = "won"; data["closed_at"] = data.get("closed_at") or now
     elif data.get("pipeline_stage") == "lost": data["status"] = "lost"; data["closed_at"] = data.get("closed_at") or now
@@ -188,12 +188,12 @@ def update_deal(db: Session, deal_id: UUID, payload: DealUpdate, actor: User) ->
     for protected in ("pipeline_stage", "status", "closed_at", "deposit_date", "contract_date", "lost_reason"):
         data.pop(protected, None)
     if "property_unit_id" in data:
-        reject_sold = data["property_unit_id"] != deal.property_unit_id
-        _apply_inventory_link(db, data, reject_sold=reject_sold)
+        require_available = data["property_unit_id"] != deal.property_unit_id
+        _apply_inventory_link(db, data, require_available=require_available)
     elif "project_id" in data:
         if deal.property_unit_id is not None and data["project_id"] != deal.project_id:
             raise HTTPException(status_code=400, detail="Dự án không khớp với bất động sản đã chọn.")
-        _apply_inventory_link(db, data, reject_sold=False)
+        _apply_inventory_link(db, data, require_available=False)
     for key,value in data.items(): setattr(deal,key,value)
     if deal.contract_value is not None and deal.deposit_amount is not None and deal.contract_value < deal.deposit_amount: raise HTTPException(status_code=400,detail="Giá trị hợp đồng phải lớn hơn hoặc bằng tiền đặt cọc")
     _add(db,deal,actor,"update","Cập nhật giao dịch"); write_audit_log(db,action="deals.update",user_id=actor.id,entity_type="deals",entity_id=str(deal.id),before_data={"title":before["title"]},after_data={"title":deal.title}); db.commit(); db.refresh(deal); return deal

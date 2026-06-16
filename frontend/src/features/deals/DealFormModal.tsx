@@ -83,7 +83,7 @@ export function DealFormModal({deal, customer, onClose, onSaved}: Props) {
   );
   const selectableProperties = useMemo(() => properties.filter(property => {
     const isCurrent = property.id === deal?.property_unit_id || property.property_code === deal?.property_code;
-    if (property.inventory_status === 'sold' && !isCurrent) return false;
+    if (property.inventory_status !== 'available' && !isCurrent) return false;
     if (form.project_id === NO_PROJECT) return !property.project_id;
     if (form.project_id) return property.project_id === form.project_id;
     return true;
@@ -246,8 +246,8 @@ export function DealFormModal({deal, customer, onClose, onSaved}: Props) {
           <div><dt>Dự án</dt><dd>{selectedProperty.project?.name || 'Không thuộc dự án'}</dd></div>
           <div><dt>Trạng thái</dt><dd>{selectedProperty.inventory_status_label || INVENTORY_STATUS_LABELS[selectedProperty.inventory_status]}</dd></div>
           <div><dt>Giá niêm yết</dt><dd>{formatVnd(selectedProperty.listed_price)}</dd></div>
-        </dl>{selectedProperty.inventory_status === 'sold' && deal?.property_unit_id === selectedProperty.id
-          && <p className="form-warning">BĐS này hiện đã bán nhưng đang được liên kết với giao dịch này.</p>}</section>}
+        </dl>{selectedProperty.inventory_status !== 'available' && deal?.property_unit_id === selectedProperty.id
+          && <p className="form-warning">BĐS này hiện không còn khả dụng nhưng đang được liên kết với giao dịch này.</p>}</section>}
         <label>Loại hình<input value={selectedProperty?.property_type_label || form.property_type} readOnly/></label>
         <label>Diện tích<input value={form.area} readOnly/></label>
         <label>Giá trị dự kiến<input type="number" min="0" value={form.expected_value} onChange={event => {expectedValueEdited.current = true; set('expected_value', event.target.value)}}/>{selectedProperty?.listed_price != null && <small>Giá trị dự kiến lấy từ giá niêm yết BĐS khi trường này còn trống.</small>}</label>
