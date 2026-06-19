@@ -287,8 +287,9 @@ class Sprint11BookingValidationTests(unittest.TestCase):
         message = "Không thể thao tác booking vì đã có hợp đồng hiệu lực. Vui lòng hủy hợp đồng trước."
         self.assertIn('EFFECTIVE_CONTRACT_STATUSES = {"signed", "active", "completed"}', source)
         self.assertIn(message, source)
-        self.assertIn("def _has_effective_contract_for_booking", source)
-        self.assertIn("or_(Deal.booking_id == booking.id, Contract.booking_id == booking.id)", source)
+        self.assertIn("def _booking_has_effective_contract", source)
+        self.assertIn("Contract.booking_id == booking.id", source)
+        self.assertIn("Deal.booking_id == booking.id", source)
         self.assertIn("Contract.status.in_(EFFECTIVE_CONTRACT_STATUSES)", source)
         self.assertIn('if payload.status in {"cancelled", "refunded"}:', source)
         self.assertIn("_block_effective_contract_booking_actions(db, booking)", source)
@@ -300,7 +301,7 @@ class Sprint11BookingValidationTests(unittest.TestCase):
 
     @unittest.skipUnless(importlib.util.find_spec("sqlalchemy"), "SQLAlchemy is not installed")
     def test_effective_contract_guard_allows_booking_without_effective_contract(self):
-        from app.services.booking_service import _block_effective_contract_booking_actions
+        from app.services.booking_service import _booking_has_effective_contract, _block_effective_contract_booking_actions
 
         class DummyDb:
             def __init__(self, result):
@@ -309,7 +310,9 @@ class Sprint11BookingValidationTests(unittest.TestCase):
                 self.statement = statement
                 return self.result
 
-        _block_effective_contract_booking_actions(DummyDb(None), SimpleNamespace(id=IDS["property_unit_id"]))
+        booking = SimpleNamespace(id=IDS["property_unit_id"], contracts=[], deals=[])
+        self.assertFalse(_booking_has_effective_contract(DummyDb(None), booking))
+        _block_effective_contract_booking_actions(DummyDb(None), booking)
 
     @unittest.skipUnless(importlib.util.find_spec("sqlalchemy"), "SQLAlchemy is not installed")
     def test_effective_contract_guard_blocks_with_vietnamese_error(self):
