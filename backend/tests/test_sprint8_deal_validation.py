@@ -1,4 +1,5 @@
 import ast
+import importlib.util
 import unittest
 from pathlib import Path
 from pydantic import ValidationError
@@ -40,6 +41,7 @@ class Sprint8DealValidationTests(unittest.TestCase):
         self.assertNotIn("str(deal.id)", delete_source.split("write_audit_log", 1)[0])
 
 
+    @unittest.skipUnless(importlib.util.find_spec("sqlalchemy"), "SQLAlchemy is not installed")
     def test_active_deal_conflict_ignores_cancelled_contracts(self):
         from app.services.deal_service import _active_deal_conflict_exists
 

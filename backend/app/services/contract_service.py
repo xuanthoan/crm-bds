@@ -234,6 +234,8 @@ def change_contract_status(db, id, payload: ContractStatusChange, actor):
     if payload.status not in CONTRACT_STATUS_LABELS:
         raise HTTPException(400, "Trạng thái hợp đồng không hợp lệ")
     old = item.status
+    if old == "cancelled" and payload.status != "cancelled":
+        raise HTTPException(409, "Hợp đồng đã hủy không thể kích hoạt hoặc ký lại. Vui lòng tạo hợp đồng mới.")
     item.status = payload.status
     item.updated_by_id = actor.id
     _apply_status(db, item, actor, payload.status)

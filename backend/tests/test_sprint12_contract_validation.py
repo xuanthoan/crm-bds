@@ -94,6 +94,13 @@ class Sprint12ValidationTest(unittest.TestCase):
   self.assertEqual(activity.new_value,"Đã ký")
   self.assertIn("Hợp đồng HD-000001 đã chuyển sang trạng thái Đã ký.",activity.content)
   self.assertIn("Ghi chú: test đã kí",activity.content)
+
+ def test_cancelled_contract_is_terminal(self):
+  service=Path("backend/app/services/contract_service.py").read_text()
+  self.assertIn('old == "cancelled" and payload.status != "cancelled"',service)
+  self.assertIn("Hợp đồng đã hủy không thể kích hoạt hoặc ký lại. Vui lòng tạo hợp đồng mới.",service)
+  self.assertLess(service.index('old == "cancelled" and payload.status != "cancelled"'), service.index("item.status = payload.status"))
+
  def test_contract_status_syncs_deal_stage_and_vietnamese_timeline(self):
   service=Path("backend/app/services/contract_service.py").read_text()
   backend_constants=Path("backend/app/deals/constants.py").read_text()

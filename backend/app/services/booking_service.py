@@ -96,8 +96,17 @@ def _property_has_effective_contract(db: Session, property_unit_id: UUID) -> boo
     ) is not None
 
 
-def _property_can_be_released(db: Session, property_unit_id: UUID) -> bool:
+def _property_can_be_released(db: Session, property_unit_id: UUID, *, exclude_booking_id: UUID | None = None) -> bool:
     if _property_has_effective_contract(db, property_unit_id):
+        return False
+    active_booking_conditions = [
+        Booking.property_unit_id == property_unit_id,
+        Booking.deleted_at.is_(None),
+        Booking.status.in_(ACTIVE_BOOKING_STATUSES),
+    ]
+    if exclude_booking_id is not None:
+        active_booking_conditions.append(Booking.id != exclude_booking_id)
+    if db.scalar(select(Booking.id).where(*active_booking_conditions).limit(1)) is not None:
         return False
     from app.services.deal_service import _active_deal_conflict_exists
     return not _active_deal_conflict_exists(db, property_unit_id=property_unit_id)
@@ -293,8 +302,7 @@ def change_booking_status(db: Session, booking_id: UUID, payload: BookingStatusC
     if not booking: raise HTTPException(status_code=404, detail="Không tìm thấy booking")
     prefix = "bookings.refund" if payload.status == "refunded" else "bookings.status"
     _require(db, actor, booking, prefix)
-    if payload.status in {"cancelled", "refunded"}:
-        _block_effective_contract_booking_actions(db, booking)
+    _block_effective_contract_booking_actions(db, booking)
     _lock_property_row(db, booking.property_unit_id)
     booking.property_unit = _validate_property(db, booking.property_unit_id)
     now = datetime.now(timezone.utc)
@@ -311,12 +319,12 @@ def change_booking_status(db: Session, booking_id: UUID, payload: BookingStatusC
         _change_property_status(db, booking, actor, "deposited", f"Tự động cập nhật từ booking {booking.booking_code}")
     elif payload.status == "cancelled":
         booking.cancelled_at = now
-        if booking.property_unit.inventory_status != "sold" and _property_can_be_released(db, booking.property_unit_id): _change_property_status(db, booking, actor, "available", f"Booking {booking.booking_code} đã hủy")
+        if booking.property_unit.inventory_status != "sold" and _property_can_be_released(db, booking.property_unit_id, exclude_booking_id=booking.id): _change_property_status(db, booking, actor, "available", f"Booking {booking.booking_code} đã hủy")
     elif payload.status == "expired":
-        if booking.property_unit.inventory_status != "sold" and _property_can_be_released(db, booking.property_unit_id): _change_property_status(db, booking, actor, "available", f"Booking {booking.booking_code} đã hết hạn")
+        if booking.property_unit.inventory_status != "sold" and _property_can_be_released(db, booking.property_unit_id, exclude_booking_id=booking.id): _change_property_status(db, booking, actor, "available", f"Booking {booking.booking_code} đã hết hạn")
     elif payload.status == "refunded":
         booking.refunded_at = now
-        if booking.property_unit.inventory_status not in PROPERTY_RELEASE_BLOCKED_STATUSES and _property_can_be_released(db, booking.property_unit_id): _change_property_status(db, booking, actor, "available", f"Booking {booking.booking_code} đã hoàn tiền")
+        if booking.property_unit.inventory_status not in PROPERTY_RELEASE_BLOCKED_STATUSES and _property_can_be_released(db, booking.property_unit_id, exclude_booking_id=booking.id): _change_property_status(db, booking, actor, "available", f"Booking {booking.booking_code} đã hoàn tiền")
     activity_content = status_activity_content(payload)
     activity_context = decode_activity_context(activity_content)
     _add_activity(db, booking, actor, "status_change", title="Đổi trạng thái booking", content=activity_content, old_value=old_status, new_value=payload.status)

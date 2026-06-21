@@ -291,8 +291,13 @@ class Sprint11BookingValidationTests(unittest.TestCase):
         self.assertIn("Contract.booking_id == booking.id", source)
         self.assertIn("Deal.booking_id == booking.id", source)
         self.assertIn("Contract.status.in_(EFFECTIVE_CONTRACT_STATUSES)", source)
-        self.assertIn('if payload.status in {"cancelled", "refunded"}:', source)
         self.assertIn("_block_effective_contract_booking_actions(db, booking)", source)
+        status_function = ast.get_source_segment(
+            source,
+            next(node for node in ast.parse(source).body if isinstance(node, ast.FunctionDef) and node.name == "change_booking_status"),
+        )
+        self.assertIn("_block_effective_contract_booking_actions(db, booking)", status_function)
+        self.assertNotIn('if payload.status in {"cancelled", "refunded"}', status_function)
         delete_function = ast.get_source_segment(
             source,
             next(node for node in ast.parse(source).body if isinstance(node, ast.FunctionDef) and node.name == "soft_delete_booking"),
@@ -301,7 +306,10 @@ class Sprint11BookingValidationTests(unittest.TestCase):
         self.assertIn("def _property_has_effective_contract", source)
         self.assertIn("def _property_can_be_released", source)
         self.assertIn("Contract.property_unit_id == property_unit_id", source)
-        self.assertIn("_property_can_be_released(db, booking.property_unit_id)", source)
+        self.assertIn("exclude_booking_id: UUID | None = None", source)
+        self.assertIn("Booking.status.in_(ACTIVE_BOOKING_STATUSES)", source)
+        self.assertIn("Booking.id != exclude_booking_id", source)
+        self.assertIn("_property_can_be_released(db, booking.property_unit_id, exclude_booking_id=booking.id)", source)
 
     @unittest.skipUnless(importlib.util.find_spec("sqlalchemy"), "SQLAlchemy is not installed")
     def test_effective_contract_guard_allows_booking_without_effective_contract(self):
