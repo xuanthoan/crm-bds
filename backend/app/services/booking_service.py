@@ -83,6 +83,25 @@ def _booking_has_effective_contract(db: Session | None, booking: Booking) -> boo
     )
 
 
+
+def _property_has_effective_contract(db: Session, property_unit_id: UUID) -> bool:
+    return db.scalar(
+        select(Contract.id)
+        .where(
+            Contract.property_unit_id == property_unit_id,
+            Contract.deleted_at.is_(None),
+            Contract.status.in_(EFFECTIVE_CONTRACT_STATUSES),
+        )
+        .limit(1)
+    ) is not None
+
+
+def _property_can_be_released(db: Session, property_unit_id: UUID) -> bool:
+    if _property_has_effective_contract(db, property_unit_id):
+        return False
+    from app.services.deal_service import _active_deal_conflict_exists
+    return not _active_deal_conflict_exists(db, property_unit_id=property_unit_id)
+
 def _block_effective_contract_booking_actions(db: Session, booking: Booking) -> None:
     if _booking_has_effective_contract(db, booking):
         raise HTTPException(status_code=409, detail=EFFECTIVE_CONTRACT_BOOKING_MESSAGE)
@@ -292,12 +311,12 @@ def change_booking_status(db: Session, booking_id: UUID, payload: BookingStatusC
         _change_property_status(db, booking, actor, "deposited", f"Tự động cập nhật từ booking {booking.booking_code}")
     elif payload.status == "cancelled":
         booking.cancelled_at = now
-        if booking.property_unit.inventory_status != "sold": _change_property_status(db, booking, actor, "available", f"Booking {booking.booking_code} đã hủy")
+        if booking.property_unit.inventory_status != "sold" and _property_can_be_released(db, booking.property_unit_id): _change_property_status(db, booking, actor, "available", f"Booking {booking.booking_code} đã hủy")
     elif payload.status == "expired":
-        if booking.property_unit.inventory_status != "sold": _change_property_status(db, booking, actor, "available", f"Booking {booking.booking_code} đã hết hạn")
+        if booking.property_unit.inventory_status != "sold" and _property_can_be_released(db, booking.property_unit_id): _change_property_status(db, booking, actor, "available", f"Booking {booking.booking_code} đã hết hạn")
     elif payload.status == "refunded":
         booking.refunded_at = now
-        if booking.property_unit.inventory_status not in PROPERTY_RELEASE_BLOCKED_STATUSES: _change_property_status(db, booking, actor, "available", f"Booking {booking.booking_code} đã hoàn tiền")
+        if booking.property_unit.inventory_status not in PROPERTY_RELEASE_BLOCKED_STATUSES and _property_can_be_released(db, booking.property_unit_id): _change_property_status(db, booking, actor, "available", f"Booking {booking.booking_code} đã hoàn tiền")
     activity_content = status_activity_content(payload)
     activity_context = decode_activity_context(activity_content)
     _add_activity(db, booking, actor, "status_change", title="Đổi trạng thái booking", content=activity_content, old_value=old_status, new_value=payload.status)
@@ -329,9 +348,8 @@ def list_booking_assignees(db: Session, actor: User) -> list[User]:
 
 def create_deal_from_booking(db: Session, booking_id: UUID, payload, actor: User) -> Deal:
     """Convert one deposited booking into one active closing deal."""
-    from app.contracts.constants import ACTIVE_DEAL_STATUSES
     from app.models.deal_activity import DealActivity
-    from app.services.deal_service import _next_code as next_deal_code
+    from app.services.deal_service import _active_deal_conflict_exists, _next_code as next_deal_code
     booking = db.scalar(select(Booking).where(Booking.id == booking_id, Booking.deleted_at.is_(None)))
     if not booking: raise HTTPException(status_code=404, detail="Booking không tồn tại")
     if booking.status != "deposited": raise HTTPException(status_code=400, detail="Chỉ booking đã cọc mới được chuyển thành giao dịch.")
@@ -340,8 +358,8 @@ def create_deal_from_booking(db: Session, booking_id: UUID, payload, actor: User
     _lock_property_row(db, booking.property_unit_id)
     prop = _validate_property(db, booking.property_unit_id)
     _validate_customer(db, booking.customer_id)
-    if db.scalar(select(Deal.id).where(Deal.booking_id == booking.id, Deal.deleted_at.is_(None), Deal.status.in_(ACTIVE_DEAL_STATUSES)).limit(1)): raise HTTPException(status_code=409, detail="Booking này đã có giao dịch đang hoạt động.")
-    if db.scalar(select(Deal.id).where(Deal.property_unit_id == prop.id, Deal.deleted_at.is_(None), Deal.status.in_(ACTIVE_DEAL_STATUSES)).limit(1)): raise HTTPException(status_code=409, detail="Bất động sản này đã có giao dịch đang hoạt động.")
+    if _active_deal_conflict_exists(db, booking_id=booking.id): raise HTTPException(status_code=409, detail="Booking này đã có giao dịch đang hoạt động.")
+    if _active_deal_conflict_exists(db, property_unit_id=prop.id): raise HTTPException(status_code=409, detail="Bất động sản này đã có giao dịch đang hoạt động.")
     title = payload.title or f"Giao dịch từ booking {booking.booking_code} - {prop.property_code}"
     expected = payload.expected_value if payload.expected_value is not None else (prop.listed_price or booking.deposit_amount or 0)
     deal = Deal(deal_code=next_deal_code(db), booking_id=booking.id, property_unit_id=prop.id, project_id=prop.project_id, customer_id=booking.customer_id, source_lead_id=booking.source_lead_id, title=title, description=payload.note, deal_type=prop.property_type if prop.property_type in {"apartment","townhouse","villa","land","shophouse","other"} else "other", pipeline_stage="contract", status="contract_pending", priority="medium", project_name=prop.project.name if prop.project else None, property_code=prop.property_code, property_type=prop.property_type, expected_value=expected, deposit_amount=booking.deposit_amount, deposit_date=booking.deposit_date, owner_id=booking.assigned_user_id, created_by_id=actor.id)

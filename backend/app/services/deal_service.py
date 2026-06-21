@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
+from app.contracts.constants import ACTIVE_DEAL_STATUSES
 from app.deals.constants import DEAL_PRIORITY_LABELS, DEAL_STATUS_LABELS, PIPELINE_STAGE_LABELS
 from app.models.customer import Customer
 from app.models.customer_activity import CustomerActivity
@@ -23,6 +24,37 @@ from app.services.organization_service import get_accessible_user_ids_for_lead_s
 from app.services.user_service import get_user_by_id, user_role_code_set
 
 ELIGIBLE_OWNER_ROLES = {"admin", "director", "sales_manager", "leader", "sale"}
+
+
+def _active_deal_conflict_exists(
+    db: Session,
+    *,
+    property_unit_id: UUID | None = None,
+    booking_id: UUID | None = None,
+    exclude_deal_id: UUID | None = None,
+) -> bool:
+    conditions = [Deal.deleted_at.is_(None), Deal.status.in_(ACTIVE_DEAL_STATUSES)]
+    if property_unit_id is not None:
+        conditions.append(Deal.property_unit_id == property_unit_id)
+    if booking_id is not None:
+        conditions.append(Deal.booking_id == booking_id)
+    if exclude_deal_id is not None:
+        conditions.append(Deal.id != exclude_deal_id)
+    for deal in db.scalars(select(Deal).where(*conditions)).unique():
+        has_contract = db.scalar(
+            select(Contract.id)
+            .where(Contract.deal_id == deal.id)
+            .limit(1)
+        ) is not None
+        has_non_cancelled_contract = db.scalar(
+            select(Contract.id)
+            .where(Contract.deal_id == deal.id, Contract.deleted_at.is_(None), Contract.status != "cancelled")
+            .limit(1)
+        ) is not None
+        if has_contract and not has_non_cancelled_contract:
+            continue
+        return True
+    return False
 
 def _scope(user: User, prefix: str) -> str | None:
     if user.is_superuser: return "all"
@@ -173,6 +205,8 @@ def list_deals(db: Session, actor: User, *, page: int, page_size: int, q: str | 
 def create_deal(db: Session, payload: DealCreate, actor: User) -> Deal:
     data=payload.model_dump(); _validate_customer(db, data.pop("customer_id")); _validate_lead(db, data.get("source_lead_id")); owner=_validate_owner(db, actor, data.pop("owner_id"))
     _apply_inventory_link(db, data, require_available=True)
+    if data.get("property_unit_id") is not None and _active_deal_conflict_exists(db, property_unit_id=data["property_unit_id"]):
+        raise HTTPException(status_code=409, detail="Bất động sản này đã có giao dịch đang hoạt động.")
     now=datetime.now(timezone.utc)
     if data.get("pipeline_stage") == "completed": data["status"] = "won"; data["closed_at"] = data.get("closed_at") or now
     elif data.get("pipeline_stage") == "lost": data["status"] = "lost"; data["closed_at"] = data.get("closed_at") or now

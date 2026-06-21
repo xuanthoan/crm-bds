@@ -298,6 +298,10 @@ class Sprint11BookingValidationTests(unittest.TestCase):
             next(node for node in ast.parse(source).body if isinstance(node, ast.FunctionDef) and node.name == "soft_delete_booking"),
         )
         self.assertIn("_block_effective_contract_booking_actions(db, booking)", delete_function)
+        self.assertIn("def _property_has_effective_contract", source)
+        self.assertIn("def _property_can_be_released", source)
+        self.assertIn("Contract.property_unit_id == property_unit_id", source)
+        self.assertIn("_property_can_be_released(db, booking.property_unit_id)", source)
 
     @unittest.skipUnless(importlib.util.find_spec("sqlalchemy"), "SQLAlchemy is not installed")
     def test_effective_contract_guard_allows_booking_without_effective_contract(self):
