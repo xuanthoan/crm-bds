@@ -68,6 +68,8 @@ class Sprint8DealValidationTests(unittest.TestCase):
         self.assertIn("def _active_deal_conflict_exists", source)
         self.assertIn('Contract.status != "cancelled"', source)
         self.assertIn("has_contract and not has_non_cancelled_contract", source)
+        self.assertIn("exclude_booking_id: UUID | None = None", source)
+        self.assertIn("Deal.booking_id != exclude_booking_id", source)
         self.assertIn('_active_deal_conflict_exists(db, property_unit_id=data["property_unit_id"])', source)
         booking_service = Path("backend/app/services/booking_service.py").read_text()
         self.assertIn("_active_deal_conflict_exists(db, booking_id=booking.id)", booking_service)

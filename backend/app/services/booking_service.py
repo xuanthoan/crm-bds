@@ -109,7 +109,7 @@ def _property_can_be_released(db: Session, property_unit_id: UUID, *, exclude_bo
     if db.scalar(select(Booking.id).where(*active_booking_conditions).limit(1)) is not None:
         return False
     from app.services.deal_service import _active_deal_conflict_exists
-    return not _active_deal_conflict_exists(db, property_unit_id=property_unit_id)
+    return not _active_deal_conflict_exists(db, property_unit_id=property_unit_id, exclude_booking_id=exclude_booking_id)
 
 def _block_effective_contract_booking_actions(db: Session, booking: Booking) -> None:
     if _booking_has_effective_contract(db, booking):

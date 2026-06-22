@@ -32,6 +32,7 @@ def _active_deal_conflict_exists(
     property_unit_id: UUID | None = None,
     booking_id: UUID | None = None,
     exclude_deal_id: UUID | None = None,
+    exclude_booking_id: UUID | None = None,
 ) -> bool:
     conditions = [Deal.deleted_at.is_(None), Deal.status.in_(ACTIVE_DEAL_STATUSES)]
     if property_unit_id is not None:
@@ -40,6 +41,8 @@ def _active_deal_conflict_exists(
         conditions.append(Deal.booking_id == booking_id)
     if exclude_deal_id is not None:
         conditions.append(Deal.id != exclude_deal_id)
+    if exclude_booking_id is not None:
+        conditions.append(or_(Deal.booking_id.is_(None), Deal.booking_id != exclude_booking_id))
     for deal in db.scalars(select(Deal).where(*conditions)).unique():
         has_contract = db.scalar(
             select(Contract.id)
