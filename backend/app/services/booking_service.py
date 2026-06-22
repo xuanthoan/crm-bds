@@ -5,7 +5,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 from app.bookings.activity import decode_activity_context, is_status_transition, status_activity_content, status_label
-from app.bookings.constants import ACTIVE_BOOKING_STATUSES, BOOKING_ACTIVITY_LABELS, BOOKING_STATUS_LABELS
+from app.bookings.constants import ACTIVE_BOOKING_STATUSES, BOOKING_ACTIVITY_LABELS, BOOKING_STATUS_LABELS, FINAL_BOOKING_STATUSES
 from app.models.booking import Booking
 from app.models.booking_activity import BookingActivity
 from app.models.customer import Customer
@@ -303,6 +303,8 @@ def change_booking_status(db: Session, booking_id: UUID, payload: BookingStatusC
     prefix = "bookings.refund" if payload.status == "refunded" else "bookings.status"
     _require(db, actor, booking, prefix)
     _block_effective_contract_booking_actions(db, booking)
+    if booking.status in FINAL_BOOKING_STATUSES and payload.status in ACTIVE_BOOKING_STATUSES:
+        raise HTTPException(status_code=409, detail="Booking đã kết thúc không thể chuyển lại trạng thái giữ chỗ hoặc đặt cọc.")
     _lock_property_row(db, booking.property_unit_id)
     booking.property_unit = _validate_property(db, booking.property_unit_id)
     now = datetime.now(timezone.utc)
