@@ -9,7 +9,7 @@ git diff --check
 git diff --cached --check
 ```
 
-## 2. Backend test suites hiện có
+## 2. Backend regression suites
 
 ```bash
 PYTHONPATH=backend python -m unittest backend.tests.test_sprint6_permissions -v
@@ -22,6 +22,12 @@ PYTHONPATH=backend python -m unittest backend.tests.test_sprint12_contract_permi
 PYTHONPATH=backend python -m unittest backend.tests.test_lead_assignment_timeline backend.tests.test_role_code_sets -v
 ```
 
+Focused Sprint 12 handoff suite:
+
+```bash
+PYTHONPATH=backend python -m unittest backend.tests.test_sprint11_booking_validation backend.tests.test_sprint8_deal_validation backend.tests.test_sprint12_contract_validation -v
+```
+
 ## 3. Docker smoke test
 
 ```bash
@@ -32,66 +38,92 @@ docker compose logs --no-color backend
 docker compose down
 ```
 
-Kiểm tra backend log xác nhận `alembic upgrade head` thành công.
+Kiểm tra backend log xác nhận `alembic upgrade head` thành công và migration `20260613_0010_deal_closing_contracts.py` đã chạy.
 
-## 4. Manual regression checklist
+## 4. Sprint 12 passed regression checklist
 
-### Auth/RBAC/organization
+### Booking → Deal → Contract
 
-- [ ] Login, refresh, logout.
-- [ ] User bị vô hiệu hóa không đăng nhập được.
-- [ ] Route/menu bị ẩn theo permission.
-- [ ] Backend trả 403 khi gọi trực tiếp API ngoài scope.
-- [ ] Department/team membership ảnh hưởng đúng own/team/department.
-
-### Lead/Customer
-
-- [ ] Tạo Lead và chặn phone trùng.
-- [ ] Gán owner, thêm activity/task/appointment.
+- [ ] Tạo Lead.
 - [ ] Chuyển Lead thành Customer.
-- [ ] Chặn conversion lần hai.
-- [ ] Customer detail hiển thị profile/related people/scoring.
-
-### Deal/Inventory
-
-- [ ] Tạo Project và Property có/không có Project.
-- [ ] Deal form tìm Project/Property thực.
-- [ ] Chọn Property tự điền project/code/type/area/listed price.
-- [ ] Chặn Property sold/deleted và project mismatch.
-- [ ] Existing Deal liên kết Property sold vẫn mở/edit an toàn.
-- [ ] Đổi Deal stage/status và kiểm tra timeline.
-
-### Booking
-
-- [ ] Tạo Booking draft trên Property available.
-- [ ] Chặn booking active thứ hai cho cùng Property.
-- [ ] Reserved yêu cầu amount hợp lệ và Property -> reserved.
-- [ ] Deposited yêu cầu deposit amount và Property -> deposited.
-- [ ] Cancel/refund yêu cầu lý do/số tiền.
-- [ ] Soft delete chỉ cho final Booking status.
+- [ ] Tạo Project và Property `available`.
+- [ ] Tạo Booking cho Customer + Property.
+- [ ] Chuyển Booking sang `deposited`.
 - [ ] Tạo Deal từ Booking deposited.
-- [ ] Chặn tạo Deal từ trạng thái khác và chặn duplicate active Deal.
+- [ ] Deal Detail hiển thị Booking / Property / Project.
+- [ ] Tạo Contract từ Deal.
+- [ ] Contract lấy đúng Deal / Booking / Customer / Property / Project / Contract Value.
 
-### Contract/Payment
+### Contract signed → Deal contracted → Property sold
 
-- [ ] Tạo Contract từ Deal; liên kết Booking/Customer/Property/Project đúng.
-- [ ] Chặn Deal lost/cancelled, Deal không Property và duplicate active Contract.
-- [ ] Signed/active -> Deal contracted + `contract_signed`, Property sold.
-- [ ] Contract/Deal/Property timeline/history có nội dung tiếng Việt.
-- [ ] Tạo planned payment và xác nhận paid.
-- [ ] `total_paid`, `total_planned`, `remaining_amount` đúng.
-- [ ] Payment timeline format tiền/metadata đúng.
-- [ ] Chặn xóa Contract signed/active/completed.
-- [ ] Cho soft delete Contract draft/cancelled.
-- [ ] Payment đủ không tự complete Deal.
+- [ ] Chuyển Contract từ draft sang signed.
+- [ ] Contract Detail hiển thị `Đã ký`.
+- [ ] Deal chuyển sang trạng thái/giai đoạn đã ký hợp đồng.
+- [ ] Property chuyển sang `sold` / `Đã bán`.
+- [ ] Contract timeline ghi status change tiếng Việt.
+- [ ] Deal timeline ghi hoạt động Contract signed tiếng Việt.
+- [ ] Property status history ghi chuyển trạng thái sang sold.
 
-## 5. Database checks
+### Contract cancelled rollback
 
-- [ ] Upgrade database mới từ base đến `20260613_0010`.
-- [ ] Kiểm tra đủ 28 bảng.
-- [ ] Kiểm tra FK và partial unique booking index.
-- [ ] Kiểm tra soft-delete records không xuất hiện trong list/detail.
-- [ ] Kiểm tra concurrent code generation trước khi triển khai tải cao.
+- [ ] Contract signed có Booking deposited liên quan: cancel Contract.
+- [ ] Contract chuyển `cancelled`.
+- [ ] Deal không còn giữ stage/status đã ký hợp đồng.
+- [ ] Property quay về `deposited` nếu Booking cọc vẫn còn hiệu lực.
+- [ ] Contract cancelled không được chuyển lại signed/active/completed.
+- [ ] Contract cancelled không chặn flow mới nếu Property đã available và không còn holder khác.
+
+### Booking guard khi có Contract hiệu lực
+
+- [ ] Booking → Deal → Contract signed.
+- [ ] Thử cancel Booking: bị chặn.
+- [ ] Thử refund Booking: bị chặn.
+- [ ] Thử expire Booking: bị chặn.
+- [ ] Thử delete Booking: bị chặn.
+- [ ] Property vẫn sold, Deal vẫn contracted, Contract vẫn signed sau thao tác bị chặn.
+
+### Booking refund/deduction
+
+- [ ] Booking deposited không có Contract hiệu lực: refund amount = booking/deposit amount.
+- [ ] Deduction hiển thị `0`.
+- [ ] Booking deposited không có Contract hiệu lực: refund amount < booking/deposit amount.
+- [ ] Deduction tự tính đúng.
+- [ ] Deduction reason optional.
+- [ ] Refund amount > booking/deposit amount bị chặn.
+- [ ] Booking Detail hiển thị booking amount, refund amount, deduction amount, refund reason, deduction reason.
+- [ ] Booking timeline hiển thị `Số tiền hoàn`, `Khấu trừ`, `Lý do hoàn tiền`, `Lý do khấu trừ`.
+
+### Property release sau Booking cancel/refund/expire
+
+- [ ] Booking deposited chưa có Contract effective → cancelled: Property về available nếu không còn holder khác.
+- [ ] Booking deposited chưa có Contract effective → refunded: Property về available nếu không còn holder khác.
+- [ ] Booking deposited chưa có Contract effective → expired: Property về available nếu không còn holder khác.
+- [ ] Deal tạo từ Booking bị release không còn chặn Booking/Deal mới.
+- [ ] Unrelated active Deal trên cùng Property vẫn chặn release/new flow.
+
+### Direct Deal chỉ cho Property available
+
+- [ ] Property available có thể chọn để tạo Deal trực tiếp.
+- [ ] Property reserved/deposited/sold không selectable hoặc bị backend chặn.
+- [ ] Property deleted không selectable và bị backend chặn.
+- [ ] Booking → Deal từ Booking deposited vẫn hoạt động vì đó là holder hợp lệ.
+
+### Contract Payment
+
+- [ ] Tạo planned payment.
+- [ ] Confirm payment với method/reference/paid date.
+- [ ] Contract total paid chỉ tính payment paid.
+- [ ] Remaining amount = contract value - deposit - total paid.
+- [ ] Payment vượt remaining bị chặn.
+- [ ] Payment timeline hiển thị tiền VND và metadata theo từng dòng.
+
+## 5. Known remaining UI polish checks
+
+- [ ] Contract form/modal spacing ổn ở màn nhỏ.
+- [ ] Contract payment modal labels không overlap.
+- [ ] Booking refund modal hiển thị deduction dễ hiểu trên mobile.
+- [ ] Empty states ở Contract/Payment/Timeline thống nhất.
+- [ ] Frontend chưa có automated browser E2E; cần manual hoặc Playwright/Cypress trước production.
 
 ## 6. Những gì checklist hiện chưa tự động hóa
 

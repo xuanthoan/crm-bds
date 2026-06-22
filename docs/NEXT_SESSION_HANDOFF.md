@@ -2,71 +2,89 @@
 
 ## 1. Trạng thái hiện tại
 
-- Baseline tài liệu: commit `554caab`.
-- Sprint 11 Booking đã nằm trong lịch sử qua merge `5015c62`.
-- Sprint 12 Contract foundation đã có trong working branch tại baseline.
-- Migration head: `20260613_0010`.
-- Stack: FastAPI + SQLAlchemy + Alembic + PostgreSQL; React + TypeScript + Vite.
-- Bộ tài liệu trong thư mục này phản ánh code hiện tại, không phải roadmap mục tiêu.
+- Branch làm việc: Sprint 12 Deal closing / Contract foundation.
+- Baseline trước lần cập nhật tài liệu này: commit `0d5b425`.
+- Sprint 12 được ghi nhận là **passed** trong branch hiện tại sau các bugfix Booking/Deal/Contract/Property và Booking refund.
+- Migration head hiện tại: `20260613_0010_deal_closing_contracts.py`.
+- Không có migration mới cho phần refund/deduction; deduction amount được tính động và deduction reason được lưu trong activity context hiện có.
 
-## 2. Chức năng cần bảo toàn
+## 2. Luồng nghiệp vụ cần bảo toàn
 
-- Lead → Customer conversion một lần.
-- Scoped permissions own/team/department/all.
-- Deal linked inventory validation.
-- Booking active uniqueness và row locking.
-- Chỉ Booking deposited được tạo Deal.
-- Contract dẫn xuất quan hệ từ Deal.
-- Contract signed/active đồng bộ Deal/Property.
-- Contract/payment timeline và payment totals.
-- Soft-delete rules.
+### Booking → Deal → Contract
 
-## 3. Việc nên làm tiếp theo dựa trên code debt
+- Chỉ Booking `deposited` được tạo Deal.
+- Booking tạo Deal phải giữ liên kết Booking / Customer / Property / Project.
+- Deal tạo từ Booking không được bị duplicate active Deal trên cùng Booking hoặc Property.
+- Contract tạo từ Deal phải lấy đúng Deal / Booking / Customer / Property / Project.
 
-Ưu tiên kỹ thuật có bằng chứng trong code:
+### Contract signed → Deal contracted → Property sold
 
-1. Chạy toàn bộ backend tests và frontend build trong môi trường đủ dependency.
-2. Chạy Docker smoke test và migration trên database sạch.
-3. Bổ sung integration tests với PostgreSQL cho Booking/Deal/Contract concurrency.
-4. Thay application code generation bằng database sequences.
-5. Hoàn thiện hoặc xóa các Contract UI placeholder.
-6. Thêm frontend test framework và các regression tests cho combobox/contract flows.
-7. Quyết định chuẩn hóa Deal final status `won` so với `completed`.
-8. Làm rõ chiến lược `remaining_value` lưu trữ so với total tính động.
+- Contract `signed` hoặc `active` cập nhật Deal sang trạng thái/giai đoạn đã ký hợp đồng.
+- Property liên quan chuyển sang `sold`.
+- Contract timeline, Deal timeline và Property status history phải có nội dung tiếng Việt rõ ràng.
 
-Product expansion chỉ nên bắt đầu sau khi xác nhận yêu cầu; code hiện chưa có commission/KPI/invoice/tax.
+### Contract cancelled rollback
 
-## 4. Cảnh báo cho phiên AI tiếp theo
+- Contract `cancelled` là trạng thái terminal, không được ký/kích hoạt lại.
+- Nếu Contract bị hủy và còn Booking đã cọc liên quan, Property quay về `deposited`.
+- Nếu không còn Booking/Deal/Contract hiệu lực giữ Property, Property quay về `available`.
+- Deal không được giữ trạng thái đã ký hợp đồng sau khi Contract bị hủy.
 
-- Đọc mọi `AGENTS.md` trước khi sửa file.
-- Kiểm tra branch/HEAD và `git status`; không giả định prompt cũ khớp checkout hiện tại.
-- Đọc migration và service, không dùng tài liệu roadmap cũ làm nguồn sự thật.
-- Không đổi enum/status nếu chưa rà constants, schema, service, serializer, badge và tests.
-- Không bỏ backend validation chỉ vì UI đã lọc.
-- Giữ compatibility với legacy Deal text fields khi sửa inventory linkage.
-- Khi sửa Contract lifecycle, kiểm tra cả Contract activity, Deal activity và Property status history.
-- Không tạo migration nếu thay đổi không cần schema.
-- Chạy `git diff --check` và xác nhận phạm vi diff trước commit.
+### Booking guard khi có Contract hiệu lực
 
-## 5. Commands khởi động phiên
+- Contract hiệu lực gồm `signed`, `active`, `completed`.
+- Nếu Booking liên kết trực tiếp hoặc gián tiếp qua Deal với Contract hiệu lực, chặn status mutation/refund/delete Booking.
+- Thông báo lỗi tiếng Việt: `Không thể thao tác booking vì đã có hợp đồng hiệu lực. Vui lòng hủy hợp đồng trước.`
+
+### Property release sau Booking cancel/refund/expire
+
+- Booking `cancelled`, `refunded`, `expired` không còn được tính là holder giữ Property.
+- Nếu không có Contract hiệu lực, không có active Booking khác và không có active Deal conflict hợp lệ, Property được release về `available`.
+- Deal được tạo từ chính Booking đó sẽ tự chuyển `cancelled/lost` để không chặn Booking/Deal mới.
+- Không được hủy Deal không liên quan trên cùng Property.
+
+### Direct Deal chỉ cho Property available
+
+- Tạo Deal trực tiếp chỉ cho Property khả dụng.
+- Property `reserved`, `deposited`, `sold`, deleted hoặc không khả dụng phải bị chặn hoặc không selectable.
+- Luồng Booking → Deal vẫn được phép với Booking đã cọc hợp lệ dù Property đang `deposited` do Booking đó giữ.
+
+### Booking refund/deduction
+
+- Booking chỉ có status `refunded`; không thêm `partially_refunded` hoặc `fully_refunded`.
+- Refund form gồm refund amount, refund reason và deduction reason optional.
+- Deduction amount = booking/deposit amount - refund amount.
+- Refund amount phải `>= 0` và không vượt booking/deposit amount.
+- Timeline refund hiển thị refund amount, deduction amount, refund reason và deduction reason.
+
+## 3. Việc cần làm tiếp
+
+1. Chạy full Docker smoke test với database sạch.
+2. Manual regression toàn bộ F3: Lead → Customer → Property → Booking → Deposit → Deal → Contract → Signed → guard Booking mutation.
+3. Manual regression Contract cancelled rollback trên cả case có Booking cọc và không có Booking cọc.
+4. Manual regression Booking refund/deduction và kiểm tra Timeline/Detail.
+5. Polish UI Contract/Payment/Booking refund modal nếu chuẩn bị demo production.
+6. Bổ sung E2E browser tests cho các luồng đã passed.
+
+## 4. Lưu ý cho AI tiếp theo
+
+- Không thay đổi business logic nếu task chỉ yêu cầu docs/handoff.
+- Trước khi sửa code, kiểm tra `git status --short --branch` và đọc file liên quan trực tiếp.
+- Không tạo migration trừ khi có thay đổi schema thật sự bắt buộc.
+- Khi sửa Booking status, phải kiểm tra Deal conflict helper và Contract effective guard.
+- Khi sửa Contract status, phải kiểm tra Deal state, Property state/history và timelines.
+- Khi sửa refund, không thêm status mới; chỉ cải thiện thông tin refund/deduction.
+- Khi sửa frontend filtering, backend validation vẫn phải là nguồn sự thật.
+- Luôn chạy `git diff --check` trước commit.
+
+## 5. Commands khởi động phiên tiếp theo
 
 ```bash
 git status --short --branch
 git log --oneline -10
 find .. -name AGENTS.md -print
-find backend/app -maxdepth 3 -type f | sort
-find frontend/src -maxdepth 4 -type f | sort
-find backend/alembic/versions -type f | sort
-find backend/tests -maxdepth 1 -type f | sort
+python -m compileall backend/app backend/tests
+PYTHONPATH=backend python -m unittest backend.tests.test_sprint11_booking_validation backend.tests.test_sprint8_deal_validation backend.tests.test_sprint12_contract_validation -v
+cd frontend && npm run build
+git diff --check
 ```
-
-## 6. Definition of done tối thiểu cho thay đổi code
-
-- Rule mới có validation backend.
-- Permission/scope được kiểm tra.
-- Audit/timeline được cập nhật nếu là thao tác nghiệp vụ.
-- Migration có upgrade/downgrade nếu schema đổi.
-- Unit/regression tests được bổ sung.
-- Frontend build thành công.
-- Docker/manual limitations được báo cáo rõ.
-- Không merge/tag nếu task không yêu cầu.
