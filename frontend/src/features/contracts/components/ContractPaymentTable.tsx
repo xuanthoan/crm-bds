@@ -7,20 +7,22 @@ export function ContractPaymentTable({ items, onConfirm }: { items: ContractPaym
   return (
     <div className="table-scroll">
       <table>
-        <thead><tr><th>Mã</th><th>Loại</th><th>Số tiền</th><th>Hạn thanh toán</th><th>Ngày thanh toán</th><th>Phương thức</th><th>Trạng thái</th><th /></tr></thead>
+        <thead><tr><th>Mã thanh toán</th><th>Số tiền</th><th>Loại</th><th>Trạng thái</th><th>Hạn thanh toán</th><th>Ngày thanh toán</th><th>Phương thức</th><th>Mã tham chiếu</th><th>Hành động</th></tr></thead>
         <tbody>
           {items.map((payment) => (
             <tr key={payment.id}>
               <td>{payment.payment_code}</td>
-              <td>{payment.payment_type_label}</td>
               <td>{money(payment.amount)}</td>
+              <td>{payment.payment_type_label}</td>
+              <td>{payment.status_label}</td>
               <td>{date(payment.due_date)}</td>
               <td>{payment.status === 'paid' ? date(payment.paid_date) : 'Chưa thanh toán'}</td>
               <td>{payment.payment_method_label || 'Chưa cập nhật'}</td>
-              <td>{payment.status_label}</td>
-              <td>{payment.status === 'planned' && <button onClick={() => onConfirm(payment)}>Xác nhận thanh toán</button>}</td>
+              <td>{payment.reference_number || 'Chưa cập nhật'}</td>
+              <td>{payment.status === 'planned' ? <button onClick={() => onConfirm(payment)}>Xác nhận</button> : '—'}</td>
             </tr>
           ))}
+          {!items.length && <tr><td colSpan={9} className="empty-cell">Chưa có khoản thanh toán.</td></tr>}
         </tbody>
       </table>
     </div>

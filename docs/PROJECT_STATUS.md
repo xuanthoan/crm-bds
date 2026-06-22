@@ -91,3 +91,12 @@ Các module sau chưa có model + migration + service + API + UI hoàn chỉnh:
 3. Bổ sung browser E2E cho Booking refund, Contract signed/cancelled rollback và Payment confirmation.
 4. Hardening UI Contract/Payment và Booking refund modal.
 5. Trước Sprint kế tiếp, chốt lại enum/status cuối cùng cho Deal completed/won/cancelled.
+
+## Sprint 13 UI/UX polish + workflow hardening
+
+- Booking Detail đã bổ sung header/action rõ hơn, lock banner khi có hợp đồng hiệu lực, money summary, related entities và empty-state tiếng Việt.
+- Booking Status modal hiển thị trạng thái hiện tại/trạng thái mới, chặn thao tác khi booking bị khóa bởi hợp đồng hiệu lực hoặc đã final, và hiển thị lỗi API ngay trong modal.
+- Deal Detail đã chuẩn hóa tiêu đề liên kết Booking / Bất động sản / Dự án, badge trạng thái booking/contract tiếng Việt và điều kiện hiển thị nút tạo hợp đồng khi chỉ còn hợp đồng đã hủy.
+- Contract Detail đã có terminal banner cho hợp đồng đã hủy, disable đổi trạng thái/thêm thanh toán, summary trạng thái thanh toán, bảng payment tiếng Việt và modal status/payment rõ hơn.
+- Property Detail related deal/contract hiển thị badge tiếng Việt thay vì raw enum.
+- Không thêm migration, dashboard, commission, invoice, reporting, upload hay module nghiệp vụ mới.
