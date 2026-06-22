@@ -563,3 +563,21 @@ ROLE_PERMISSION_MAP["sales_manager"].extend(["bookings.view.department", "bookin
 ROLE_PERMISSION_MAP["leader"].extend(["bookings.view.team", "bookings.create", "bookings.update.team", "bookings.status.team", "bookings.refund.team"])
 ROLE_PERMISSION_MAP["sale"].extend(["bookings.view.own", "bookings.create", "bookings.update.own", "bookings.status.own"])
 ROLE_PERMISSION_MAP["viewer"].append("bookings.view.own")
+
+CONTRACT_PERMISSIONS = [
+    *[f"contracts.view.{scope}" for scope in ("own", "team", "department", "all")], "contracts.create",
+    *[f"contracts.update.{scope}" for scope in ("own", "team", "department", "all")],
+    *[f"contracts.status.{scope}" for scope in ("own", "team", "department", "all")],
+    *[f"contracts.delete.{scope}" for scope in ("own", "team", "department", "all")],
+    *[f"contracts.payment.view.{scope}" for scope in ("own", "team", "department", "all")], "contracts.payment.create",
+    *[f"contracts.payment.update.{scope}" for scope in ("own", "team", "department", "all")],
+    *[f"contracts.payment.confirm.{scope}" for scope in ("own", "team", "department", "all")],
+]
+PERMISSION_CODES_BY_MODULE["contracts"] = CONTRACT_PERMISSIONS
+ALL_PERMISSION_CODES = sorted({code for codes in PERMISSION_CODES_BY_MODULE.values() for code in codes})
+ROLE_PERMISSION_MAP["admin"] = list(ALL_PERMISSION_CODES)
+ROLE_PERMISSION_MAP["director"] += [code for code in CONTRACT_PERMISSIONS if ".delete." not in code and code != "contracts.create"]
+ROLE_PERMISSION_MAP["sales_manager"] += ["contracts.create", "contracts.view.department", "contracts.update.department", "contracts.status.department", "contracts.payment.view.department", "contracts.payment.create", "contracts.payment.update.department", "contracts.payment.confirm.department"]
+ROLE_PERMISSION_MAP["leader"] += ["contracts.create", "contracts.view.team", "contracts.update.team", "contracts.status.team", "contracts.payment.view.team", "contracts.payment.create", "contracts.payment.update.team", "contracts.payment.confirm.team"]
+ROLE_PERMISSION_MAP["sale"] += ["contracts.create", "contracts.view.own", "contracts.update.own", "contracts.status.own", "contracts.payment.view.own", "contracts.payment.create", "contracts.payment.update.own"]
+ROLE_PERMISSION_MAP["viewer"] += ["contracts.view.own", "contracts.payment.view.own"]

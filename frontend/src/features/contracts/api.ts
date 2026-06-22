@@ -1,0 +1,10 @@
+import{apiRequest}from'../../services/apiClient';import type{Contract,ContractPayment}from'./types';
+export const listContracts=(filters:Record<string,string>={})=>apiRequest<Contract[]>(`/api/v1/contracts?${new URLSearchParams(filters)}`);
+export const getContract=(id:string)=>apiRequest<Contract>(`/api/v1/contracts/${id}`);
+export const createContract=(payload:Record<string,unknown>)=>apiRequest<Contract>('/api/v1/contracts',{method:'POST',body:JSON.stringify(payload)});
+export const updateContract=(id:string,payload:Record<string,unknown>)=>apiRequest<Contract>(`/api/v1/contracts/${id}`,{method:'PUT',body:JSON.stringify(payload)});
+export const changeContractStatus=(id:string,payload:Record<string,unknown>)=>apiRequest<Contract>(`/api/v1/contracts/${id}/status`,{method:'POST',body:JSON.stringify(payload)});
+export const deleteContract=(id:string)=>apiRequest<null>(`/api/v1/contracts/${id}`,{method:'DELETE'});
+export const createPayment=(id:string,payload:Record<string,unknown>)=>apiRequest<ContractPayment>(`/api/v1/contracts/${id}/payments`,{method:'POST',body:JSON.stringify(payload)});
+export const confirmPayment=(id:string,paymentId:string,payload:Record<string,unknown>)=>apiRequest<ContractPayment>(`/api/v1/contracts/${id}/payments/${paymentId}/confirm`,{method:'POST',body:JSON.stringify(payload)});
+export const addContractActivity=(id:string,payload:Record<string,unknown>)=>apiRequest(`/api/v1/contracts/${id}/activities`,{method:'POST',body:JSON.stringify(payload)});

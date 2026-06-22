@@ -24,7 +24,7 @@ def decode_activity_context(content: str | None) -> dict[str, Any]:
 
 def status_activity_content(payload: Any) -> str:
     context: dict[str, Any] = {}
-    for field in ("note", "cancel_reason", "refund_reason", "refund_amount", "booking_amount", "deposit_amount"):
+    for field in ("note", "cancel_reason", "refund_reason", "deduction_reason", "refund_amount", "deduction_amount", "booking_amount", "deposit_amount"):
         value = getattr(payload, field, None)
         if value is not None and value != "":
             context[field] = str(value) if field.endswith("_amount") else value

@@ -8,3 +8,4 @@ export const changeBookingStatus=(id:string,payload:Record<string,unknown>)=>api
 export const addBookingActivity=(id:string,payload:{title:string;content?:string})=>apiRequest<BookingActivity>(`/api/v1/bookings/${id}/activities`,{method:'POST',body:JSON.stringify(payload)});
 export const deleteBooking=(id:string)=>apiRequest<null>(`/api/v1/bookings/${id}`,{method:'DELETE'});
 export const listBookingAssignees=()=>apiRequest<BookingUser[]>('/api/v1/bookings/assignees');
+export const createDealFromBooking=(id:string,payload:Record<string,unknown>={})=>apiRequest<any>(`/api/v1/bookings/${id}/create-deal`,{method:'POST',body:JSON.stringify(payload)});

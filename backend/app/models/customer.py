@@ -86,6 +86,8 @@ class Customer(Base):
     created_by = relationship("User", foreign_keys=[created_by_id], lazy="joined")
     updated_by = relationship("User", foreign_keys=[updated_by_id], lazy="joined")
     source_lead = relationship("Lead", foreign_keys=[source_lead_id], back_populates="source_customer", lazy="joined")
+    contracts = relationship("Contract", back_populates="customer", lazy="select")
+    contract_payments = relationship("ContractPayment", back_populates="customer", lazy="select")
     deals = relationship("Deal", back_populates="customer", lazy="select")
     bookings = relationship("Booking", back_populates="customer", lazy="select")
     activities = relationship("CustomerActivity", back_populates="customer", cascade="all, delete-orphan", order_by="CustomerActivity.created_at.desc()")

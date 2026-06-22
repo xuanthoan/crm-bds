@@ -4,12 +4,18 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
+from app.contracts.constants import ACTIVE_DEAL_STATUSES
 from app.deals.constants import DEAL_PRIORITY_LABELS, DEAL_STATUS_LABELS, PIPELINE_STAGE_LABELS
 from app.models.customer import Customer
 from app.models.customer_activity import CustomerActivity
+from app.models.booking import Booking
+from app.models.contract import Contract
+from app.models.property_status_history import PropertyStatusHistory
 from app.models.deal import Deal
 from app.models.deal_activity import DealActivity
 from app.models.lead import Lead
+from app.models.project import Project
+from app.models.property_unit import PropertyUnit
 from app.models.user import User
 from app.permissions.dependencies import get_user_permissions
 from app.schemas.deal import DealActivityCreate, DealAssignUpdate, DealCreate, DealStageUpdate, DealStatusUpdate, DealUpdate
@@ -18,6 +24,40 @@ from app.services.organization_service import get_accessible_user_ids_for_lead_s
 from app.services.user_service import get_user_by_id, user_role_code_set
 
 ELIGIBLE_OWNER_ROLES = {"admin", "director", "sales_manager", "leader", "sale"}
+
+
+def _active_deal_conflict_exists(
+    db: Session,
+    *,
+    property_unit_id: UUID | None = None,
+    booking_id: UUID | None = None,
+    exclude_deal_id: UUID | None = None,
+    exclude_booking_id: UUID | None = None,
+) -> bool:
+    conditions = [Deal.deleted_at.is_(None), Deal.status.in_(ACTIVE_DEAL_STATUSES)]
+    if property_unit_id is not None:
+        conditions.append(Deal.property_unit_id == property_unit_id)
+    if booking_id is not None:
+        conditions.append(Deal.booking_id == booking_id)
+    if exclude_deal_id is not None:
+        conditions.append(Deal.id != exclude_deal_id)
+    if exclude_booking_id is not None:
+        conditions.append(or_(Deal.booking_id.is_(None), Deal.booking_id != exclude_booking_id))
+    for deal in db.scalars(select(Deal).where(*conditions)).unique():
+        has_contract = db.scalar(
+            select(Contract.id)
+            .where(Contract.deal_id == deal.id)
+            .limit(1)
+        ) is not None
+        has_non_cancelled_contract = db.scalar(
+            select(Contract.id)
+            .where(Contract.deal_id == deal.id, Contract.deleted_at.is_(None), Contract.status != "cancelled")
+            .limit(1)
+        ) is not None
+        if has_contract and not has_non_cancelled_contract:
+            continue
+        return True
+    return False
 
 def _scope(user: User, prefix: str) -> str | None:
     if user.is_superuser: return "all"
@@ -46,10 +86,10 @@ def _activity_dict(item: DealActivity) -> dict:
 
 def serialize_deal(deal: Deal) -> dict:
     customer = deal.customer
-    return {"id": deal.id, "deal_code": deal.deal_code, "customer_id": deal.customer_id, "source_lead_id": deal.source_lead_id, "title": deal.title, "description": deal.description, "deal_type": deal.deal_type, "pipeline_stage": deal.pipeline_stage, "status": deal.status, "priority": deal.priority, "project_name": deal.project_name, "property_code": deal.property_code, "property_type": deal.property_type, "area": deal.area, "expected_value": deal.expected_value, "deposit_amount": deal.deposit_amount, "contract_value": deal.contract_value, "commission_expected": deal.commission_expected, "expected_close_date": deal.expected_close_date, "deposit_date": deal.deposit_date, "contract_date": deal.contract_date, "closed_at": deal.closed_at, "lost_reason": deal.lost_reason, "owner": _user(deal.owner), "created_by": _user(deal.creator), "assigned_by": _user(deal.assigner), "assigned_at": deal.assigned_at, "customer": {"id": customer.id, "customer_code": customer.customer_code, "full_name": customer.full_name, "primary_phone": customer.primary_phone, "owner": _user(customer.owner)} if customer else None, "source_lead": {"id": deal.source_lead.id, "code": deal.source_lead.code, "full_name": deal.source_lead.full_name} if deal.source_lead else None, "created_at": deal.created_at, "updated_at": deal.updated_at}
+    return {"id": deal.id, "deal_code": deal.deal_code, "booking_id": deal.booking_id, "property_unit_id": deal.property_unit_id, "project_id": deal.project_id, "customer_id": deal.customer_id, "source_lead_id": deal.source_lead_id, "title": deal.title, "description": deal.description, "deal_type": deal.deal_type, "pipeline_stage": deal.pipeline_stage, "status": deal.status, "priority": deal.priority, "project_name": deal.project_name, "property_code": deal.property_code, "property_type": deal.property_type, "area": deal.area, "expected_value": deal.expected_value, "deposit_amount": deal.deposit_amount, "contract_value": deal.contract_value, "commission_expected": deal.commission_expected, "expected_close_date": deal.expected_close_date, "deposit_date": deal.deposit_date, "contract_date": deal.contract_date, "closed_at": deal.closed_at, "lost_reason": deal.lost_reason, "owner": _user(deal.owner), "created_by": _user(deal.creator), "assigned_by": _user(deal.assigner), "assigned_at": deal.assigned_at, "customer": {"id": customer.id, "customer_code": customer.customer_code, "full_name": customer.full_name, "primary_phone": customer.primary_phone, "owner": _user(customer.owner)} if customer else None, "source_lead": {"id": deal.source_lead.id, "code": deal.source_lead.code, "full_name": deal.source_lead.full_name} if deal.source_lead else None, "created_at": deal.created_at, "updated_at": deal.updated_at}
 
 def serialize_deal_detail(deal: Deal) -> dict:
-    return {**serialize_deal(deal), "activities": [_activity_dict(item) for item in deal.activities]}
+    return {**serialize_deal(deal), "booking": {"id": deal.booking.id, "booking_code": deal.booking.booking_code, "status": deal.booking.status} if deal.booking else None, "property": {"id": deal.property_unit.id, "property_code": deal.property_unit.property_code, "title": deal.property_unit.title} if deal.property_unit else None, "project": {"id": deal.project.id, "project_code": deal.project.project_code, "name": deal.project.name} if deal.project else None, "contracts": [{"id": c.id, "contract_code": c.contract_code, "status": c.status, "contract_value": c.contract_value} for c in deal.contracts if c.deleted_at is None], "activities": [_activity_dict(item) for item in deal.activities]}
 
 def _next_code(db: Session) -> str:
     # TODO: Replace with database sequence for high-concurrency production.
@@ -67,6 +107,65 @@ def _validate_lead(db: Session, lead_id: UUID | None) -> Lead | None:
     lead = db.scalar(select(Lead).where(Lead.id == lead_id, Lead.deleted_at.is_(None)))
     if not lead: raise HTTPException(status_code=400, detail="Lead nguồn không tồn tại")
     return lead
+
+def _validate_project(db: Session, project_id: UUID | None) -> Project | None:
+    if project_id is None:
+        return None
+    project = db.scalar(select(Project).where(Project.id == project_id, Project.deleted_at.is_(None)))
+    if not project:
+        raise HTTPException(status_code=400, detail="Dự án không tồn tại")
+    return project
+
+def _property_link_data(
+    db: Session,
+    property_unit_id: UUID,
+    project_id: UUID | None,
+    *,
+    require_available: bool,
+) -> dict:
+    property_unit = db.scalar(select(PropertyUnit).where(PropertyUnit.id == property_unit_id))
+    if not property_unit:
+        raise HTTPException(status_code=400, detail="Bất động sản không tồn tại")
+    if property_unit.deleted_at is not None:
+        raise HTTPException(status_code=400, detail="Bất động sản đã bị xóa")
+    if require_available and property_unit.inventory_status != "available":
+        raise HTTPException(status_code=400, detail="Bất động sản không còn khả dụng để tạo giao dịch mới.")
+    if project_id is not None and project_id != property_unit.project_id:
+        raise HTTPException(status_code=400, detail="Dự án không khớp với bất động sản đã chọn.")
+    project = property_unit.project
+    return {
+        "property_unit_id": property_unit.id,
+        "property_code": property_unit.property_code,
+        "property_type": property_unit.property_type,
+        "area": str(property_unit.area_net or property_unit.area_gross) if (property_unit.area_net or property_unit.area_gross) is not None else None,
+        "project_id": property_unit.project_id,
+        "project_name": project.name if project else None,
+        "_listed_price": property_unit.listed_price,
+    }
+
+def _apply_inventory_link(
+    db: Session,
+    data: dict,
+    *,
+    require_available: bool,
+) -> None:
+    if "property_unit_id" in data and data["property_unit_id"] is not None:
+        linked = _property_link_data(
+            db,
+            data["property_unit_id"],
+            data.get("project_id"),
+            require_available=require_available,
+        )
+        listed_price = linked.pop("_listed_price")
+        data.update(linked)
+        if data.get("expected_value") is None and listed_price is not None:
+            data["expected_value"] = listed_price
+        return
+    if "project_id" in data:
+        project = _validate_project(db, data["project_id"])
+        data["project_name"] = project.name if project else None
+    if "property_unit_id" in data and data["property_unit_id"] is None:
+        data.update(property_code=None, property_type=None, area=None)
 
 def _validate_owner(db: Session, actor: User, owner_id: UUID, *, assigning: bool = False) -> User:
     owner = get_user_by_id(db, owner_id)
@@ -108,6 +207,9 @@ def list_deals(db: Session, actor: User, *, page: int, page_size: int, q: str | 
 
 def create_deal(db: Session, payload: DealCreate, actor: User) -> Deal:
     data=payload.model_dump(); _validate_customer(db, data.pop("customer_id")); _validate_lead(db, data.get("source_lead_id")); owner=_validate_owner(db, actor, data.pop("owner_id"))
+    _apply_inventory_link(db, data, require_available=True)
+    if data.get("property_unit_id") is not None and _active_deal_conflict_exists(db, property_unit_id=data["property_unit_id"]):
+        raise HTTPException(status_code=409, detail="Bất động sản này đã có giao dịch đang hoạt động.")
     now=datetime.now(timezone.utc)
     if data.get("pipeline_stage") == "completed": data["status"] = "won"; data["closed_at"] = data.get("closed_at") or now
     elif data.get("pipeline_stage") == "lost": data["status"] = "lost"; data["closed_at"] = data.get("closed_at") or now
@@ -122,6 +224,13 @@ def update_deal(db: Session, deal_id: UUID, payload: DealUpdate, actor: User) ->
     deal=_get(db,deal_id); _require(db,actor,deal,"deals.update","Bạn không có quyền cập nhật giao dịch này"); before=serialize_deal(deal); data=payload.model_dump(exclude_unset=True)
     for protected in ("pipeline_stage", "status", "closed_at", "deposit_date", "contract_date", "lost_reason"):
         data.pop(protected, None)
+    if "property_unit_id" in data:
+        require_available = data["property_unit_id"] != deal.property_unit_id
+        _apply_inventory_link(db, data, require_available=require_available)
+    elif "project_id" in data:
+        if deal.property_unit_id is not None and data["project_id"] != deal.project_id:
+            raise HTTPException(status_code=400, detail="Dự án không khớp với bất động sản đã chọn.")
+        _apply_inventory_link(db, data, require_available=False)
     for key,value in data.items(): setattr(deal,key,value)
     if deal.contract_value is not None and deal.deposit_amount is not None and deal.contract_value < deal.deposit_amount: raise HTTPException(status_code=400,detail="Giá trị hợp đồng phải lớn hơn hoặc bằng tiền đặt cọc")
     _add(db,deal,actor,"update","Cập nhật giao dịch"); write_audit_log(db,action="deals.update",user_id=actor.id,entity_type="deals",entity_id=str(deal.id),before_data={"title":before["title"]},after_data={"title":deal.title}); db.commit(); db.refresh(deal); return deal
@@ -141,12 +250,20 @@ def change_deal_stage(db: Session, deal_id: UUID, payload: DealStageUpdate, acto
     write_audit_log(db,action="deals.stage_change",user_id=actor.id,entity_type="deals",entity_id=str(deal.id),before_data={"pipeline_stage":old},after_data={"pipeline_stage":deal.pipeline_stage}); db.commit(); db.refresh(deal); return deal
 
 def change_deal_status(db: Session, deal_id: UUID, payload: DealStatusUpdate, actor: User) -> Deal:
-    deal=_get(db,deal_id); _require(db,actor,deal,"deals.status","Bạn không có quyền đổi trạng thái giao dịch này"); old=deal.status; deal.status=payload.status
+    deal=_get(db,deal_id); _require(db,actor,deal,"deals.status","Bạn không có quyền đổi trạng thái giao dịch này"); old=deal.status
+    if payload.status == "contracted" and not db.scalar(select(Contract.id).where(Contract.deal_id == deal.id, Contract.deleted_at.is_(None), Contract.status.in_({"signed", "active", "completed"})).limit(1)): raise HTTPException(status_code=400, detail="Giao dịch phải có hợp đồng đã ký trước khi chuyển trạng thái.")
+    deal.status=payload.status
     if payload.lost_reason is not None: deal.lost_reason=payload.lost_reason
-    if deal.status in {"won","lost","cancelled"}: deal.closed_at=payload.closed_at or deal.closed_at or datetime.now(timezone.utc)
+    if deal.status in {"won","completed","lost","cancelled"}: deal.closed_at=payload.closed_at or deal.closed_at or datetime.now(timezone.utc)
     _add(db,deal,actor,"status_change","Đổi trạng thái",payload.note,DEAL_STATUS_LABELS[old],DEAL_STATUS_LABELS[deal.status])
     if deal.status=="won": _add(db,deal,actor,"close_won","Chốt thành công",payload.note)
-    elif deal.status in {"lost","cancelled"}: _add(db,deal,actor,"close_lost","Thất bại / Hủy",deal.lost_reason)
+    elif deal.status in {"lost","cancelled"}:
+        _add(db,deal,actor,"close_lost","Thất bại / Hủy",deal.lost_reason)
+        if deal.property_unit and deal.property_unit.inventory_status != "sold":
+            active_booking = db.scalar(select(Booking.id).where(Booking.property_unit_id == deal.property_unit_id, Booking.deleted_at.is_(None), Booking.status.in_({"draft", "reserved", "deposited"})).limit(1))
+            active_deal = db.scalar(select(Deal.id).where(Deal.property_unit_id == deal.property_unit_id, Deal.id != deal.id, Deal.deleted_at.is_(None), Deal.status.in_({"open", "negotiating", "contract_pending", "contracted", "payment_in_progress"})).limit(1))
+            if not active_booking and not active_deal:
+                previous = deal.property_unit.inventory_status; deal.property_unit.inventory_status = "available"; deal.property_unit.updated_by_id = actor.id; db.add(PropertyStatusHistory(property_unit_id=deal.property_unit_id, changed_by_id=actor.id, old_status=previous, new_status="available", note=f"Tự động cập nhật từ giao dịch {deal.deal_code}"))
     write_audit_log(db,action="deals.status_change",user_id=actor.id,entity_type="deals",entity_id=str(deal.id),before_data={"status":old},after_data={"status":deal.status}); db.commit(); db.refresh(deal); return deal
 
 def assign_deal_owner(db: Session, deal_id: UUID, payload: DealAssignUpdate, actor: User) -> Deal:

@@ -37,6 +37,9 @@ import { ReportsPage } from '../pages/ReportsPage';
 import { BookingsPage } from '../features/bookings/BookingsPage';
 import { BookingDetailPage } from '../features/bookings/BookingDetailPage';
 import { BOOKING_VIEW_PERMISSIONS } from '../features/bookings/constants';
+import { ContractsPage } from '../features/contracts/ContractsPage';
+import { ContractDetailPage } from '../features/contracts/ContractDetailPage';
+import { CONTRACT_VIEW_PERMISSIONS } from '../features/contracts/constants';
 
 export function navigateTo(path: string): void {
   window.history.pushState({}, '', path);
@@ -70,6 +73,7 @@ const protectedPages: Record<string, ProtectedPage> = {
   '/properties': { element: <PropertiesPage />, permission: PROPERTY_VIEW_PERMISSIONS },
   '/deals': { element: <DealsPage />, permission: DEAL_VIEW_PERMISSIONS },
   '/bookings': { element: <BookingsPage />, permission: BOOKING_VIEW_PERMISSIONS },
+  '/contracts': { element: <ContractsPage />, permission: CONTRACT_VIEW_PERMISSIONS },
   '/reports': { element: <ReportsPage />, permission: 'reports.view.own' },
 };
 
@@ -109,6 +113,8 @@ export function AppRoutes() {
   }, [authenticated, normalizedPath]);
 
   const page = useMemo(() => {
+    const contractDetailMatch = normalizedPath.match(/^\/contracts\/([0-9a-f-]+)$/i);
+    if (contractDetailMatch) return { element: <ContractDetailPage contractId={contractDetailMatch[1]} />, permission: CONTRACT_VIEW_PERMISSIONS };
     const bookingDetailMatch = normalizedPath.match(/^\/bookings\/([0-9a-f-]+)$/i);
     if (bookingDetailMatch) return { element: <BookingDetailPage bookingId={bookingDetailMatch[1]} />, permission: BOOKING_VIEW_PERMISSIONS };
     const propertyDetailMatch = normalizedPath.match(/^\/properties\/([0-9a-f-]+)$/i);

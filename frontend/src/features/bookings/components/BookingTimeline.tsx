@@ -19,8 +19,10 @@ const contextLabels: Array<[keyof BookingActivityContext, string, boolean]> = [
   ['booking_amount', 'Tiền giữ chỗ', true],
   ['deposit_amount', 'Tiền cọc', true],
   ['refund_amount', 'Số tiền hoàn', true],
+  ['deduction_amount', 'Khấu trừ', true],
   ['cancel_reason', 'Lý do hủy', false],
   ['refund_reason', 'Lý do hoàn tiền', false],
+  ['deduction_reason', 'Lý do khấu trừ', false],
   ['note', 'Ghi chú', false],
 ];
 

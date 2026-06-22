@@ -15,6 +15,7 @@ class DealFields(BaseModel):
     model_config = ConfigDict(extra="forbid")
     title: str | None = None; description: str | None = None
     deal_type: str | None = None; pipeline_stage: str | None = None; status: str | None = None; priority: str | None = None
+    property_unit_id: UUID | None = None; project_id: UUID | None = None
     project_name: str | None = None; property_code: str | None = None; property_type: str | None = None; area: str | None = None
     expected_value: Decimal | None = None; deposit_amount: Decimal | None = None; contract_value: Decimal | None = None; commission_expected: Decimal | None = None
     expected_close_date: datetime | None = None; deposit_date: datetime | None = None; contract_date: datetime | None = None; closed_at: datetime | None = None

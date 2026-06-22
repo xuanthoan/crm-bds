@@ -41,7 +41,7 @@ class BookingStatusChange(BaseModel):
     status: BookingStatus
     booking_amount: Decimal | None = None; deposit_amount: Decimal | None = None; refund_amount: Decimal | None = None
     reservation_expires_at: datetime | None = None; deposit_date: datetime | None = None
-    cancel_reason: str | None = None; refund_reason: str | None = None; note: str | None = None
+    cancel_reason: str | None = None; refund_reason: str | None = None; deduction_reason: str | None = None; note: str | None = None
 
     @model_validator(mode="after")
     def validate_status_requirements(self):
@@ -59,8 +59,8 @@ class BookingStatusChange(BaseModel):
         if self.status == "refunded":
             if self.refund_amount is None:
                 raise ValueError("Số tiền hoàn là bắt buộc")
-            if self.refund_amount <= 0:
-                raise ValueError("Số tiền hoàn phải lớn hơn 0")
+            if self.refund_amount < 0:
+                raise ValueError("Số tiền hoàn không được âm")
             if not (self.refund_reason or "").strip():
                 raise ValueError("Lý do hoàn tiền là bắt buộc")
         return self
@@ -81,6 +81,6 @@ class BookingRead(BaseModel):
     status: str; status_label: str; booking_amount: Decimal | None; deposit_amount: Decimal | None; reservation_expires_at: datetime | None; created_at: datetime
 class BookingDetail(BookingRead):
     customer_id: UUID; property_unit_id: UUID; source_lead_id: UUID | None; source_deal_id: UUID | None; assigned_user_id: UUID
-    refund_amount: Decimal | None; booking_date: datetime | None; deposit_date: datetime | None; cancelled_at: datetime | None; refunded_at: datetime | None
-    cancel_reason: str | None; refund_reason: str | None; note: str | None; source_lead: SourceSummary | None; source_deal: SourceSummary | None
+    refund_amount: Decimal | None; deduction_amount: Decimal | None; booking_date: datetime | None; deposit_date: datetime | None; cancelled_at: datetime | None; refunded_at: datetime | None
+    cancel_reason: str | None; refund_reason: str | None; deduction_reason: str | None; note: str | None; source_lead: SourceSummary | None; source_deal: SourceSummary | None
     created_by: UserSummary; updated_by: UserSummary | None; updated_at: datetime; activities: list[BookingActivityRead]

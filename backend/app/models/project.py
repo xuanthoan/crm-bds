@@ -30,4 +30,6 @@ class Project(Base):
     creator = relationship("User", foreign_keys=[created_by_id], lazy="joined")
     updater = relationship("User", foreign_keys=[updated_by_id], lazy="joined")
     deleter = relationship("User", foreign_keys=[deleted_by_id], lazy="joined")
+    contracts = relationship("Contract", back_populates="project", lazy="select")
+    deals = relationship("Deal", back_populates="project", lazy="select")
     property_units = relationship("PropertyUnit", back_populates="project", lazy="select")

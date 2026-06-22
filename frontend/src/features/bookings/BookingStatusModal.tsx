@@ -11,6 +11,9 @@ export function BookingStatusModal({ booking, onClose, onSaved }: { booking: Boo
   const [form, setForm] = useState<BookingStatusForm>({});
   const [error, setError] = useState('');
   const set = (key: string, value: string) => setForm((current) => ({ ...current, [key]: value }));
+  const refundBasis = booking.deposit_amount ?? booking.booking_amount ?? 0;
+  const refundAmount = form.refund_amount === undefined || form.refund_amount === '' ? null : Number(form.refund_amount);
+  const deductionAmount = status === 'refunded' && refundAmount !== null ? Math.max(refundBasis - refundAmount, 0) : null;
 
   function selectStatus(nextStatus: BookingStatus) {
     setStatus(nextStatus);
@@ -25,7 +28,9 @@ export function BookingStatusModal({ booking, onClose, onSaved }: { booking: Boo
     if (status === 'reserved' && (!form.booking_amount || Number(form.booking_amount) <= 0)) return setError('Tiền giữ chỗ là bắt buộc khi giữ chỗ');
     if (status === 'deposited' && (!form.deposit_amount || Number(form.deposit_amount) <= 0)) return setError('Tiền cọc là bắt buộc khi đặt cọc');
     if (status === 'cancelled' && !form.cancel_reason?.trim()) return setError('Lý do hủy là bắt buộc');
-    if (status === 'refunded' && (!form.refund_amount || Number(form.refund_amount) <= 0)) return setError('Số tiền hoàn phải lớn hơn 0');
+    if (status === 'refunded' && (form.refund_amount === undefined || form.refund_amount === '')) return setError('Số tiền hoàn là bắt buộc');
+    if (status === 'refunded' && Number(form.refund_amount) < 0) return setError('Số tiền hoàn không được âm');
+    if (status === 'refunded' && Number(form.refund_amount) > refundBasis) return setError('Số tiền hoàn không được vượt quá số tiền booking.');
     if (status === 'refunded' && !form.refund_reason?.trim()) return setError('Lý do hoàn tiền là bắt buộc');
     try {
       await changeBookingStatus(booking.id, buildBookingStatusPayload(status, form));
@@ -41,7 +46,7 @@ export function BookingStatusModal({ booking, onClose, onSaved }: { booking: Boo
       {status === 'reserved' && <><label>Hết hạn giữ chỗ<input type="datetime-local" onChange={(event) => set('reservation_expires_at', event.target.value)} /></label><label>Tiền giữ chỗ *<input type="number" min="1" required value={form.booking_amount || ''} onChange={(event) => set('booking_amount', event.target.value)} /></label></>}
       {status === 'deposited' && <><label>Tiền cọc *<input type="number" min="1" required value={form.deposit_amount || ''} onChange={(event) => set('deposit_amount', event.target.value)} /></label><label>Ngày cọc<input type="datetime-local" onChange={(event) => set('deposit_date', event.target.value)} /></label></>}
       {status === 'cancelled' && <label>Lý do hủy *<textarea value={form.cancel_reason || ''} onChange={(event) => set('cancel_reason', event.target.value)} /></label>}
-      {status === 'refunded' && <><label>Số tiền hoàn *<input type="number" min="1" required value={form.refund_amount || ''} onChange={(event) => set('refund_amount', event.target.value)} /></label><label>Lý do hoàn tiền *<textarea value={form.refund_reason || ''} onChange={(event) => set('refund_reason', event.target.value)} /></label></>}
+      {status === 'refunded' && <><label>Số tiền hoàn *<input type="number" min="0" max={refundBasis} required value={form.refund_amount || ''} onChange={(event) => set('refund_amount', event.target.value)} /></label><div className="form-hint">Số tiền booking: {new Intl.NumberFormat('vi-VN').format(refundBasis)} VNĐ · Khấu trừ tự động: {deductionAmount === null ? 'Chưa cập nhật' : `${new Intl.NumberFormat('vi-VN').format(deductionAmount)} VNĐ`}</div><label>Lý do hoàn tiền *<textarea value={form.refund_reason || ''} onChange={(event) => set('refund_reason', event.target.value)} /></label><label>Lý do khấu trừ<textarea value={form.deduction_reason || ''} onChange={(event) => set('deduction_reason', event.target.value)} /></label></>}
       <label>Ghi chú<textarea value={form.note || ''} onChange={(event) => set('note', event.target.value)} /></label>
       {error && <div className="form-error">{error}</div>}
       <footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Hủy</button><button type="submit">Cập nhật</button></footer>

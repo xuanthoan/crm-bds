@@ -35,7 +35,7 @@ class Sprint11BookingValidationTests(unittest.TestCase):
             ({"status": "deposited", "deposit_amount": 0}, "Tiền cọc phải lớn hơn 0"),
             ({"status": "cancelled"}, "Lý do hủy là bắt buộc"),
             ({"status": "refunded", "refund_reason": "x"}, "Số tiền hoàn là bắt buộc"),
-            ({"status": "refunded", "refund_amount": 0, "refund_reason": "x"}, "Số tiền hoàn phải lớn hơn 0"),
+            ({"status": "refunded", "refund_amount": -1, "refund_reason": "x"}, "Số tiền hoàn không được âm"),
         ]
         for payload, message in invalid:
             with self.subTest(payload=payload):
@@ -45,7 +45,7 @@ class Sprint11BookingValidationTests(unittest.TestCase):
 
         cancelled = BookingStatusChange(status="cancelled", cancel_reason="Khách đổi ý", deposit_amount=0)
         expired = BookingStatusChange(status="expired", deposit_amount=0)
-        refunded = BookingStatusChange(status="refunded", refund_amount=1, refund_reason="Hoàn tiền", deposit_amount=0)
+        refunded = BookingStatusChange(status="refunded", refund_amount=0, refund_reason="Hoàn tiền", deposit_amount=0)
         self.assertEqual("cancelled", cancelled.status)
         self.assertEqual("expired", expired.status)
         self.assertEqual("refunded", refunded.status)
@@ -54,9 +54,12 @@ class Sprint11BookingValidationTests(unittest.TestCase):
         reserved = BookingStatusChange(status="reserved", booking_amount=Decimal("1000000"))
         deposited = BookingStatusChange(status="deposited", deposit_amount=Decimal("5000000"))
         refunded = BookingStatusChange(status="refunded", refund_amount=Decimal("1000000"), refund_reason="Khách đổi ý")
+        refunded_full = BookingStatusChange(status="refunded", refund_amount=Decimal("0"), refund_reason="Khách đổi ý", deduction_reason="Theo chính sách dự án")
         self.assertEqual(Decimal("1000000"), reserved.booking_amount)
         self.assertEqual(Decimal("5000000"), deposited.deposit_amount)
         self.assertEqual(Decimal("1000000"), refunded.refund_amount)
+        self.assertEqual(Decimal("0"), refunded_full.refund_amount)
+        self.assertEqual("Theo chính sách dự án", refunded_full.deduction_reason)
 
     def test_service_enforces_transition_amounts_and_filters_stale_fields(self):
         source = Path("backend/app/services/booking_service.py").read_text()
@@ -75,6 +78,11 @@ class Sprint11BookingValidationTests(unittest.TestCase):
         self.assertIn('"cancelled": common | {"cancel_reason"}', source)
         self.assertIn('"expired": common', source)
         self.assertIn('"refunded": common | {"refund_amount", "refund_reason"}', source)
+        self.assertIn("def _deduction_amount", source)
+        self.assertIn("basis_amount = _refund_basis_amount(booking)", source)
+        self.assertIn("payload.refund_amount > basis_amount", source)
+        self.assertIn("Số tiền hoàn không được vượt quá số tiền booking.", source)
+        self.assertIn("deduction_amount=_deduction_amount(booking, booking.refund_amount)", source)
 
     @unittest.skipUnless(importlib.util.find_spec("sqlalchemy"), "SQLAlchemy is not installed")
     def test_status_update_data_drops_irrelevant_stale_money(self):
@@ -85,7 +93,7 @@ class Sprint11BookingValidationTests(unittest.TestCase):
         ))
         expired = _status_update_data(BookingStatusChange(status="expired", deposit_amount=0))
         refunded = _status_update_data(BookingStatusChange(
-            status="refunded", refund_amount=1, refund_reason="Hoàn tiền", deposit_amount=0,
+            status="refunded", refund_amount=1, refund_reason="Hoàn tiền", deduction_reason="Theo chính sách dự án", deposit_amount=0,
         ))
         self.assertEqual({"cancel_reason": "Khách đổi ý"}, cancelled)
         self.assertEqual({}, expired)
@@ -118,6 +126,10 @@ class Sprint11BookingValidationTests(unittest.TestCase):
         self.assertNotIn("deposit_amount", source[source.index("else if (status === 'cancelled')"):source.index("else if (status === 'refunded')")])
         self.assertIn("setForm(nextStatus === 'reserved'", modal)
         self.assertIn("buildBookingStatusPayload(status, form)", modal)
+        self.assertIn("payload.deduction_reason", source)
+        self.assertIn("Lý do khấu trừ", modal)
+        self.assertIn("Khấu trừ tự động", modal)
+        self.assertIn("Number(form.refund_amount) > refundBasis", modal)
 
     def test_booking_timeline_status_labels_are_vietnamese(self):
         expected = {
@@ -147,7 +159,8 @@ class Sprint11BookingValidationTests(unittest.TestCase):
             (SimpleNamespace(status="reserved", booking_amount=Decimal("1000000"), deposit_amount=None, refund_amount=None, cancel_reason=None, refund_reason=None, note="Khách đã chuyển tiền giữ chỗ"), {"booking_amount": "1000000", "note": "Khách đã chuyển tiền giữ chỗ"}),
             (SimpleNamespace(status="deposited", booking_amount=None, deposit_amount=Decimal("5000000"), refund_amount=None, cancel_reason=None, refund_reason=None, note="Đã nhận tiền cọc"), {"deposit_amount": "5000000", "note": "Đã nhận tiền cọc"}),
             (SimpleNamespace(status="cancelled", booking_amount=None, deposit_amount=None, refund_amount=None, cancel_reason="Khách đổi ý", refund_reason=None, note="Đã xác nhận hủy"), {"cancel_reason": "Khách đổi ý", "note": "Đã xác nhận hủy"}),
-            (SimpleNamespace(status="refunded", booking_amount=None, deposit_amount=None, refund_amount=Decimal("50000000"), cancel_reason=None, refund_reason="Khách đổi ý", note="Đã hoàn tiền qua chuyển khoản"), {"refund_amount": "50000000", "refund_reason": "Khách đổi ý", "note": "Đã hoàn tiền qua chuyển khoản"}),
+            (SimpleNamespace(status="refunded", booking_amount=None, deposit_amount=None, refund_amount=Decimal("50000000"), deduction_amount=Decimal("0"), cancel_reason=None, refund_reason="Khách đổi ý", deduction_reason=None, note="Đã hoàn tiền qua chuyển khoản"), {"refund_amount": "50000000", "deduction_amount": "0", "refund_reason": "Khách đổi ý", "note": "Đã hoàn tiền qua chuyển khoản"}),
+            (SimpleNamespace(status="refunded", booking_amount=None, deposit_amount=None, refund_amount=Decimal("18000000"), deduction_amount=Decimal("2000000"), cancel_reason=None, refund_reason="Khách đổi ý", deduction_reason="Theo chính sách dự án", note=None), {"refund_amount": "18000000", "deduction_amount": "2000000", "refund_reason": "Khách đổi ý", "deduction_reason": "Theo chính sách dự án"}),
         ]
         for payload, expected in cases:
             with self.subTest(status=payload.status):
@@ -174,7 +187,7 @@ class Sprint11BookingValidationTests(unittest.TestCase):
         self.assertIn("<StatusBadge label={activity.new_value} />", source)
         self.assertIn("booking-timeline-status-badge--${modifier}", source)
         self.assertIn("Người thực hiện: {activity.actor.full_name}", source)
-        for label in ("Ghi chú", "Lý do hủy", "Lý do hoàn tiền", "Số tiền hoàn", "Tiền giữ chỗ", "Tiền cọc"):
+        for label in ("Ghi chú", "Lý do hủy", "Lý do hoàn tiền", "Lý do khấu trừ", "Số tiền hoàn", "Khấu trừ", "Tiền giữ chỗ", "Tiền cọc"):
             self.assertIn(label, source)
         for raw_status in (">draft<", ">reserved<", ">deposited<", ">cancelled<", ">expired<", ">refunded<"):
             self.assertNotIn(raw_status, source)
@@ -191,7 +204,8 @@ class Sprint11BookingValidationTests(unittest.TestCase):
     def test_status_change_activity_uses_standard_title_and_structured_content(self):
         source = Path("backend/app/services/booking_service.py").read_text()
         self.assertIn('title="Đổi trạng thái booking"', source)
-        self.assertIn('activity_content = status_activity_content(payload)', source)
+        self.assertIn('activity_payload = payload', source)
+        self.assertIn('activity_content = status_activity_content(activity_payload)', source)
         self.assertIn('content=activity_content', source)
         self.assertIn('"old_value": status_label(item.old_value)', source)
         self.assertIn('"new_value": status_label(item.new_value)', source)
@@ -281,4 +295,94 @@ class Sprint11BookingValidationTests(unittest.TestCase):
     def test_migration_enforces_single_active_property_booking(self):
         migration=Path("backend/alembic/versions/20260612_0009_booking_reservation.py").read_text()
         self.assertIn("uq_bookings_active_property",migration); self.assertIn("deleted_at IS NULL AND status IN",migration)
+
+    def test_effective_contract_blocks_booking_cancel_refund_and_delete(self):
+        source = Path("backend/app/services/booking_service.py").read_text()
+        message = "Không thể thao tác booking vì đã có hợp đồng hiệu lực. Vui lòng hủy hợp đồng trước."
+        self.assertIn('EFFECTIVE_CONTRACT_STATUSES = {"signed", "active", "completed"}', source)
+        self.assertIn(message, source)
+        self.assertIn("def _booking_has_effective_contract", source)
+        self.assertIn("Contract.booking_id == booking.id", source)
+        self.assertIn("Deal.booking_id == booking.id", source)
+        self.assertIn("Contract.status.in_(EFFECTIVE_CONTRACT_STATUSES)", source)
+        self.assertIn("_block_effective_contract_booking_actions(db, booking)", source)
+        status_function = ast.get_source_segment(
+            source,
+            next(node for node in ast.parse(source).body if isinstance(node, ast.FunctionDef) and node.name == "change_booking_status"),
+        )
+        self.assertIn("_block_effective_contract_booking_actions(db, booking)", status_function)
+        self.assertNotIn('if payload.status in {"cancelled", "refunded"}', status_function)
+        delete_function = ast.get_source_segment(
+            source,
+            next(node for node in ast.parse(source).body if isinstance(node, ast.FunctionDef) and node.name == "soft_delete_booking"),
+        )
+        self.assertIn("_block_effective_contract_booking_actions(db, booking)", delete_function)
+        self.assertIn("def _property_has_effective_contract", source)
+        self.assertIn("def _property_can_be_released", source)
+        self.assertIn("Contract.property_unit_id == property_unit_id", source)
+        self.assertIn("exclude_booking_id: UUID | None = None", source)
+        self.assertIn("Booking.status.in_(ACTIVE_BOOKING_STATUSES)", source)
+        self.assertIn("Booking.id != exclude_booking_id", source)
+        self.assertIn("_property_can_be_released(db, booking.property_unit_id, exclude_booking_id=booking.id)", source)
+        self.assertIn("exclude_booking_id=exclude_booking_id", source)
+        self.assertIn("FINAL_BOOKING_STATUSES", source)
+        self.assertIn("booking.status in FINAL_BOOKING_STATUSES and payload.status in ACTIVE_BOOKING_STATUSES", source)
+        self.assertIn("Booking đã kết thúc không thể chuyển lại trạng thái giữ chỗ hoặc đặt cọc.", source)
+        self.assertIn('BOOKING_RELEASE_STATUSES = {"cancelled", "expired", "refunded"}', source)
+        self.assertIn("def _close_booking_deals", source)
+        self.assertIn("Deal.booking_id == booking.id", source)
+        self.assertIn("Deal.status.in_(ACTIVE_DEAL_STATUSES)", source)
+        self.assertIn('deal.status = "cancelled"', source)
+        self.assertIn('deal.pipeline_stage = "lost"', source)
+        self.assertIn("DealActivity(", source)
+        self.assertIn("Tự động hủy giao dịch do booking đã hoàn tiền", source)
+        self.assertIn("_close_booking_deals(db, booking, actor, payload.status, now)", status_function)
+        self.assertLess(
+            status_function.index("_close_booking_deals(db, booking, actor, payload.status, now)"),
+            status_function.index("_property_can_be_released(db, booking.property_unit_id, exclude_booking_id=booking.id)"),
+        )
+
+    @unittest.skipUnless(importlib.util.find_spec("sqlalchemy"), "SQLAlchemy is not installed")
+    def test_effective_contract_guard_allows_booking_without_effective_contract(self):
+        from app.services.booking_service import _booking_has_effective_contract, _block_effective_contract_booking_actions
+
+        class DummyDb:
+            def __init__(self, result):
+                self.result = result
+            def scalar(self, statement):
+                self.statement = statement
+                return self.result
+
+        booking = SimpleNamespace(id=IDS["property_unit_id"], contracts=[], deals=[])
+        self.assertFalse(_booking_has_effective_contract(DummyDb(None), booking))
+        _block_effective_contract_booking_actions(DummyDb(None), booking)
+
+    @unittest.skipUnless(importlib.util.find_spec("sqlalchemy"), "SQLAlchemy is not installed")
+    def test_effective_contract_guard_blocks_with_vietnamese_error(self):
+        from fastapi import HTTPException
+        from app.services.booking_service import _block_effective_contract_booking_actions
+
+        class DummyDb:
+            def scalar(self, statement):
+                self.statement = statement
+                return IDS["property_unit_id"]
+
+        with self.assertRaises(HTTPException) as context:
+            _block_effective_contract_booking_actions(DummyDb(), SimpleNamespace(id=IDS["property_unit_id"]))
+        self.assertEqual(409, context.exception.status_code)
+        self.assertEqual(
+            "Không thể thao tác booking vì đã có hợp đồng hiệu lực. Vui lòng hủy hợp đồng trước.",
+            context.exception.detail,
+        )
+
+    def test_booking_detail_ui_disables_status_and_delete_when_effective_contract_exists(self):
+        detail_page = Path("frontend/src/features/bookings/BookingDetailPage.tsx").read_text()
+        types = Path("frontend/src/features/bookings/types.ts").read_text()
+        message = "Không thể thao tác booking vì đã có hợp đồng hiệu lực. Vui lòng hủy hợp đồng trước."
+        self.assertIn("has_effective_contract:boolean", types)
+        self.assertIn("contractBlocked=!!booking.has_effective_contract", detail_page)
+        self.assertIn("disabled={contractBlocked}", detail_page)
+        self.assertIn("form-warning", detail_page)
+        self.assertIn(message, detail_page)
+
 if __name__=="__main__": unittest.main()

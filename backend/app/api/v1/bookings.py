@@ -6,8 +6,10 @@ from app.core.responses import success_response
 from app.db.session import get_db
 from app.models.user import User
 from app.permissions.dependencies import require_auth, require_permission
+from app.schemas.contract import BookingDealCreate
 from app.schemas.booking import BookingActivityCreate, BookingCreate, BookingStatusChange, BookingUpdate
-from app.services.booking_service import add_booking_activity, change_booking_status, create_booking, get_booking_detail, list_booking_assignees, list_bookings, serialize_booking, soft_delete_booking, update_booking
+from app.services.deal_service import serialize_deal_detail
+from app.services.booking_service import create_deal_from_booking, add_booking_activity, change_booking_status, create_booking, get_booking_detail, list_booking_assignees, list_bookings, serialize_booking, soft_delete_booking, update_booking
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
@@ -22,6 +24,9 @@ def post_booking(payload:BookingCreate,db:Session=Depends(get_db),actor:User=Dep
 # Static routes are declared before /{booking_id}.
 @router.get("/assignees")
 def get_assignees(db:Session=Depends(get_db),actor:User=Depends(require_auth)): return success_response([{"id":u.id,"full_name":u.full_name,"email":u.email} for u in list_booking_assignees(db,actor)])
+
+@router.post("/{booking_id}/create-deal",status_code=status.HTTP_201_CREATED)
+def post_create_deal(booking_id:UUID,payload:BookingDealCreate,db:Session=Depends(get_db),actor:User=Depends(require_auth)): return success_response(serialize_deal_detail(create_deal_from_booking(db,booking_id,payload,actor)),"Tạo giao dịch từ booking thành công")
 
 @router.get("/{booking_id}")
 def get_booking(booking_id:UUID,db:Session=Depends(get_db),actor:User=Depends(require_auth)): return success_response(serialize_booking(get_booking_detail(db,booking_id,actor),True))
