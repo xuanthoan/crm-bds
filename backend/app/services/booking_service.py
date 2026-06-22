@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 from math import ceil
+from types import SimpleNamespace
 from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy import func, or_, select
@@ -188,11 +190,31 @@ def _activity_dict(item: BookingActivity) -> dict:
         "created_at": item.created_at,
     }
 
+def _refund_basis_amount(booking: Booking) -> Decimal:
+    return booking.deposit_amount or booking.booking_amount or Decimal("0")
+
+def _deduction_amount(booking: Booking, refund_amount: Decimal | None) -> Decimal | None:
+    if refund_amount is None:
+        return None
+    amount = _refund_basis_amount(booking) - refund_amount
+    return amount if amount > 0 else Decimal("0")
+
+def _latest_refund_context(booking: Booking) -> dict:
+    refund_activities = [
+        item for item in booking.activities
+        if item.new_value == "refunded"
+    ]
+    if not refund_activities:
+        return {}
+    latest = max(refund_activities, key=lambda item: item.created_at)
+    return decode_activity_context(latest.content)
+
 def serialize_booking(booking: Booking, detail: bool = False) -> dict:
     customer = booking.customer
     result = {"id": booking.id, "booking_code": booking.booking_code, "customer": {"id": customer.id, "customer_code": customer.customer_code, "full_name": customer.full_name, "primary_phone": customer.primary_phone}, "property": _property(booking.property_unit), "assigned_user": _user(booking.assigned_user), "status": booking.status, "status_label": BOOKING_STATUS_LABELS.get(booking.status, booking.status), "booking_amount": booking.booking_amount, "deposit_amount": booking.deposit_amount, "reservation_expires_at": booking.reservation_expires_at, "created_at": booking.created_at}
     if detail:
-        result.update({"customer_id": booking.customer_id, "property_unit_id": booking.property_unit_id, "source_lead_id": booking.source_lead_id, "source_deal_id": booking.source_deal_id, "assigned_user_id": booking.assigned_user_id, "refund_amount": booking.refund_amount, "booking_date": booking.booking_date, "deposit_date": booking.deposit_date, "cancelled_at": booking.cancelled_at, "refunded_at": booking.refunded_at, "cancel_reason": booking.cancel_reason, "refund_reason": booking.refund_reason, "note": booking.note, "created_by": _user(booking.creator), "updated_by": _user(booking.updater), "updated_at": booking.updated_at, "source_lead": {"id": booking.source_lead.id, "code": booking.source_lead.code, "title": booking.source_lead.full_name} if booking.source_lead else None, "source_deal": {"id": booking.source_deal.id, "code": booking.source_deal.deal_code, "title": booking.source_deal.title} if booking.source_deal else None, "linked_deals": [{"id": d.id, "deal_code": d.deal_code, "title": d.title, "status": d.status, "expected_value": d.expected_value} for d in booking.deals if d.deleted_at is None], "has_effective_contract": _booking_has_effective_contract(None, booking), "activities": [_activity_dict(item) for item in booking.activities]})
+        refund_context = _latest_refund_context(booking)
+        result.update({"customer_id": booking.customer_id, "property_unit_id": booking.property_unit_id, "source_lead_id": booking.source_lead_id, "source_deal_id": booking.source_deal_id, "assigned_user_id": booking.assigned_user_id, "refund_amount": booking.refund_amount, "deduction_amount": _deduction_amount(booking, booking.refund_amount), "booking_date": booking.booking_date, "deposit_date": booking.deposit_date, "cancelled_at": booking.cancelled_at, "refunded_at": booking.refunded_at, "cancel_reason": booking.cancel_reason, "refund_reason": booking.refund_reason, "deduction_reason": refund_context.get("deduction_reason"), "note": booking.note, "created_by": _user(booking.creator), "updated_by": _user(booking.updater), "updated_at": booking.updated_at, "source_lead": {"id": booking.source_lead.id, "code": booking.source_lead.code, "title": booking.source_lead.full_name} if booking.source_lead else None, "source_deal": {"id": booking.source_deal.id, "code": booking.source_deal.deal_code, "title": booking.source_deal.title} if booking.source_deal else None, "linked_deals": [{"id": d.id, "deal_code": d.deal_code, "title": d.title, "status": d.status, "expected_value": d.expected_value} for d in booking.deals if d.deleted_at is None], "has_effective_contract": _booking_has_effective_contract(None, booking), "activities": [_activity_dict(item) for item in booking.activities]})
     return result
 
 def _next_code(db: Session) -> str:
@@ -263,6 +285,14 @@ def _validate_status_amounts(booking: Booking, payload: BookingStatusChange) -> 
         raise HTTPException(status_code=400, detail="Tiền giữ chỗ là bắt buộc khi giữ chỗ")
     if payload.status == "deposited" and (payload.deposit_amount is None or payload.deposit_amount <= 0):
         raise HTTPException(status_code=400, detail="Tiền cọc là bắt buộc khi đặt cọc")
+    if payload.status == "refunded":
+        basis_amount = _refund_basis_amount(booking)
+        if payload.refund_amount is None:
+            raise HTTPException(status_code=400, detail="Số tiền hoàn là bắt buộc")
+        if payload.refund_amount < 0:
+            raise HTTPException(status_code=400, detail="Số tiền hoàn không được âm")
+        if payload.refund_amount > basis_amount:
+            raise HTTPException(status_code=400, detail="Số tiền hoàn không được vượt quá số tiền booking.")
 
 
 def _status_update_data(payload: BookingStatusChange) -> dict:
@@ -378,7 +408,10 @@ def change_booking_status(db: Session, booking_id: UUID, payload: BookingStatusC
     elif payload.status == "refunded":
         booking.refunded_at = now
         if booking.property_unit.inventory_status not in PROPERTY_RELEASE_BLOCKED_STATUSES and _property_can_be_released(db, booking.property_unit_id, exclude_booking_id=booking.id): _change_property_status(db, booking, actor, "available", f"Booking {booking.booking_code} đã hoàn tiền")
-    activity_content = status_activity_content(payload)
+    activity_payload = payload
+    if payload.status == "refunded":
+        activity_payload = SimpleNamespace(**payload.model_dump(), deduction_amount=_deduction_amount(booking, booking.refund_amount))
+    activity_content = status_activity_content(activity_payload)
     activity_context = decode_activity_context(activity_content)
     _add_activity(db, booking, actor, "status_change", title="Đổi trạng thái booking", content=activity_content, old_value=old_status, new_value=payload.status)
     write_audit_log(db, action="bookings.status_change", user_id=actor.id, entity_type="bookings", entity_id=str(booking.id), before_data={"status": old_status}, after_data={"status": booking.status, **activity_context})

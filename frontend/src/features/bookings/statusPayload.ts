@@ -20,6 +20,7 @@ export function buildBookingStatusPayload(status: BookingStatus, form: BookingSt
   } else if (status === 'refunded') {
     payload.refund_amount = optionalNumber(form.refund_amount);
     payload.refund_reason = form.refund_reason?.trim();
+    if (form.deduction_reason?.trim()) payload.deduction_reason = form.deduction_reason.trim();
   }
 
   return payload;
