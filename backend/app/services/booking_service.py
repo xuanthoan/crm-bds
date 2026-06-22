@@ -6,11 +6,13 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 from app.bookings.activity import decode_activity_context, is_status_transition, status_activity_content, status_label
 from app.bookings.constants import ACTIVE_BOOKING_STATUSES, BOOKING_ACTIVITY_LABELS, BOOKING_STATUS_LABELS, FINAL_BOOKING_STATUSES
+from app.contracts.constants import ACTIVE_DEAL_STATUSES
 from app.models.booking import Booking
 from app.models.booking_activity import BookingActivity
 from app.models.customer import Customer
 from app.models.contract import Contract
 from app.models.deal import Deal
+from app.models.deal_activity import DealActivity
 from app.models.lead import Lead
 from app.models.property_status_history import PropertyStatusHistory
 from app.models.property_unit import PropertyUnit
@@ -25,6 +27,12 @@ PROPERTY_RELEASE_BLOCKED_STATUSES = {"sold", "locked", "unavailable"}
 DELETE_ALLOWED_STATUSES = {"cancelled", "expired", "refunded"}
 EFFECTIVE_CONTRACT_STATUSES = {"signed", "active", "completed"}
 EFFECTIVE_CONTRACT_BOOKING_MESSAGE = "Không thể thao tác booking vì đã có hợp đồng hiệu lực. Vui lòng hủy hợp đồng trước."
+BOOKING_RELEASE_STATUSES = {"cancelled", "expired", "refunded"}
+BOOKING_RELEASE_DEAL_MESSAGES = {
+    "cancelled": ("Tự động hủy giao dịch do booking đã hủy", "Booking nguồn đã hủy nên giao dịch được tự động hủy."),
+    "expired": ("Tự động hủy giao dịch do booking hết hạn", "Booking nguồn đã hết hạn nên giao dịch được tự động hủy."),
+    "refunded": ("Tự động hủy giao dịch do booking đã hoàn tiền", "Booking nguồn đã hoàn tiền nên giao dịch được tự động hủy."),
+}
 
 def _scope(user: User, prefix: str) -> str | None:
     if user.is_superuser: return "all"
@@ -114,6 +122,48 @@ def _property_can_be_released(db: Session, property_unit_id: UUID, *, exclude_bo
 def _block_effective_contract_booking_actions(db: Session, booking: Booking) -> None:
     if _booking_has_effective_contract(db, booking):
         raise HTTPException(status_code=409, detail=EFFECTIVE_CONTRACT_BOOKING_MESSAGE)
+
+def _close_booking_deals(db: Session, booking: Booking, actor: User, target_status: str, changed_at: datetime) -> None:
+    """Cancel active Deals created from this Booking after the Booking leaves active holding states."""
+    if target_status not in BOOKING_RELEASE_STATUSES:
+        return
+    title, content = BOOKING_RELEASE_DEAL_MESSAGES[target_status]
+    deals = db.scalars(
+        select(Deal).where(
+            Deal.booking_id == booking.id,
+            Deal.deleted_at.is_(None),
+            Deal.status.in_(ACTIVE_DEAL_STATUSES),
+        )
+    ).unique()
+    for deal in deals:
+        effective_contract = db.scalar(
+            select(Contract.id)
+            .where(
+                Contract.deal_id == deal.id,
+                Contract.deleted_at.is_(None),
+                Contract.status.in_(EFFECTIVE_CONTRACT_STATUSES),
+            )
+            .limit(1)
+        )
+        if effective_contract is not None:
+            raise HTTPException(status_code=409, detail=EFFECTIVE_CONTRACT_BOOKING_MESSAGE)
+        old_status = deal.status
+        deal.status = "cancelled"
+        deal.pipeline_stage = "lost"
+        deal.closed_at = changed_at
+        deal.lost_reason = f"{content} Booking: {booking.booking_code}."
+        db.add(
+            DealActivity(
+                deal_id=deal.id,
+                user_id=actor.id,
+                activity_type="close_lost",
+                title=title,
+                content=f"{content} Booking: {booking.booking_code}.",
+                old_value=old_status,
+                new_value="cancelled",
+                metadata_json={"booking_id": str(booking.id), "booking_code": booking.booking_code, "booking_status": target_status},
+            )
+        )
 
 def _user(value: User | None) -> dict | None:
     return {"id": value.id, "full_name": value.full_name, "email": value.email} if value else None
@@ -314,6 +364,7 @@ def change_booking_status(db: Session, booking_id: UUID, payload: BookingStatusC
     old_status = booking.status; data = _status_update_data(payload)
     for key, value in data.items(): setattr(booking, key, value)
     booking.status = payload.status; booking.updated_by_id = actor.id
+    _close_booking_deals(db, booking, actor, payload.status, now)
     if payload.status == "reserved":
         _change_property_status(db, booking, actor, "reserved", f"Tự động cập nhật từ booking {booking.booking_code}")
     elif payload.status == "deposited":

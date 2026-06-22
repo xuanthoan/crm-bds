@@ -314,6 +314,19 @@ class Sprint11BookingValidationTests(unittest.TestCase):
         self.assertIn("FINAL_BOOKING_STATUSES", source)
         self.assertIn("booking.status in FINAL_BOOKING_STATUSES and payload.status in ACTIVE_BOOKING_STATUSES", source)
         self.assertIn("Booking đã kết thúc không thể chuyển lại trạng thái giữ chỗ hoặc đặt cọc.", source)
+        self.assertIn('BOOKING_RELEASE_STATUSES = {"cancelled", "expired", "refunded"}', source)
+        self.assertIn("def _close_booking_deals", source)
+        self.assertIn("Deal.booking_id == booking.id", source)
+        self.assertIn("Deal.status.in_(ACTIVE_DEAL_STATUSES)", source)
+        self.assertIn('deal.status = "cancelled"', source)
+        self.assertIn('deal.pipeline_stage = "lost"', source)
+        self.assertIn("DealActivity(", source)
+        self.assertIn("Tự động hủy giao dịch do booking đã hoàn tiền", source)
+        self.assertIn("_close_booking_deals(db, booking, actor, payload.status, now)", status_function)
+        self.assertLess(
+            status_function.index("_close_booking_deals(db, booking, actor, payload.status, now)"),
+            status_function.index("_property_can_be_released(db, booking.property_unit_id, exclude_booking_id=booking.id)"),
+        )
 
     @unittest.skipUnless(importlib.util.find_spec("sqlalchemy"), "SQLAlchemy is not installed")
     def test_effective_contract_guard_allows_booking_without_effective_contract(self):
