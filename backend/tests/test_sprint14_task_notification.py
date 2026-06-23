@@ -32,12 +32,13 @@ class Sprint14TaskNotificationSourceTests(unittest.TestCase):
     def test_task_form_uses_assignee_select_not_uuid_textbox(self):
         content = (ROOT / 'frontend/src/features/tasks/TaskFormModal.tsx').read_text()
         self.assertIn('Người phụ trách', content)
-        self.assertIn('Bỏ trống để giao cho chính bạn.', content)
+        self.assertIn('Mặc định giao cho bạn. Có thể chọn người khác nếu bạn có quyền.', content)
         self.assertIn('list="task-assignee-options"', content)
-        self.assertIn('Chọn người phụ trách hoặc bỏ trống', content)
-        self.assertIn('Không kết nối được máy chủ. Vui lòng kiểm tra backend đang chạy.', content)
+        self.assertIn('Đang tải người phụ trách...', content)
+        self.assertIn('Không kết nối được máy chủ. Kiểm tra VITE_API_URL hoặc backend port 8000.', content)
         self.assertNotIn('Người phụ trách (UUID)', content)
         self.assertNotIn('Tìm theo tên/email', content)
+        self.assertNotIn('Bỏ trống để giao cho chính bạn', content)
 
     def test_permissions_registered(self):
         content = (ROOT / 'backend/app/permissions/constants.py').read_text()
