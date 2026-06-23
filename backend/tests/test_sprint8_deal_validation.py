@@ -75,6 +75,51 @@ class Sprint8DealValidationTests(unittest.TestCase):
         self.assertIn("_active_deal_conflict_exists(db, booking_id=booking.id)", booking_service)
         self.assertIn("_active_deal_conflict_exists(db, property_unit_id=prop.id)", booking_service)
 
+
+    def test_effective_contract_locks_manual_deal_loss_or_downgrade(self):
+        service = Path("backend/app/services/deal_service.py").read_text()
+        self.assertIn('EFFECTIVE_CONTRACT_STATUSES = {"signed", "active", "completed"}', service)
+        self.assertIn('DEAL_CONTRACT_LOCK_ERROR = "Không thể hủy/thất bại giao dịch vì đang có hợp đồng hiệu lực. Vui lòng hủy hợp đồng trước."', service)
+        self.assertIn('DEAL_COMPLETED_CONTRACT_LOCK_ERROR = "Giao dịch đã có hợp đồng hoàn tất nên không thể thay đổi trạng thái/giai đoạn."', service)
+        self.assertIn('def _deal_has_completed_contract', service)
+        self.assertIn('target_stage != "completed"', service)
+        self.assertIn('target_status != "completed"', service)
+        self.assertIn('target_stage not in CONTRACT_LOCK_ALLOWED_STAGES', service)
+        self.assertIn('target_status not in CONTRACT_LOCK_ALLOWED_STATUSES', service)
+        self.assertIn('_guard_effective_contract_deal_change(db, deal, target_stage=target_stage)', service)
+        self.assertIn('_guard_effective_contract_deal_change(db, deal, target_status=payload.status)', service)
+
+    def test_cancelled_contract_does_not_lock_deal_workflow(self):
+        service = Path("backend/app/services/deal_service.py").read_text()
+        self.assertIn('Contract.status.in_(EFFECTIVE_CONTRACT_STATUSES)', service)
+        self.assertNotIn('Contract.status != "cancelled")\n        .limit(1)\n    ) is not None\n\ndef _guard_effective_contract_deal_change', service)
+        self.assertNotIn('"cancelled"}\nDEAL_CONTRACT_LOCK_ERROR', service)
+
+    def test_deal_ui_hides_loss_options_when_effective_contract_exists_and_maps_property_type(self):
+        detail = Path("frontend/src/features/deals/DealDetailPage.tsx").read_text()
+        stage_modal = Path("frontend/src/features/deals/DealStageModal.tsx").read_text()
+        status_modal = Path("frontend/src/features/deals/DealStatusModal.tsx").read_text()
+        guards = Path("frontend/src/features/deals/workflowGuards.ts").read_text()
+        self.assertIn("DEAL_TYPE_LABELS[deal.property_type as keyof typeof DEAL_TYPE_LABELS]", detail)
+        self.assertNotIn("<dd>{show(deal.property_type)}</dd>", detail)
+        self.assertIn("EFFECTIVE_CONTRACT_STATUSES", guards)
+        self.assertIn("dealStageOptionsForContractLock", stage_modal)
+        self.assertIn("dealStatusOptionsForContractLock", status_modal)
+        self.assertIn("DEAL_CONTRACT_LOCK_MESSAGE", status_modal)
+        self.assertIn("DEAL_COMPLETED_CONTRACT_LOCK_MESSAGE", stage_modal)
+        self.assertIn("hasCompletedContract", guards)
+        self.assertIn("value === 'completed'", guards)
+
+    def test_deal_timeline_uses_colored_transition_badges(self):
+        timeline = Path("frontend/src/features/deals/components/DealTimeline.tsx").read_text()
+        styles = Path("frontend/src/styles.css").read_text()
+        self.assertIn("deal-timeline-value-badge--success", styles)
+        self.assertIn("deal-timeline-value-badge--info", styles)
+        self.assertIn("deal-timeline-value-badge--danger", styles)
+        self.assertIn("deal-timeline-value-badge--draft", styles)
+        self.assertIn("toneForTimelineValue", timeline)
+        self.assertIn("TimelineValueBadge", timeline)
+
     def test_lost_requires_reason(self):
         with self.assertRaisesRegex(ValidationError,'Vui lòng nhập lý do thất bại/hủy giao dịch'): DealStatusUpdate(status='lost')
         with self.assertRaisesRegex(ValidationError,'Vui lòng nhập lý do thất bại/hủy giao dịch'): DealStageUpdate(pipeline_stage='lost')

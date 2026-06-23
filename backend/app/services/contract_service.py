@@ -134,7 +134,10 @@ def _deal_contract_activity(db, contract, actor, old_status, new_status, note=No
         return None
     old_label = CONTRACT_STATUS_LABELS[old_status]
     new_label = CONTRACT_STATUS_LABELS[new_status]
-    content = f"Hợp đồng {contract.contract_code} đã chuyển sang trạng thái {new_label}."
+    if new_status == "completed":
+        content = f"Hợp đồng {contract.contract_code} đã hoàn tất nên giao dịch được chốt thành công."
+    else:
+        content = f"Hợp đồng {contract.contract_code} đã chuyển sang trạng thái {new_label}."
     if note:
         content += f"\nGhi chú: {note.strip()}"
     activity = DealActivity(

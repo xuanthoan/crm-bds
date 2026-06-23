@@ -24,6 +24,11 @@ from app.services.organization_service import get_accessible_user_ids_for_lead_s
 from app.services.user_service import get_user_by_id, user_role_code_set
 
 ELIGIBLE_OWNER_ROLES = {"admin", "director", "sales_manager", "leader", "sale"}
+EFFECTIVE_CONTRACT_STATUSES = {"signed", "active", "completed"}
+DEAL_CONTRACT_LOCK_ERROR = "Không thể hủy/thất bại giao dịch vì đang có hợp đồng hiệu lực. Vui lòng hủy hợp đồng trước."
+DEAL_COMPLETED_CONTRACT_LOCK_ERROR = "Giao dịch đã có hợp đồng hoàn tất nên không thể thay đổi trạng thái/giai đoạn."
+CONTRACT_LOCK_ALLOWED_STAGES = {"contract", "contract_signed", "completed"}
+CONTRACT_LOCK_ALLOWED_STATUSES = {"contracted", "payment_in_progress", "completed", "won"}
 
 
 def _active_deal_conflict_exists(
@@ -58,6 +63,40 @@ def _active_deal_conflict_exists(
             continue
         return True
     return False
+
+def _deal_has_effective_contract(db: Session, deal: Deal) -> bool:
+    return db.scalar(
+        select(Contract.id)
+        .where(Contract.deal_id == deal.id, Contract.deleted_at.is_(None), Contract.status.in_(EFFECTIVE_CONTRACT_STATUSES))
+        .limit(1)
+    ) is not None
+
+def _deal_has_completed_contract(db: Session, deal: Deal) -> bool:
+    return db.scalar(
+        select(Contract.id)
+        .where(Contract.deal_id == deal.id, Contract.deleted_at.is_(None), Contract.status == "completed")
+        .limit(1)
+    ) is not None
+
+def _guard_effective_contract_deal_change(
+    db: Session,
+    deal: Deal,
+    *,
+    target_stage: str | None = None,
+    target_status: str | None = None,
+) -> None:
+    if _deal_has_completed_contract(db, deal):
+        if target_stage is not None and target_stage != "completed":
+            raise HTTPException(status_code=409, detail=DEAL_COMPLETED_CONTRACT_LOCK_ERROR)
+        if target_status is not None and target_status != "completed":
+            raise HTTPException(status_code=409, detail=DEAL_COMPLETED_CONTRACT_LOCK_ERROR)
+        return
+    if not _deal_has_effective_contract(db, deal):
+        return
+    if target_stage is not None and target_stage not in CONTRACT_LOCK_ALLOWED_STAGES:
+        raise HTTPException(status_code=409, detail=DEAL_CONTRACT_LOCK_ERROR)
+    if target_status is not None and target_status not in CONTRACT_LOCK_ALLOWED_STATUSES:
+        raise HTTPException(status_code=409, detail=DEAL_CONTRACT_LOCK_ERROR)
 
 def _scope(user: User, prefix: str) -> str | None:
     if user.is_superuser: return "all"
@@ -237,6 +276,8 @@ def update_deal(db: Session, deal_id: UUID, payload: DealUpdate, actor: User) ->
 
 def change_deal_stage(db: Session, deal_id: UUID, payload: DealStageUpdate, actor: User) -> Deal:
     deal=_get(db,deal_id); _require(db,actor,deal,"deals.stage","Bạn không có quyền đổi giai đoạn giao dịch này"); old=deal.pipeline_stage; data=payload.model_dump(exclude={"note"},exclude_unset=True)
+    target_stage = data.get("pipeline_stage", deal.pipeline_stage)
+    _guard_effective_contract_deal_change(db, deal, target_stage=target_stage)
     for key,value in data.items(): setattr(deal,key,value)
     if deal.contract_value is not None and deal.deposit_amount is not None and deal.contract_value < deal.deposit_amount: raise HTTPException(status_code=400,detail="Giá trị hợp đồng phải lớn hơn hoặc bằng tiền đặt cọc")
     now=datetime.now(timezone.utc)
@@ -251,6 +292,7 @@ def change_deal_stage(db: Session, deal_id: UUID, payload: DealStageUpdate, acto
 
 def change_deal_status(db: Session, deal_id: UUID, payload: DealStatusUpdate, actor: User) -> Deal:
     deal=_get(db,deal_id); _require(db,actor,deal,"deals.status","Bạn không có quyền đổi trạng thái giao dịch này"); old=deal.status
+    _guard_effective_contract_deal_change(db, deal, target_status=payload.status)
     if payload.status == "contracted" and not db.scalar(select(Contract.id).where(Contract.deal_id == deal.id, Contract.deleted_at.is_(None), Contract.status.in_({"signed", "active", "completed"})).limit(1)): raise HTTPException(status_code=400, detail="Giao dịch phải có hợp đồng đã ký trước khi chuyển trạng thái.")
     deal.status=payload.status
     if payload.lost_reason is not None: deal.lost_reason=payload.lost_reason

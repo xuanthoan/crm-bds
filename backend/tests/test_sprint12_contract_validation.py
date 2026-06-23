@@ -163,6 +163,24 @@ class Sprint12ValidationTest(unittest.TestCase):
   self.assertEqual(deal.status,"contract_pending")
   self.assertEqual(prop.inventory_status,"available")
   self.assertTrue(any(isinstance(item,PropertyStatusHistory) and item.new_status=="available" for item in db.added))
+
+ def test_completed_contract_syncs_deal_and_uses_clear_activity_content(self):
+  service=Path("backend/app/services/contract_service.py").read_text()
+  self.assertIn('elif status == "completed":',service)
+  self.assertIn('contract.deal.status = "completed"',service)
+  self.assertIn('contract.deal.pipeline_stage = "completed"',service)
+  self.assertIn('Hợp đồng {contract.contract_code} đã hoàn tất nên giao dịch được chốt thành công.',service)
+
+ def test_contract_timeline_uses_colored_transition_badges(self):
+  timeline=Path("frontend/src/features/contracts/components/ContractTimeline.tsx").read_text()
+  styles=Path("frontend/src/styles.css").read_text()
+  self.assertIn("toneForContractTimelineValue",timeline)
+  self.assertIn("ContractTimelineValueBadge",timeline)
+  self.assertIn("contract-timeline-value-badge--success",styles)
+  self.assertIn("contract-timeline-value-badge--info",styles)
+  self.assertIn("contract-timeline-value-badge--danger",styles)
+  self.assertIn("contract-timeline-value-badge--draft",styles)
+
  def test_payment_activity_uses_structured_metadata_and_vnd_rows(self):
   service=Path("backend/app/services/contract_service.py").read_text()
   timeline=Path("frontend/src/features/contracts/components/ContractTimeline.tsx").read_text()

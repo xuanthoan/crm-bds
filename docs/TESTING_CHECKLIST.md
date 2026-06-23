@@ -133,3 +133,12 @@ Kiểm tra backend log xác nhận `alembic upgrade head` thành công và migra
 - Migration trên bản sao dữ liệu production.
 - Security penetration test.
 - Backup/restore và disaster recovery.
+
+## Sprint 13 UI regression checklist
+
+- [ ] Booking có effective Contract hiển thị lock banner và không cho đổi trạng thái/xóa.
+- [ ] Booking status modal hiển thị lỗi API trong modal, refund tự tính tiền khấu trừ.
+- [ ] Deal detail không hiển thị raw contract status; hợp đồng hủy hiện badge Đã hủy.
+- [ ] Contract cancelled hiển thị terminal banner và disable thao tác ký/kích hoạt/thanh toán.
+- [ ] Payment modal có đủ method/reference/paid date/note và lỗi validation rõ ràng.
+- [ ] Property related deal/contract hiển thị trạng thái tiếng Việt, không raw enum.

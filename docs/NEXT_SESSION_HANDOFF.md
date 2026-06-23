@@ -88,3 +88,9 @@ PYTHONPATH=backend python -m unittest backend.tests.test_sprint11_booking_valida
 cd frontend && npm run build
 git diff --check
 ```
+
+## Sprint 13 handoff notes
+
+- Sprint 13 tập trung polish frontend/workflow safety, không thay đổi schema và không mở rộng module mới.
+- Cần manual smoke test các flow Booking effective Contract lock, Booking refund, Deal related chain, Contract cancelled terminal, Payment modal và Property related records.
+- Nếu tiếp tục hardening, ưu tiên bổ sung browser E2E cho các banner/action guard thay vì đổi core business logic.

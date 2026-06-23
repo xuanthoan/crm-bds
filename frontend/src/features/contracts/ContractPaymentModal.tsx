@@ -39,6 +39,10 @@ export function ContractPaymentModal({
       setErrors(['Số tiền thanh toán phải lớn hơn 0.']);
       return;
     }
+    if (payment && !method) {
+      setErrors(['Phương thức thanh toán là bắt buộc.']);
+      return;
+    }
     if (payment && !paidDate) {
       setErrors(['Ngày thanh toán là bắt buộc.']);
       return;
@@ -88,7 +92,7 @@ export function ContractPaymentModal({
         <label className="full-span">Ghi chú<textarea value={note} onChange={(event) => setNote(event.target.value)} /></label>
         <footer className="modal-actions">
           <button type="button" className="secondary-button" onClick={onClose}>Hủy</button>
-          <button>{payment ? 'Xác nhận' : 'Tạo thanh toán'}</button>
+          <button>{payment ? 'Xác nhận thanh toán' : 'Tạo thanh toán'}</button>
         </footer>
       </form>
     </Modal>

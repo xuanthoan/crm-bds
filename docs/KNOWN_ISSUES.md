@@ -67,3 +67,9 @@ Một số tài liệu cũ trong `docs/` mô tả kiến trúc/roadmap mục ti�
 - Không xác minh dữ liệu production.
 - Không kiểm tra migration upgrade/downgrade trên database có dữ liệu thật.
 - Không đánh giá tải/concurrency.
+
+## Sprint 13 known limitations
+
+- Chưa có automated browser E2E; UI guard cần kiểm thử thủ công hoặc bổ sung Playwright/Cypress sau.
+- Timeline đã được polish một phần ở các màn chính, nhưng một số event cũ phụ thuộc dữ liệu backend có thể vẫn cần mapping tiếng Việt bổ sung nếu phát sinh activity type mới.
+- Related Booking trực tiếp trên Property phụ thuộc API hiện tại; Sprint 13 không thay đổi schema/API để thêm quan hệ mới.

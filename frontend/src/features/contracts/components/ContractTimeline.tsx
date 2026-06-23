@@ -19,6 +19,20 @@ const formatTime = (value: string) =>
     year: 'numeric',
   }).format(new Date(value));
 
+function toneForContractTimelineValue(value?: string | null) {
+  const text = (value || '').toLowerCase();
+  if (!text) return 'muted';
+  if (/(hủy|huỷ|cancelled)/i.test(value || '')) return 'danger';
+  if (/(đã ký|có hiệu lực|hoàn tất|đã thanh toán|signed|active|completed|paid)/i.test(value || '')) return 'success';
+  if (/(chờ|dự kiến|quá hạn|pending|planned|overdue|due)/i.test(value || '')) return 'info';
+  if (/(bản nháp|mới tạo|draft|new)/i.test(value || '')) return 'draft';
+  return 'muted';
+}
+
+function ContractTimelineValueBadge({ value }: { value?: string | null }) {
+  return <span className={`contract-timeline-value-badge contract-timeline-value-badge--${toneForContractTimelineValue(value)}`}>{value || '—'}</span>;
+}
+
 function PaymentDetails({ activity }: { activity: ContractActivity }) {
   const metadata = activity.metadata ?? {};
   if (activity.activity_type === 'payment_created') {
@@ -56,7 +70,7 @@ export function ContractTimeline({ items }: { items: ContractActivity[] }) {
             </header>
             <h4>{activity.title}</h4>
             {activity.old_value && activity.new_value && (
-              <span className="value-change">{activity.old_value} → {activity.new_value}</span>
+              <span className="value-change contract-timeline-transition"><ContractTimelineValueBadge value={activity.old_value}/><span className="contract-timeline-transition-arrow">→</span><ContractTimelineValueBadge value={activity.new_value}/></span>
             )}
             <PaymentDetails activity={activity} />
             {activity.content && <p className="contract-timeline-note">Ghi chú: {activity.content}</p>}
