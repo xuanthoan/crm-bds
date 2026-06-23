@@ -53,6 +53,14 @@ class Sprint14TaskNotificationSourceTests(unittest.TestCase):
         self.assertIn('ix_tasks_assigned_user_id', content)
         self.assertIn('ix_notifications_recipient_user_id', content)
 
+    def test_local_demo_users_are_seeded_when_enabled(self):
+        init_db = (ROOT / 'backend/app/db/init_db.py').read_text()
+        compose = (ROOT / 'docker-compose.local.yml').read_text()
+        for email in ['sale04@gmail.com', 'sale05@gmail.com', 'sale7@gmail.com', 'sale06@gmail.com', 'sale01@test.com']:
+            self.assertIn(email, init_db)
+        self.assertIn('SEED_DEMO_USERS: "true"', compose)
+        self.assertIn('seed_demo_users(db)', init_db)
+
     def test_frontend_api_base_supports_docker_local(self):
         api_client = (ROOT / 'frontend/src/services/apiClient.ts').read_text()
         compose = (ROOT / 'docker-compose.local.yml').read_text()

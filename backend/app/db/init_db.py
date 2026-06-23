@@ -68,8 +68,44 @@ def seed_default_admin(db: Session) -> None:
     if admin_role and admin_role not in admin.roles:
         admin.roles.append(admin_role)
 
+DEMO_SALE_USERS = [
+    {"email": "sale04@gmail.com", "full_name": "Sale 04"},
+    {"email": "sale05@gmail.com", "full_name": "Sale 05"},
+    {"email": "sale7@gmail.com", "full_name": "Sale 7"},
+    {"email": "sale06@gmail.com", "full_name": "Sale06"},
+    {"email": "sale01@test.com", "full_name": "Sale Test"},
+]
+
+
+def seed_demo_users(db: Session) -> None:
+    settings = get_settings()
+    if not settings.seed_demo_users:
+        return
+    sale_role = db.scalar(select(Role).where(Role.code == "sale"))
+    if not sale_role:
+        return
+    password_hash = get_password_hash(settings.demo_user_password)
+    for item in DEMO_SALE_USERS:
+        email = item["email"].lower()
+        user = db.scalar(select(User).where(User.email == email))
+        if not user:
+            user = User(
+                email=email,
+                full_name=item["full_name"],
+                hashed_password=password_hash,
+                status="active",
+                is_superuser=False,
+            )
+            db.add(user)
+            db.flush()
+        elif user.deleted_at is None:
+            user.status = "active"
+        if user.deleted_at is None and sale_role not in user.roles:
+            user.roles.append(sale_role)
+
 
 def init_db(db: Session) -> None:
     seed_roles_permissions(db)
     seed_default_admin(db)
+    seed_demo_users(db)
     db.commit()
