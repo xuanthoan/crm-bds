@@ -88,19 +88,20 @@ def seed_demo_users(db: Session) -> None:
     for item in DEMO_SALE_USERS:
         email = item["email"].lower()
         user = db.scalar(select(User).where(User.email == email))
-        if not user:
-            user = User(
-                email=email,
-                full_name=item["full_name"],
-                hashed_password=password_hash,
-                status="active",
-                is_superuser=False,
-            )
-            db.add(user)
-            db.flush()
-        elif user.deleted_at is None:
-            user.status = "active"
-        if user.deleted_at is None and sale_role not in user.roles:
+        if user:
+            # Existing demo users belong to real local data; never overwrite
+            # password/status/roles when re-running the local seed.
+            continue
+        user = User(
+            email=email,
+            full_name=item["full_name"],
+            hashed_password=password_hash,
+            status="active",
+            is_superuser=False,
+        )
+        db.add(user)
+        db.flush()
+        if sale_role not in user.roles:
             user.roles.append(sale_role)
 
 

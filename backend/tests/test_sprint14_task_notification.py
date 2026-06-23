@@ -59,7 +59,10 @@ class Sprint14TaskNotificationSourceTests(unittest.TestCase):
         for email in ['sale04@gmail.com', 'sale05@gmail.com', 'sale7@gmail.com', 'sale06@gmail.com', 'sale01@test.com']:
             self.assertIn(email, init_db)
         self.assertIn('SEED_DEMO_USERS: "true"', compose)
+        self.assertIn('crm_bds_all_in_one_postgres_data', compose)
         self.assertIn('seed_demo_users(db)', init_db)
+        self.assertIn('if user:', init_db)
+        self.assertIn('continue', init_db)
 
     def test_frontend_api_base_supports_docker_local(self):
         api_client = (ROOT / 'frontend/src/services/apiClient.ts').read_text()
