@@ -1,8 +1,15 @@
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 class TaskBase(BaseModel):
+    @field_validator("assigned_user_id", mode="before")
+    @classmethod
+    def blank_assignee_to_none(cls, value):
+        if value == "" or value is None:
+            return None
+        return value
+
     title: str | None = Field(None, min_length=1, max_length=255)
     description: str | None = None
     task_type: str | None = "general"

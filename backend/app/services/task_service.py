@@ -25,6 +25,18 @@ def _get(db,id):
     t=db.scalar(select(Task).where(Task.id==id,Task.deleted_at.is_(None)))
     if not t: raise HTTPException(404,"Công việc không tồn tại")
     return t
+
+def _validate_assignee(db, actor: User, assigned_user_id):
+    # Manual tasks default to the current user. Assigning someone else requires
+    # the existing tasks.assign permission (superusers are always allowed).
+    assignee_id = assigned_user_id or actor.id
+    user = db.scalar(select(User).where(User.id == assignee_id, User.status == "active", User.deleted_at.is_(None)))
+    if not user:
+        raise HTTPException(400, "Người phụ trách không tồn tại.")
+    if assignee_id != actor.id and not (actor.is_superuser or "tasks.assign" in set(get_user_permissions(actor))):
+        raise HTTPException(403, "Bạn không có quyền giao công việc cho người này.")
+    return assignee_id
+
 def _validate(data):
     if "status" in data and data["status"] and data["status"] not in STATUSES: raise HTTPException(400,"Trạng thái công việc không hợp lệ")
     if "priority" in data and data["priority"] and data["priority"] not in PRIORITIES: raise HTTPException(400,"Độ ưu tiên không hợp lệ")
@@ -55,11 +67,16 @@ def get_task_detail(db,id,actor):
 def create_task(db,payload,actor,auto=False,source_event=None,notify_type="task_assigned"):
     data=payload if isinstance(payload,dict) else payload.model_dump(exclude_unset=True); _validate(data)
     if not data.get("title"): raise HTTPException(400,"Tiêu đề là bắt buộc")
+    data.pop("source_event", None)
+    if not auto:
+        data["assigned_user_id"] = _validate_assignee(db, actor, data.get("assigned_user_id"))
     t=Task(**data,task_code=_next_code(db),created_by_id=getattr(actor,"id",None),auto_generated=auto,source_event=source_event)
     db.add(t); db.flush(); _act(db,t,"created","Tạo công việc",actor=actor); create_task_notification(db,t,notification_type=notify_type); db.commit(); db.refresh(t); return t
 
 def update_task(db,id,payload,actor):
     t=get_task_detail(db,id,actor); data=payload.model_dump(exclude_unset=True); _validate(data); old_assignee=t.assigned_user_id
+    if "assigned_user_id" in data:
+        data["assigned_user_id"] = _validate_assignee(db, actor, data.get("assigned_user_id"))
     for k,v in data.items(): setattr(t,k,v)
     if t.status=="done": t.completed_at=t.completed_at or _now()
     elif t.status=="cancelled": t.cancelled_at=t.cancelled_at or _now()
@@ -112,3 +129,10 @@ def auto_task_for_contract_payment(db,contract,actor):
 def auto_complete_contract_payment_tasks(db,contract,actor):
     for t in db.scalars(select(Task).where(Task.related_contract_id==contract.id,Task.task_type=="payment_due",Task.status.in_(["open","in_progress"]),Task.deleted_at.is_(None))):
         t.status="done"; t.completed_at=_now(); _act(db,t,"completed","Tự động hoàn thành","Hợp đồng đã hoàn tất.",actor=actor)
+
+
+def list_task_assignees(db, actor: User):
+    query = select(User).where(User.status == "active", User.deleted_at.is_(None))
+    if not (actor.is_superuser or "tasks.assign" in set(get_user_permissions(actor))):
+        query = query.where(User.id == actor.id)
+    return list(db.scalars(query.order_by(User.full_name)).unique())

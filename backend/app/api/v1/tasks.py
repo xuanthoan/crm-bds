@@ -7,13 +7,16 @@ from app.db.session import get_db
 from app.models.user import User
 from app.permissions.dependencies import require_auth, require_permission
 from app.schemas.task import TaskCancel, TaskComplete, TaskCreate, TaskNote, TaskStatusChange, TaskUpdate
-from app.services.task_service import add_task_note, cancel_task, change_task_status, complete_task, create_task, get_overdue_tasks, get_task_detail, get_today_tasks, list_tasks, serialize_task, update_task
+from app.services.task_service import add_task_note, cancel_task, change_task_status, complete_task, create_task, get_overdue_tasks, get_task_detail, get_today_tasks, list_task_assignees, list_tasks, serialize_task, update_task
 router=APIRouter(prefix="/tasks",tags=["tasks"])
 @router.get("")
 def get_tasks(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),q:str|None=None,status_filter:str|None=Query(None,alias="status"),priority:str|None=None,task_type:str|None=None,assigned_user_id:UUID|None=None,due_from:datetime|None=None,due_to:datetime|None=None,related_customer_id:UUID|None=None,related_booking_id:UUID|None=None,related_deal_id:UUID|None=None,related_contract_id:UUID|None=None,db:Session=Depends(get_db),actor:User=Depends(require_auth)):
     items,meta=list_tasks(db,actor,page=page,page_size=page_size,q=q,status=status_filter,priority=priority,task_type=task_type,assigned_user_id=assigned_user_id,due_from=due_from,due_to=due_to,related_customer_id=related_customer_id,related_booking_id=related_booking_id,related_deal_id=related_deal_id,related_contract_id=related_contract_id); return success_response([serialize_task(i) for i in items],meta=meta)
 @router.post("",status_code=status.HTTP_201_CREATED)
 def post_task(payload:TaskCreate,db:Session=Depends(get_db),actor:User=Depends(require_permission("tasks.create"))): return success_response(serialize_task(create_task(db,payload,actor),True),"Tạo công việc thành công")
+@router.get("/assignees")
+def assignees(db:Session=Depends(get_db),actor:User=Depends(require_auth)):
+    return success_response([{"id":u.id,"full_name":u.full_name,"email":u.email} for u in list_task_assignees(db,actor)])
 @router.get("/today")
 def today(db:Session=Depends(get_db),actor:User=Depends(require_auth)): return success_response([serialize_task(i) for i in get_today_tasks(db,actor)])
 @router.get("/overdue")
