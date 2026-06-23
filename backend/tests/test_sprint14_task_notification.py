@@ -33,8 +33,11 @@ class Sprint14TaskNotificationSourceTests(unittest.TestCase):
         content = (ROOT / 'frontend/src/features/tasks/TaskFormModal.tsx').read_text()
         self.assertIn('Người phụ trách', content)
         self.assertIn('Bỏ trống để giao cho chính bạn.', content)
-        self.assertIn('<select value={p.assigned_user_id', content)
+        self.assertIn('list="task-assignee-options"', content)
+        self.assertIn('Chọn người phụ trách hoặc bỏ trống', content)
+        self.assertIn('Không kết nối được máy chủ. Vui lòng kiểm tra backend đang chạy.', content)
         self.assertNotIn('Người phụ trách (UUID)', content)
+        self.assertNotIn('Tìm theo tên/email', content)
 
     def test_permissions_registered(self):
         content = (ROOT / 'backend/app/permissions/constants.py').read_text()
