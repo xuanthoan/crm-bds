@@ -26,14 +26,18 @@ def _get(db,id):
     if not t: raise HTTPException(404,"Công việc không tồn tại")
     return t
 
+def _can_assign_tasks(actor: User) -> bool:
+    # System Admin may be represented by either is_superuser or the admin role.
+    return actor.is_superuser or any(role.code == "admin" for role in actor.roles) or "tasks.assign" in set(get_user_permissions(actor))
+
 def _validate_assignee(db, actor: User, assigned_user_id):
     # Manual tasks default to the current user. Assigning someone else requires
-    # the existing tasks.assign permission (superusers are always allowed).
+    # the existing tasks.assign permission (superusers/admins are always allowed).
     assignee_id = assigned_user_id or actor.id
     user = db.scalar(select(User).where(User.id == assignee_id, User.status == "active", User.deleted_at.is_(None)))
     if not user:
         raise HTTPException(400, "Người phụ trách không tồn tại.")
-    if assignee_id != actor.id and not (actor.is_superuser or "tasks.assign" in set(get_user_permissions(actor))):
+    if assignee_id != actor.id and not _can_assign_tasks(actor):
         raise HTTPException(403, "Bạn không có quyền giao công việc cho người này.")
     return assignee_id
 
@@ -133,6 +137,6 @@ def auto_complete_contract_payment_tasks(db,contract,actor):
 
 def list_task_assignees(db, actor: User):
     query = select(User).where(User.status == "active", User.deleted_at.is_(None))
-    if not (actor.is_superuser or "tasks.assign" in set(get_user_permissions(actor))):
+    if not _can_assign_tasks(actor):
         query = query.where(User.id == actor.id)
     return list(db.scalars(query.order_by(User.full_name)).unique())

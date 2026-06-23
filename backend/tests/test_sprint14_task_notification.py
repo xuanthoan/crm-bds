@@ -28,17 +28,20 @@ class Sprint14TaskNotificationSourceTests(unittest.TestCase):
         self.assertIn('assigned_user_id or actor.id', content)
         self.assertIn('Người phụ trách không tồn tại.', content)
         self.assertIn('Bạn không có quyền giao công việc cho người này.', content)
+        self.assertIn('role.code == "admin"', content)
 
     def test_task_form_uses_assignee_select_not_uuid_textbox(self):
         content = (ROOT / 'frontend/src/features/tasks/TaskFormModal.tsx').read_text()
         self.assertIn('Người phụ trách', content)
         self.assertIn('Mặc định giao cho bạn. Có thể chọn người khác nếu bạn có quyền.', content)
-        self.assertIn('list="task-assignee-options"', content)
+        self.assertIn('searchable-combobox', content)
         self.assertIn('Đang tải người phụ trách...', content)
         self.assertIn('Không kết nối được máy chủ. Kiểm tra VITE_API_URL hoặc backend port 8000.', content)
         self.assertNotIn('Người phụ trách (UUID)', content)
         self.assertNotIn('Tìm theo tên/email', content)
         self.assertNotIn('Bỏ trống để giao cho chính bạn', content)
+        self.assertIn('selectedAssigneeId', content)
+        self.assertIn('chooseAssignee', content)
 
     def test_task_notification_alembic_migration_exists(self):
         migration = ROOT / 'backend/alembic/versions/20260623_0011_task_notification_engine.py'
