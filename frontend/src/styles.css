@@ -948,3 +948,11 @@ th {
 .contract-timeline-value-badge--danger { background: #fee2e2; color: #991b1b; }
 .contract-timeline-value-badge--draft { background: #eef2ff; color: #3730a3; }
 .contract-timeline-value-badge--muted { background: #f2f4f7; color: #344054; }
+
+/* Sprint 13 polish - compact guidance cards inside workflow modals */
+.workflow-hint-box { background: #f8fafc; border: 1px solid #dfe5f2; border-radius: 0.85rem; color: #344054; display: grid; gap: 0.45rem; line-height: 1.45; padding: 0.85rem 1rem; }
+.workflow-hint-box strong { color: #1d2939; font-size: 0.92rem; }
+.workflow-hint-box ul { display: grid; gap: 0.3rem; margin: 0; padding-left: 1.1rem; }
+.workflow-hint-box li { margin: 0; }
+.workflow-hint-box b { color: #1d4ed8; }
+@media (max-width: 700px) { .workflow-hint-box { padding: 0.75rem; } }
