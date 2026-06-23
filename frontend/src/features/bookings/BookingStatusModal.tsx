@@ -48,6 +48,7 @@ export function BookingStatusModal({ booking, onClose, onSaved }: { booking: Boo
   return <Modal title="Đổi trạng thái booking" onClose={onClose}>
     <form className="property-form" onSubmit={submit}>
       {isLocked && <div className="form-warning">Booking đã có hợp đồng hiệu lực nên không thể hủy, hoàn tiền, hết hạn, đổi trạng thái hoặc xóa. Vui lòng hủy hợp đồng trước.</div>}
+      {!isLocked && isFinal && <div className="form-hint">Booking đã ở trạng thái cuối nên không thể chuyển lại trạng thái hoạt động.</div>}
       {error && <div className="form-error">{error}</div>}
       <label>Trạng thái hiện tại<input readOnly value={BOOKING_STATUS_LABELS[booking.status] || booking.status} /></label>
       <label>Trạng thái mới<select value={status} disabled={isLocked || isFinal} onChange={(event) => selectStatus(event.target.value as BookingStatus)}>{statusOptions.map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></label>
