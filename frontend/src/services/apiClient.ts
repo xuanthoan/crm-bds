@@ -29,7 +29,7 @@ export class ApiRequestError extends Error {
   }
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000' : '');
 const ACCESS_TOKEN_KEY = 'crm_bds_access_token';
 const RAW_OBJECT_ERROR_MESSAGE = String({});
 
@@ -149,7 +149,9 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
 
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    const url = `${API_BASE_URL}${path}`;
+    console.debug('API request', url);
+    response = await fetch(url, {
       ...options,
       headers,
     });

@@ -40,6 +40,14 @@ class Sprint14TaskNotificationSourceTests(unittest.TestCase):
         self.assertNotIn('Tìm theo tên/email', content)
         self.assertNotIn('Bỏ trống để giao cho chính bạn', content)
 
+    def test_frontend_api_base_supports_docker_local(self):
+        api_client = (ROOT / 'frontend/src/services/apiClient.ts').read_text()
+        compose = (ROOT / 'docker-compose.local.yml').read_text()
+        dockerfile = (ROOT / 'frontend/Dockerfile').read_text()
+        self.assertIn("http://localhost:8000", api_client)
+        self.assertIn("VITE_API_URL: http://localhost:8000", compose)
+        self.assertIn("ARG VITE_API_URL=http://localhost:8000", dockerfile)
+
     def test_permissions_registered(self):
         content = (ROOT / 'backend/app/permissions/constants.py').read_text()
         for code in ['tasks.view','tasks.create','tasks.update','tasks.complete','tasks.cancel','tasks.assign','tasks.view_all','notifications.view','notifications.update']:
