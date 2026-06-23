@@ -1,0 +1,1 @@
+export type NotificationItem={id:string;recipient_user_id:string;title:string;content:string|null;notification_type:string;status:'unread'|'read';related_task_id:string|null;related_booking_id:string|null;related_deal_id:string|null;related_contract_id:string|null;related_customer_id:string|null;related_property_unit_id:string|null;read_at:string|null;created_at:string};

@@ -581,3 +581,17 @@ ROLE_PERMISSION_MAP["sales_manager"] += ["contracts.create", "contracts.view.dep
 ROLE_PERMISSION_MAP["leader"] += ["contracts.create", "contracts.view.team", "contracts.update.team", "contracts.status.team", "contracts.payment.view.team", "contracts.payment.create", "contracts.payment.update.team", "contracts.payment.confirm.team"]
 ROLE_PERMISSION_MAP["sale"] += ["contracts.create", "contracts.view.own", "contracts.update.own", "contracts.status.own", "contracts.payment.view.own", "contracts.payment.create", "contracts.payment.update.own"]
 ROLE_PERMISSION_MAP["viewer"] += ["contracts.view.own", "contracts.payment.view.own"]
+
+
+# Sprint 14: Task and in-app notification permissions.
+TASK_PERMISSIONS = ["tasks.view", "tasks.create", "tasks.update", "tasks.complete", "tasks.cancel", "tasks.assign", "tasks.view_all"]
+NOTIFICATION_PERMISSIONS = ["notifications.view", "notifications.update"]
+PERMISSION_CODES_BY_MODULE["tasks"] = TASK_PERMISSIONS
+PERMISSION_CODES_BY_MODULE["notifications"] = NOTIFICATION_PERMISSIONS
+ALL_PERMISSION_CODES = sorted({code for codes in PERMISSION_CODES_BY_MODULE.values() for code in codes})
+ROLE_PERMISSION_MAP["admin"] = list(ALL_PERMISSION_CODES)
+ROLE_PERMISSION_MAP["director"] += ["tasks.view_all", "tasks.update", "tasks.complete", "notifications.view", "notifications.update"]
+ROLE_PERMISSION_MAP["sales_manager"] += ["tasks.view_all", "tasks.create", "tasks.update", "tasks.complete", "tasks.cancel", "tasks.assign", "notifications.view", "notifications.update"]
+ROLE_PERMISSION_MAP["leader"] += ["tasks.view", "tasks.create", "tasks.update", "tasks.complete", "tasks.cancel", "tasks.assign", "notifications.view", "notifications.update"]
+ROLE_PERMISSION_MAP["sale"] += ["tasks.view", "tasks.create", "tasks.update", "tasks.complete", "tasks.cancel", "notifications.view", "notifications.update"]
+ROLE_PERMISSION_MAP["viewer"] += ["tasks.view", "notifications.view"]

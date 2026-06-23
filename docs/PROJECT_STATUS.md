@@ -100,3 +100,8 @@ Các module sau chưa có model + migration + service + API + UI hoàn chỉnh:
 - Contract Detail đã có terminal banner cho hợp đồng đã hủy, disable đổi trạng thái/thêm thanh toán, summary trạng thái thanh toán, bảng payment tiếng Việt và modal status/payment rõ hơn.
 - Property Detail related deal/contract hiển thị badge tiếng Việt thay vì raw enum.
 - Không thêm migration, dashboard, commission, invoice, reporting, upload hay module nghiệp vụ mới.
+
+## Sprint 14 — Task & Notification Engine
+- Added CRM-wide Task and in-app Notification foundation for manual tasks, today/overdue task views, task activity timeline, and unread notification badge.
+- Added automatic task hooks for booking created/deposited/cancelled/refunded/expired and contract payment follow-up/completion.
+- Limitations: no realtime/websocket delivery, no email/SMS/Zalo delivery, and no background cron scheduler; notifications are in-app only.

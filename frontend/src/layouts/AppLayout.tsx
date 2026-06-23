@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { logout } from '../features/auth/api';
 import { can, clearSession, getCurrentUser, getRefreshToken } from '../features/auth/authStore';
@@ -10,6 +10,7 @@ import { PROJECT_VIEW_PERMISSIONS } from '../features/projects/constants';
 import { PROPERTY_VIEW_PERMISSIONS } from '../features/properties/constants';
 import { BOOKING_VIEW_PERMISSIONS } from '../features/bookings/constants';
 import { CONTRACT_VIEW_PERMISSIONS } from '../features/contracts/constants';
+import { unreadCount } from '../features/notifications/api';
 
 type AppLayoutProps = {
   children?: ReactNode;
@@ -27,6 +28,8 @@ const adminItems = [
 
 export function AppLayout({ children, currentPath }: AppLayoutProps) {
   const user = getCurrentUser();
+  const [notificationCount, setNotificationCount] = useState(0);
+  useEffect(() => { if (can('notifications.view')) void unreadCount().then((r) => setNotificationCount(r.data.unread_count)).catch(() => setNotificationCount(0)); }, []);
   const visibleAdminItems = adminItems.filter((item) => can(item.permission));
   const canViewLeads = LEAD_VIEW_PERMISSIONS.some(can);
   const canViewCustomers = CUSTOMER_VIEW_PERMISSIONS.some(can);
@@ -69,7 +72,7 @@ export function AppLayout({ children, currentPath }: AppLayoutProps) {
         <div className="brand">CRM BDS</div>
         <nav>
           <div className="nav-section"><span>Dashboard</span>{can('dashboard.view.own') || can('dashboard.view.team') || can('dashboard.view.all') ? <div>{renderLink('Tổng quan của tôi', '/dashboard/my-work')}</div> : null}{can('dashboard.view.team') || can('dashboard.view.all') ? <div>{renderLink('Tổng quan team', '/dashboard/team-work')}</div> : null}</div>
-          {(canViewLeads || canViewCustomers || canViewDeals || canViewBookings || canViewContracts) && (
+          {(canViewLeads || canViewCustomers || canViewDeals || canViewBookings || canViewContracts || can('tasks.view') || can('tasks.view_all')) && (
             <div className="nav-section">
               <span>Giao dịch CRM</span>
               {canViewLeads && <><div>{renderLink('Khách tiềm năng', '/leads')}</div><div>{renderLink('Lead quá hạn', '/leads/overdue')}</div></>}
@@ -77,7 +80,7 @@ export function AppLayout({ children, currentPath }: AppLayoutProps) {
               {canViewDeals && <div>{renderLink('Giao dịch', '/deals')}</div>}
               {canViewBookings && <div>{renderLink('Booking / Giữ chỗ', '/bookings')}</div>}
               {canViewContracts && <div>{renderLink('Hợp đồng', '/contracts')}</div>}
-              {(can('lead_tasks.view.own') || can('lead_tasks.view.team') || can('lead_tasks.view.all')) && <><div>{renderLink('Công việc', '/tasks')}</div><div>{renderLink('Việc hôm nay', '/tasks/today')}</div><div>{renderLink('Việc quá hạn', '/tasks/overdue')}</div></>}
+              {(can('tasks.view') || can('tasks.view_all')) && <><div>{renderLink('Công việc', '/tasks')}</div><div>{renderLink('Việc hôm nay', '/tasks/today')}</div><div>{renderLink('Việc quá hạn', '/tasks/overdue')}</div></>}
               {(can('lead_appointments.view.own') || can('lead_appointments.view.team') || can('lead_appointments.view.all')) && <><div>{renderLink('Lịch hẹn', '/appointments')}</div><div>{renderLink('Lịch hẹn hôm nay', '/appointments/today')}</div></>}
             </div>
           )}
@@ -102,6 +105,7 @@ export function AppLayout({ children, currentPath }: AppLayoutProps) {
             <strong>{user?.full_name ?? 'Authenticated User'}</strong>
             <span>{user?.roles.join(', ')}</span>
           </div>
+          <button type="button" onClick={() => navigateTo('/notifications')} className="secondary-button">Thông báo {notificationCount > 0 ? `(${notificationCount})` : ''}</button>
           <button type="button" onClick={handleLogout} className="secondary-button">
             Logout
           </button>

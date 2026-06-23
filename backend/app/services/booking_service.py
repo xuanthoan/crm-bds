@@ -23,6 +23,7 @@ from app.permissions.dependencies import get_user_permissions
 from app.schemas.booking import BookingActivityCreate, BookingCreate, BookingStatusChange, BookingUpdate
 from app.services.audit_service import write_audit_log
 from app.services.organization_service import get_accessible_user_ids_for_lead_scope
+from app.services.task_service import auto_cancel_booking_tasks, auto_task_for_booking_created, auto_task_for_booking_deposited
 
 CREATE_PROPERTY_STATUSES = {"available", "negotiating"}
 PROPERTY_RELEASE_BLOCKED_STATUSES = {"sold", "locked", "unavailable"}
@@ -360,7 +361,7 @@ def create_booking(db: Session, payload: BookingCreate, actor: User) -> Booking:
     if _active_booking_exists(db, prop.id): raise HTTPException(status_code=409, detail="Bất động sản đã có booking đang hoạt động")
     data = payload.model_dump(); data["booking_date"] = data["booking_date"] or datetime.now(timezone.utc)
     booking = Booking(**data, booking_code=_next_code(db), status="draft", created_by_id=actor.id)
-    db.add(booking); db.flush(); _add_activity(db, booking, actor, "created")
+    db.add(booking); db.flush(); _add_activity(db, booking, actor, "created"); auto_task_for_booking_created(db, booking, actor)
     write_audit_log(db, action="bookings.create", user_id=actor.id, entity_type="bookings", entity_id=str(booking.id), after_data={"booking_code": booking.booking_code, "status": booking.status})
     db.commit(); db.refresh(booking); return booking
 
@@ -399,6 +400,7 @@ def change_booking_status(db: Session, booking_id: UUID, payload: BookingStatusC
         _change_property_status(db, booking, actor, "reserved", f"Tự động cập nhật từ booking {booking.booking_code}")
     elif payload.status == "deposited":
         booking.deposit_date = booking.deposit_date or now
+        auto_task_for_booking_deposited(db, booking, actor)
         _change_property_status(db, booking, actor, "deposited", f"Tự động cập nhật từ booking {booking.booking_code}")
     elif payload.status == "cancelled":
         booking.cancelled_at = now
@@ -408,6 +410,8 @@ def change_booking_status(db: Session, booking_id: UUID, payload: BookingStatusC
     elif payload.status == "refunded":
         booking.refunded_at = now
         if booking.property_unit.inventory_status not in PROPERTY_RELEASE_BLOCKED_STATUSES and _property_can_be_released(db, booking.property_unit_id, exclude_booking_id=booking.id): _change_property_status(db, booking, actor, "available", f"Booking {booking.booking_code} đã hoàn tiền")
+    if payload.status in {"cancelled", "expired", "refunded"}:
+        auto_cancel_booking_tasks(db, booking, actor)
     activity_payload = payload
     if payload.status == "refunded":
         activity_payload = SimpleNamespace(**payload.model_dump(), deduction_amount=_deduction_amount(booking, booking.refund_amount))

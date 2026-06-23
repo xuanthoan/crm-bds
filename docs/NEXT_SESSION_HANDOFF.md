@@ -94,3 +94,8 @@ git diff --check
 - Sprint 13 tập trung polish frontend/workflow safety, không thay đổi schema và không mở rộng module mới.
 - Cần manual smoke test các flow Booking effective Contract lock, Booking refund, Deal related chain, Contract cancelled terminal, Payment modal và Property related records.
 - Nếu tiếp tục hardening, ưu tiên bổ sung browser E2E cho các banner/action guard thay vì đổi core business logic.
+
+## Sprint 14 Handoff
+- Task/Notification models, services, API routers, simple frontend task pages, and notification list/badge were added.
+- Auto task rules are implemented synchronously inside booking/contract service flows; there is no cron/realtime/email/SMS/Zalo integration.
+- Next session should validate against a dependency-complete backend environment and apply the SQL migration if the deployment does not rely on metadata table creation.

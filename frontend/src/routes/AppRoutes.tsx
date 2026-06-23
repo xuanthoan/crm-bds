@@ -39,6 +39,7 @@ import { BookingDetailPage } from '../features/bookings/BookingDetailPage';
 import { BOOKING_VIEW_PERMISSIONS } from '../features/bookings/constants';
 import { ContractsPage } from '../features/contracts/ContractsPage';
 import { ContractDetailPage } from '../features/contracts/ContractDetailPage';
+import { NotificationsPage } from '../features/notifications/NotificationsPage';
 import { CONTRACT_VIEW_PERMISSIONS } from '../features/contracts/constants';
 
 export function navigateTo(path: string): void {
@@ -55,9 +56,9 @@ const protectedPages: Record<string, ProtectedPage> = {
   '/dashboard': { element: <MyWorkDashboard />, permission: ['dashboard.view.own', 'dashboard.view.team', 'dashboard.view.all'] },
   '/dashboard/my-work': { element: <MyWorkDashboard />, permission: ['dashboard.view.own', 'dashboard.view.team', 'dashboard.view.all'] },
   '/dashboard/team-work': { element: <TeamWorkDashboard />, permission: ['dashboard.view.team', 'dashboard.view.all'] },
-  '/tasks': { element: <TasksPage />, permission: ['lead_tasks.view.own', 'lead_tasks.view.team', 'lead_tasks.view.all'] },
-  '/tasks/today': { element: <TodayTasksPage />, permission: ['lead_tasks.view.own', 'lead_tasks.view.team', 'lead_tasks.view.all'] },
-  '/tasks/overdue': { element: <OverdueTasksPage />, permission: ['lead_tasks.view.own', 'lead_tasks.view.team', 'lead_tasks.view.all'] },
+  '/tasks': { element: <TasksPage />, permission: ['tasks.view', 'tasks.view_all'] },
+  '/tasks/today': { element: <TodayTasksPage />, permission: ['tasks.view', 'tasks.view_all'] },
+  '/tasks/overdue': { element: <OverdueTasksPage />, permission: ['tasks.view', 'tasks.view_all'] },
   '/appointments': { element: <AppointmentsPage />, permission: ['lead_appointments.view.own', 'lead_appointments.view.team', 'lead_appointments.view.all'] },
   '/appointments/today': { element: <TodayAppointmentsPage />, permission: ['lead_appointments.view.own', 'lead_appointments.view.team', 'lead_appointments.view.all'] },
   '/leads': { element: <LeadsPage />, permission: LEAD_VIEW_PERMISSIONS },
@@ -75,6 +76,7 @@ const protectedPages: Record<string, ProtectedPage> = {
   '/bookings': { element: <BookingsPage />, permission: BOOKING_VIEW_PERMISSIONS },
   '/contracts': { element: <ContractsPage />, permission: CONTRACT_VIEW_PERMISSIONS },
   '/reports': { element: <ReportsPage />, permission: 'reports.view.own' },
+  '/notifications': { element: <NotificationsPage />, permission: 'notifications.view' },
 };
 
 export function PermissionRoute({ permission, children }: { permission?: string | string[]; children?: ReactNode }) {
