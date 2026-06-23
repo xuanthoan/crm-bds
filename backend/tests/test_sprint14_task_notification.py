@@ -40,6 +40,16 @@ class Sprint14TaskNotificationSourceTests(unittest.TestCase):
         self.assertNotIn('Tìm theo tên/email', content)
         self.assertNotIn('Bỏ trống để giao cho chính bạn', content)
 
+    def test_task_notification_alembic_migration_exists(self):
+        migration = ROOT / 'backend/alembic/versions/20260623_0011_task_notification_engine.py'
+        self.assertTrue(migration.exists())
+        content = migration.read_text()
+        for table in ['"tasks"', '"task_activities"', '"notifications"']:
+            self.assertIn(table, content)
+        self.assertIn('down_revision = "20260613_0010"', content)
+        self.assertIn('ix_tasks_assigned_user_id', content)
+        self.assertIn('ix_notifications_recipient_user_id', content)
+
     def test_frontend_api_base_supports_docker_local(self):
         api_client = (ROOT / 'frontend/src/services/apiClient.ts').read_text()
         compose = (ROOT / 'docker-compose.local.yml').read_text()
