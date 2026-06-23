@@ -26,6 +26,7 @@ from app.services.user_service import get_user_by_id, user_role_code_set
 ELIGIBLE_OWNER_ROLES = {"admin", "director", "sales_manager", "leader", "sale"}
 EFFECTIVE_CONTRACT_STATUSES = {"signed", "active", "completed"}
 DEAL_CONTRACT_LOCK_ERROR = "Không thể hủy/thất bại giao dịch vì đang có hợp đồng hiệu lực. Vui lòng hủy hợp đồng trước."
+DEAL_COMPLETED_CONTRACT_LOCK_ERROR = "Giao dịch đã có hợp đồng hoàn tất nên không thể thay đổi trạng thái/giai đoạn."
 CONTRACT_LOCK_ALLOWED_STAGES = {"contract", "contract_signed", "completed"}
 CONTRACT_LOCK_ALLOWED_STATUSES = {"contracted", "payment_in_progress", "completed", "won"}
 
@@ -70,6 +71,13 @@ def _deal_has_effective_contract(db: Session, deal: Deal) -> bool:
         .limit(1)
     ) is not None
 
+def _deal_has_completed_contract(db: Session, deal: Deal) -> bool:
+    return db.scalar(
+        select(Contract.id)
+        .where(Contract.deal_id == deal.id, Contract.deleted_at.is_(None), Contract.status == "completed")
+        .limit(1)
+    ) is not None
+
 def _guard_effective_contract_deal_change(
     db: Session,
     deal: Deal,
@@ -77,6 +85,12 @@ def _guard_effective_contract_deal_change(
     target_stage: str | None = None,
     target_status: str | None = None,
 ) -> None:
+    if _deal_has_completed_contract(db, deal):
+        if target_stage is not None and target_stage != "completed":
+            raise HTTPException(status_code=409, detail=DEAL_COMPLETED_CONTRACT_LOCK_ERROR)
+        if target_status is not None and target_status != "completed":
+            raise HTTPException(status_code=409, detail=DEAL_COMPLETED_CONTRACT_LOCK_ERROR)
+        return
     if not _deal_has_effective_contract(db, deal):
         return
     if target_stage is not None and target_stage not in CONTRACT_LOCK_ALLOWED_STAGES:

@@ -5,9 +5,10 @@ import { formatApiError } from '../../services/apiClient';
 import { changeDealStage } from './api';
 import { PIPELINE_STAGE_LABELS } from './constants';
 import type { Deal, DealStage } from './types';
-import { DEAL_CONTRACT_LOCK_MESSAGE, dealStageOptionsForContractLock, hasEffectiveContract } from './workflowGuards';
+import { DEAL_COMPLETED_CONTRACT_LOCK_MESSAGE, DEAL_CONTRACT_LOCK_MESSAGE, dealStageOptionsForContractLock, hasCompletedContract, hasEffectiveContract } from './workflowGuards';
 
 export function DealStageModal({ deal, onClose, onSaved }: { deal: Deal; onClose: () => void; onSaved: () => void }) {
+  const lockedByCompletedContract = hasCompletedContract(deal);
   const lockedByContract = hasEffectiveContract(deal);
   const stageOptions = dealStageOptionsForContractLock(deal, Object.entries(PIPELINE_STAGE_LABELS));
   const [stage, setStage] = useState<DealStage>(stageOptions.some(([value]) => value === deal.pipeline_stage) ? deal.pipeline_stage : stageOptions[0][0] as DealStage);
@@ -25,5 +26,5 @@ export function DealStageModal({ deal, onClose, onSaved }: { deal: Deal; onClose
       onSaved();
     } catch (err) { setErrors(formatApiError(err)); }
   }
-  return <Modal title="Đổi giai đoạn" onClose={onClose}><form onSubmit={submit}><FormError messages={errors}/>{lockedByContract && <div className="form-warning">{DEAL_CONTRACT_LOCK_MESSAGE}</div>}<div className="form-grid"><label>Giai đoạn<select value={stage} onChange={e=>setStage(e.target.value as DealStage)}>{stageOptions.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>{(stage==='deposit'||stage==='contract')&&<><label>{stage==='deposit'?'Tiền đặt cọc':'Giá trị hợp đồng'}<input type="number" min="0" value={amount} onChange={e=>setAmount(e.target.value)}/></label><label>Ngày ghi nhận<input type="datetime-local" value={date} onChange={e=>setDate(e.target.value)}/></label></>}{stage==='lost'&&<label className="full-span">Lý do thất bại / hủy *<textarea required value={reason} onChange={e=>setReason(e.target.value)}/></label>}<label className="full-span">Ghi chú<textarea value={note} onChange={e=>setNote(e.target.value)}/></label></div><footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Hủy</button><button>Lưu</button></footer></form></Modal>;
+  return <Modal title="Đổi giai đoạn" onClose={onClose}><form onSubmit={submit}><FormError messages={errors}/>{lockedByCompletedContract && <div className="form-warning">{DEAL_COMPLETED_CONTRACT_LOCK_MESSAGE}</div>}{!lockedByCompletedContract && lockedByContract && <div className="form-warning">{DEAL_CONTRACT_LOCK_MESSAGE}</div>}<div className="form-grid"><label>Giai đoạn<select value={stage} onChange={e=>setStage(e.target.value as DealStage)}>{stageOptions.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>{(stage==='deposit'||stage==='contract')&&<><label>{stage==='deposit'?'Tiền đặt cọc':'Giá trị hợp đồng'}<input type="number" min="0" value={amount} onChange={e=>setAmount(e.target.value)}/></label><label>Ngày ghi nhận<input type="datetime-local" value={date} onChange={e=>setDate(e.target.value)}/></label></>}{stage==='lost'&&<label className="full-span">Lý do thất bại / hủy *<textarea required value={reason} onChange={e=>setReason(e.target.value)}/></label>}<label className="full-span">Ghi chú<textarea value={note} onChange={e=>setNote(e.target.value)}/></label></div><footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Hủy</button><button>Lưu</button></footer></form></Modal>;
 }

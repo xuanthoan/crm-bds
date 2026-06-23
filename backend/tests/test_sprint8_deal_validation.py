@@ -80,6 +80,10 @@ class Sprint8DealValidationTests(unittest.TestCase):
         service = Path("backend/app/services/deal_service.py").read_text()
         self.assertIn('EFFECTIVE_CONTRACT_STATUSES = {"signed", "active", "completed"}', service)
         self.assertIn('DEAL_CONTRACT_LOCK_ERROR = "Không thể hủy/thất bại giao dịch vì đang có hợp đồng hiệu lực. Vui lòng hủy hợp đồng trước."', service)
+        self.assertIn('DEAL_COMPLETED_CONTRACT_LOCK_ERROR = "Giao dịch đã có hợp đồng hoàn tất nên không thể thay đổi trạng thái/giai đoạn."', service)
+        self.assertIn('def _deal_has_completed_contract', service)
+        self.assertIn('target_stage != "completed"', service)
+        self.assertIn('target_status != "completed"', service)
         self.assertIn('target_stage not in CONTRACT_LOCK_ALLOWED_STAGES', service)
         self.assertIn('target_status not in CONTRACT_LOCK_ALLOWED_STATUSES', service)
         self.assertIn('_guard_effective_contract_deal_change(db, deal, target_stage=target_stage)', service)
@@ -102,6 +106,9 @@ class Sprint8DealValidationTests(unittest.TestCase):
         self.assertIn("dealStageOptionsForContractLock", stage_modal)
         self.assertIn("dealStatusOptionsForContractLock", status_modal)
         self.assertIn("DEAL_CONTRACT_LOCK_MESSAGE", status_modal)
+        self.assertIn("DEAL_COMPLETED_CONTRACT_LOCK_MESSAGE", stage_modal)
+        self.assertIn("hasCompletedContract", guards)
+        self.assertIn("value === 'completed'", guards)
 
     def test_deal_timeline_uses_colored_transition_badges(self):
         timeline = Path("frontend/src/features/deals/components/DealTimeline.tsx").read_text()
