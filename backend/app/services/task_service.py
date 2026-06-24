@@ -4,6 +4,12 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
+from app.models.booking import Booking
+from app.models.contract import Contract
+from app.models.customer import Customer
+from app.models.deal import Deal
+from app.models.lead import Lead
+from app.models.property_unit import PropertyUnit
 from app.models.task import Task
 from app.models.task_activity import TaskActivity
 from app.models.user import User
@@ -47,7 +53,7 @@ def _validate(data):
     if "task_type" in data and data["task_type"] and data["task_type"] not in TYPES: raise HTTPException(400,"Loại công việc không hợp lệ")
 
 def serialize_task(t,detail=False):
-    d={"id":t.id,"task_code":t.task_code,"title":t.title,"description":t.description,"task_type":t.task_type,"priority":t.priority,"status":t.status,"due_at":t.due_at,"completed_at":t.completed_at,"cancelled_at":t.cancelled_at,"assigned_user_id":t.assigned_user_id,"assigned_user":{"id":t.assigned_user.id,"full_name":t.assigned_user.full_name,"email":t.assigned_user.email} if t.assigned_user else None,"created_by_id":t.created_by_id,"related_customer_id":t.related_customer_id,"related_lead_id":t.related_lead_id,"related_booking_id":t.related_booking_id,"related_deal_id":t.related_deal_id,"related_contract_id":t.related_contract_id,"related_property_unit_id":t.related_property_unit_id,"auto_generated":t.auto_generated,"source_event":t.source_event,"note":t.note,"created_at":t.created_at,"updated_at":t.updated_at}
+    d={"id":t.id,"task_code":t.task_code,"title":t.title,"description":t.description,"task_type":t.task_type,"priority":t.priority,"status":t.status,"due_at":t.due_at,"completed_at":t.completed_at,"cancelled_at":t.cancelled_at,"assigned_user_id":t.assigned_user_id,"assigned_user":{"id":t.assigned_user.id,"full_name":t.assigned_user.full_name,"email":t.assigned_user.email} if t.assigned_user else None,"created_by_id":t.created_by_id,"related_customer_id":t.related_customer_id,"related_lead_id":t.related_lead_id,"related_booking_id":t.related_booking_id,"related_deal_id":t.related_deal_id,"related_contract_id":t.related_contract_id,"related_property_unit_id":t.related_property_unit_id,"related_customer":{"id":t.related_customer.id,"customer_code":t.related_customer.customer_code,"full_name":t.related_customer.full_name,"primary_phone":t.related_customer.primary_phone} if t.related_customer else None,"related_lead":{"id":t.related_lead.id,"code":t.related_lead.code,"full_name":t.related_lead.full_name,"phone_primary":t.related_lead.phone_primary} if t.related_lead else None,"related_booking":{"id":t.related_booking.id,"booking_code":t.related_booking.booking_code} if t.related_booking else None,"related_deal":{"id":t.related_deal.id,"deal_code":t.related_deal.deal_code,"title":t.related_deal.title} if t.related_deal else None,"related_contract":{"id":t.related_contract.id,"contract_code":t.related_contract.contract_code} if t.related_contract else None,"related_property_unit":{"id":t.related_property_unit.id,"property_code":t.related_property_unit.property_code,"title":t.related_property_unit.title} if t.related_property_unit else None,"auto_generated":t.auto_generated,"source_event":t.source_event,"note":t.note,"created_at":t.created_at,"updated_at":t.updated_at}
     if detail: d["activities"]=[{"id":a.id,"activity_type":a.activity_type,"title":a.title,"content":a.content,"old_value":a.old_value,"new_value":a.new_value,"actor":{"id":a.actor.id,"full_name":a.actor.full_name} if a.actor else None,"created_at":a.created_at} for a in t.activities]
     return d
 
@@ -56,11 +62,14 @@ def list_tasks(db,actor,page=1,page_size=20,**f):
     if not _has_view_all(actor): cond.append(or_(Task.assigned_user_id==actor.id,Task.created_by_id==actor.id))
     for name,col in (("status",Task.status),("priority",Task.priority),("task_type",Task.task_type),("assigned_user_id",Task.assigned_user_id),("related_customer_id",Task.related_customer_id),("related_booking_id",Task.related_booking_id),("related_deal_id",Task.related_deal_id),("related_contract_id",Task.related_contract_id)):
         if f.get(name) is not None: cond.append(col==f[name])
-    if f.get("q"): cond.append(or_(Task.task_code.ilike(f"%{f['q']}%"),Task.title.ilike(f"%{f['q']}%")))
+    query=select(Task).outerjoin(Task.assigned_user).outerjoin(Task.related_booking).outerjoin(Task.related_deal).outerjoin(Task.related_contract).outerjoin(Task.related_customer).outerjoin(Task.related_lead).outerjoin(Task.related_property_unit)
+    if f.get("q"):
+        term=f"%{f['q'].strip()}%"
+        cond.append(or_(Task.task_code.ilike(term),Task.title.ilike(term),Task.task_type.ilike(term),User.full_name.ilike(term),User.email.ilike(term),Booking.booking_code.ilike(term),Deal.deal_code.ilike(term),Contract.contract_code.ilike(term),Customer.customer_code.ilike(term),Customer.full_name.ilike(term),Customer.primary_phone.ilike(term),Lead.code.ilike(term),Lead.full_name.ilike(term),Lead.phone_primary.ilike(term),PropertyUnit.property_code.ilike(term),PropertyUnit.title.ilike(term)))
     if f.get("due_from"): cond.append(Task.due_at>=f["due_from"])
     if f.get("due_to"): cond.append(Task.due_at<=f["due_to"])
-    total=db.scalar(select(func.count(Task.id)).where(*cond)) or 0
-    items=list(db.scalars(select(Task).where(*cond).order_by(Task.due_at.asc().nullslast(),Task.created_at.desc()).offset((page-1)*page_size).limit(page_size)).unique())
+    total=db.scalar(query.with_only_columns(func.count(func.distinct(Task.id))).where(*cond)) or 0
+    items=list(db.scalars(query.where(*cond).order_by(Task.due_at.asc().nullslast(),Task.created_at.desc()).offset((page-1)*page_size).limit(page_size)).unique())
     return items,{"page":page,"page_size":page_size,"total":total,"total_pages":ceil(total/page_size) if total else 0}
 
 def get_task_detail(db,id,actor):
@@ -124,6 +133,19 @@ def auto_cancel_booking_tasks(db,booking,actor):
     label={"cancelled":"hủy","refunded":"hoàn tiền","expired":"hết hạn"}.get(booking.status,booking.status); reason=f"Booking {booking.booking_code} đã {label} nên công việc được tự động hủy."
     for t in db.scalars(select(Task).where(Task.related_booking_id==booking.id,Task.deleted_at.is_(None),Task.status.in_(["open","in_progress"]),Task.task_type!="general")):
         t.status="cancelled"; t.cancelled_at=_now(); _act(db,t,"cancelled","Tự động hủy công việc",reason,actor=actor)
+def auto_reassign_booking_tasks(db,booking,old_assignee_id,actor):
+    if not old_assignee_id or old_assignee_id==booking.assigned_user_id: return
+    old_user=db.scalar(select(User).where(User.id==old_assignee_id))
+    new_user=db.scalar(select(User).where(User.id==booking.assigned_user_id))
+    old_name=getattr(old_user,"full_name",None) or "người phụ trách cũ"
+    new_name=getattr(new_user,"full_name",None) or "người phụ trách mới"
+    content=f"Booking đổi người phụ trách nên công việc được chuyển từ {old_name} sang {new_name}."
+    for t in db.scalars(select(Task).where(Task.related_booking_id==booking.id,Task.auto_generated.is_(True),Task.source_event.in_(["booking_created","booking_deposited"]),Task.deleted_at.is_(None),Task.status.in_(["open","in_progress"]))):
+        if t.assigned_user_id==booking.assigned_user_id: continue
+        old=str(t.assigned_user_id) if t.assigned_user_id else None
+        t.assigned_user_id=booking.assigned_user_id
+        _act(db,t,"assigned","Tự động chuyển công việc",content,old,str(booking.assigned_user_id),actor)
+        create_task_notification(db,t,"Bạn được giao công việc")
 def auto_task_for_contract_payment(db,contract,actor):
     from app.services.contract_service import totals
     _,_,remaining=totals(contract)

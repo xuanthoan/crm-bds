@@ -23,7 +23,7 @@ from app.permissions.dependencies import get_user_permissions
 from app.schemas.booking import BookingActivityCreate, BookingCreate, BookingStatusChange, BookingUpdate
 from app.services.audit_service import write_audit_log
 from app.services.organization_service import get_accessible_user_ids_for_lead_scope
-from app.services.task_service import auto_cancel_booking_tasks, auto_task_for_booking_created, auto_task_for_booking_deposited
+from app.services.task_service import auto_cancel_booking_tasks, auto_reassign_booking_tasks, auto_task_for_booking_created, auto_task_for_booking_deposited
 
 CREATE_PROPERTY_STATUSES = {"available", "negotiating"}
 PROPERTY_RELEASE_BLOCKED_STATUSES = {"sold", "locked", "unavailable"}
@@ -370,9 +370,12 @@ def update_booking(db: Session, booking_id: UUID, payload: BookingUpdate, actor:
     if not booking: raise HTTPException(status_code=404, detail="Không tìm thấy booking")
     _require(db, actor, booking, "bookings.update")
     data = payload.model_dump(exclude_unset=True)
+    old_assignee_id = booking.assigned_user_id
     if "assigned_user_id" in data: _validate_user(db, data["assigned_user_id"])
     changes = {key: (getattr(booking, key), value) for key, value in data.items() if getattr(booking, key) != value}
     for key, value in data.items(): setattr(booking, key, value)
+    if "assigned_user_id" in data and old_assignee_id != booking.assigned_user_id:
+        auto_reassign_booking_tasks(db, booking, old_assignee_id, actor)
     booking.updated_by_id = actor.id
     if changes: _add_activity(db, booking, actor, "updated", content=", ".join(changes), old_value=str({k: str(v[0]) for k, v in changes.items()}), new_value=str({k: str(v[1]) for k, v in changes.items()}))
     write_audit_log(db, action="bookings.update", user_id=actor.id, entity_type="bookings", entity_id=str(booking.id), before_data={k: str(v[0]) for k, v in changes.items()}, after_data={k: str(v[1]) for k, v in changes.items()})

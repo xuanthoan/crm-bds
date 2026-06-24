@@ -16,7 +16,7 @@ class Sprint14TaskNotificationSourceTests(unittest.TestCase):
     def test_task_service_declares_required_api(self):
         tree = ast.parse((ROOT / 'backend/app/services/task_service.py').read_text())
         functions = {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
-        self.assertTrue({'list_tasks','get_task_detail','create_task','update_task','change_task_status','complete_task','cancel_task','add_task_note','create_auto_task_if_not_exists','get_today_tasks','get_overdue_tasks','list_task_assignees'} <= functions)
+        self.assertTrue({'list_tasks','get_task_detail','create_task','update_task','change_task_status','complete_task','cancel_task','add_task_note','create_auto_task_if_not_exists','get_today_tasks','get_overdue_tasks','list_task_assignees','auto_reassign_booking_tasks'} <= functions)
 
     def test_notification_service_declares_required_api(self):
         tree = ast.parse((ROOT / 'backend/app/services/notification_service.py').read_text())
@@ -42,6 +42,20 @@ class Sprint14TaskNotificationSourceTests(unittest.TestCase):
         self.assertNotIn('Bỏ trống để giao cho chính bạn', content)
         self.assertIn('selectedAssigneeId', content)
         self.assertIn('chooseAssignee', content)
+
+    def test_task_search_links_and_booking_reassign_sources_exist(self):
+        task_service = (ROOT / 'backend/app/services/task_service.py').read_text()
+        booking_service = (ROOT / 'backend/app/services/booking_service.py').read_text()
+        task_table = (ROOT / 'frontend/src/features/tasks/components/TaskTable.tsx').read_text()
+        task_filters = (ROOT / 'frontend/src/features/tasks/components/TaskFilters.tsx').read_text()
+        for needle in ['Booking.booking_code', 'Deal.deal_code', 'Contract.contract_code', 'Customer.full_name', 'Customer.primary_phone', 'PropertyUnit.property_code']:
+            self.assertIn(needle, task_service)
+        self.assertIn('Booking đổi người phụ trách nên công việc được chuyển', task_service)
+        self.assertIn('create_task_notification(db,t,"Bạn được giao công việc")', task_service)
+        self.assertIn('auto_reassign_booking_tasks(db, booking, old_assignee_id, actor)', booking_service)
+        self.assertIn('/bookings/', task_table)
+        self.assertIn('related_booking?.booking_code', task_table)
+        self.assertIn("value={value.q??''}", task_filters)
 
     def test_task_notification_alembic_migration_exists(self):
         migration = ROOT / 'backend/alembic/versions/20260623_0011_task_notification_engine.py'
