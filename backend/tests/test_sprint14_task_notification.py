@@ -45,11 +45,14 @@ class Sprint14TaskNotificationSourceTests(unittest.TestCase):
 
     def test_task_search_links_and_booking_reassign_sources_exist(self):
         task_service = (ROOT / 'backend/app/services/task_service.py').read_text()
+        task_model = (ROOT / 'backend/app/models/task.py').read_text()
         booking_service = (ROOT / 'backend/app/services/booking_service.py').read_text()
         task_table = (ROOT / 'frontend/src/features/tasks/components/TaskTable.tsx').read_text()
         task_filters = (ROOT / 'frontend/src/features/tasks/components/TaskFilters.tsx').read_text()
         for needle in ['Booking.booking_code', 'Deal.deal_code', 'Contract.contract_code', 'Customer.full_name', 'Customer.primary_phone', 'PropertyUnit.property_code']:
             self.assertIn(needle, task_service)
+        self.assertIn('selectinload(Task.related_booking).load_only(Booking.id, Booking.booking_code).lazyload("*")', task_service)
+        self.assertNotIn('lazy="joined"', task_model)
         self.assertIn('Booking đổi người phụ trách nên công việc được chuyển', task_service)
         self.assertIn('create_task_notification(db,t,"Bạn được giao công việc")', task_service)
         self.assertIn('auto_reassign_booking_tasks(db, booking, old_assignee_id, actor)', booking_service)

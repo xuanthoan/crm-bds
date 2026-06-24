@@ -3,7 +3,7 @@ from math import ceil
 from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, lazyload, load_only, selectinload
 from app.models.booking import Booking
 from app.models.contract import Contract
 from app.models.customer import Customer
@@ -57,6 +57,20 @@ def serialize_task(t,detail=False):
     if detail: d["activities"]=[{"id":a.id,"activity_type":a.activity_type,"title":a.title,"content":a.content,"old_value":a.old_value,"new_value":a.new_value,"actor":{"id":a.actor.id,"full_name":a.actor.full_name} if a.actor else None,"created_at":a.created_at} for a in t.activities]
     return d
 
+def _task_list_load_options():
+    # Keep task list SQL narrow: load only the fields displayed by the UI and
+    # prevent nested joined relationships from related CRM models.
+    return (
+        selectinload(Task.assigned_user).load_only(User.id, User.full_name, User.email),
+        lazyload(Task.creator),
+        selectinload(Task.related_booking).load_only(Booking.id, Booking.booking_code).lazyload("*"),
+        selectinload(Task.related_deal).load_only(Deal.id, Deal.deal_code, Deal.title).lazyload("*"),
+        selectinload(Task.related_contract).load_only(Contract.id, Contract.contract_code).lazyload("*"),
+        selectinload(Task.related_customer).load_only(Customer.id, Customer.customer_code, Customer.full_name, Customer.primary_phone).lazyload("*"),
+        selectinload(Task.related_lead).load_only(Lead.id, Lead.code, Lead.full_name, Lead.phone_primary).lazyload("*"),
+        selectinload(Task.related_property_unit).load_only(PropertyUnit.id, PropertyUnit.property_code, PropertyUnit.title).lazyload("*"),
+    )
+
 def list_tasks(db,actor,page=1,page_size=20,**f):
     cond=[Task.deleted_at.is_(None)]
     if not _has_view_all(actor): cond.append(or_(Task.assigned_user_id==actor.id,Task.created_by_id==actor.id))
@@ -69,7 +83,7 @@ def list_tasks(db,actor,page=1,page_size=20,**f):
     if f.get("due_from"): cond.append(Task.due_at>=f["due_from"])
     if f.get("due_to"): cond.append(Task.due_at<=f["due_to"])
     total=db.scalar(query.with_only_columns(func.count(func.distinct(Task.id))).where(*cond)) or 0
-    items=list(db.scalars(query.where(*cond).order_by(Task.due_at.asc().nullslast(),Task.created_at.desc()).offset((page-1)*page_size).limit(page_size)).unique())
+    items=list(db.scalars(query.options(*_task_list_load_options()).where(*cond).order_by(Task.due_at.asc().nullslast(),Task.created_at.desc()).offset((page-1)*page_size).limit(page_size)).unique())
     return items,{"page":page,"page_size":page_size,"total":total,"total_pages":ceil(total/page_size) if total else 0}
 
 def get_task_detail(db,id,actor):
