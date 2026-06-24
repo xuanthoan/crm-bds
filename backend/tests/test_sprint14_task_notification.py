@@ -56,8 +56,12 @@ class Sprint14TaskNotificationSourceTests(unittest.TestCase):
         self.assertIn('Booking đổi người phụ trách nên công việc được chuyển', task_service)
         self.assertIn('create_task_notification(db,t,"Bạn được giao công việc")', task_service)
         self.assertIn('auto_reassign_booking_tasks(db, booking, old_assignee_id, actor)', booking_service)
+        self.assertIn('primaryLink', task_table)
         self.assertIn('/bookings/', task_table)
+        self.assertIn('/contracts/', task_table)
+        self.assertIn('/deals/', task_table)
         self.assertIn('related_booking?.booking_code', task_table)
+        self.assertNotIn('link-stack', task_table)
         self.assertIn("value={value.q??''}", task_filters)
 
     def test_task_notification_alembic_migration_exists(self):
