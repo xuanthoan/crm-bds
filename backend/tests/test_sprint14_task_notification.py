@@ -22,6 +22,9 @@ class Sprint14TaskNotificationSourceTests(unittest.TestCase):
         tree = ast.parse((ROOT / 'backend/app/services/notification_service.py').read_text())
         functions = {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
         self.assertTrue({'list_notifications','unread_count','mark_read','mark_all_read','create_notification','create_task_notification'} <= functions)
+        content = (ROOT / 'backend/app/services/notification_service.py').read_text()
+        self.assertIn('related_task', content)
+        self.assertIn('task_code', content)
 
     def test_manual_assignment_guardrails_are_documented_in_source(self):
         content = (ROOT / 'backend/app/services/task_service.py').read_text()
@@ -92,6 +95,16 @@ class Sprint14TaskNotificationSourceTests(unittest.TestCase):
         self.assertIn("http://localhost:8000", api_client)
         self.assertIn("VITE_API_URL: http://localhost:8000", compose)
         self.assertIn("ARG VITE_API_URL=http://localhost:8000", dockerfile)
+
+    def test_notifications_link_to_related_task(self):
+        page = (ROOT / 'frontend/src/features/notifications/NotificationsPage.tsx').read_text()
+        layout = (ROOT / 'frontend/src/layouts/AppLayout.tsx').read_text()
+        tasks_page = (ROOT / 'frontend/src/features/tasks/TasksPage.tsx').read_text()
+        self.assertIn('Mở công việc', page)
+        self.assertIn('?q=', page)
+        self.assertIn('notifications:changed', page)
+        self.assertIn('notifications:changed', layout)
+        self.assertIn("new URLSearchParams(window.location.search).get('q')", tasks_page)
 
     def test_permissions_registered(self):
         content = (ROOT / 'backend/app/permissions/constants.py').read_text()

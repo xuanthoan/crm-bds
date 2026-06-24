@@ -25,3 +25,4 @@ class Notification(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     recipient = relationship("User", foreign_keys=[recipient_user_id], lazy="joined")
+    related_task = relationship("Task", lazy="selectin")

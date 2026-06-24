@@ -29,7 +29,12 @@ const adminItems = [
 export function AppLayout({ children, currentPath }: AppLayoutProps) {
   const user = getCurrentUser();
   const [notificationCount, setNotificationCount] = useState(0);
-  useEffect(() => { if (can('notifications.view')) void unreadCount().then((r) => setNotificationCount(r.data.unread_count)).catch(() => setNotificationCount(0)); }, []);
+  useEffect(() => {
+    const refreshNotifications = () => { if (can('notifications.view')) void unreadCount().then((r) => setNotificationCount(r.data.unread_count)).catch(() => setNotificationCount(0)); };
+    refreshNotifications();
+    window.addEventListener('notifications:changed', refreshNotifications);
+    return () => window.removeEventListener('notifications:changed', refreshNotifications);
+  }, []);
   const visibleAdminItems = adminItems.filter((item) => can(item.permission));
   const canViewLeads = LEAD_VIEW_PERMISSIONS.some(can);
   const canViewCustomers = CUSTOMER_VIEW_PERMISSIONS.some(can);
