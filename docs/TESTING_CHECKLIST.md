@@ -142,3 +142,10 @@ Kiểm tra backend log xác nhận `alembic upgrade head` thành công và migra
 - [ ] Contract cancelled hiển thị terminal banner và disable thao tác ký/kích hoạt/thanh toán.
 - [ ] Payment modal có đủ method/reference/paid date/note và lỗi validation rõ ràng.
 - [ ] Property related deal/contract hiển thị trạng thái tiếng Việt, không raw enum.
+
+## Sprint 14 — Task & Notification Engine
+- Run `python -m compileall backend/app backend/tests`.
+- Run `PYTHONPATH=backend python -m unittest backend.tests.test_sprint14_task_notification -v`.
+- Run Sprint 11/12 booking-contract validation tests when dependencies are available.
+- Run `cd frontend && npm run build`.
+- Run `git diff --check` and `git diff --cached --check` before delivery.

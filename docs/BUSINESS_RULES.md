@@ -125,3 +125,10 @@ Active closing Deal statuses dùng khi kiểm tra xung đột:
 - Leader: create và scope team.
 - Sale: create, own view/update/status, payment view/create/update; không confirm.
 - Viewer: own contract/payment view.
+
+## Sprint 14 — Task & Notification Rules
+- Booking creation creates a follow-up task for the assigned sale; deposited bookings create a contract-signing task.
+- Cancelled, refunded, or expired bookings automatically cancel open/in-progress non-general tasks directly linked to that booking.
+- Contracts with remaining receivable create payment follow-up tasks; completed contracts auto-complete open/in-progress payment-due tasks for that contract.
+- Task assignment creates in-app notifications only; Sprint 14 does not include realtime push, cron, email, SMS, or Zalo notifications.
+- Manual task assignment: leaving assignee blank assigns the current user; non-admin users need `tasks.assign` to assign another active user, otherwise the API returns a Vietnamese permission error.

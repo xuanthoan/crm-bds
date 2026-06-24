@@ -29,7 +29,7 @@ export class ApiRequestError extends Error {
   }
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000' : '');
 const ACCESS_TOKEN_KEY = 'crm_bds_access_token';
 const RAW_OBJECT_ERROR_MESSAGE = String({});
 
@@ -149,12 +149,15 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
 
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    const url = `${API_BASE_URL}${path}`;
+    console.debug('API request', url);
+    response = await fetch(url, {
       ...options,
       headers,
     });
   } catch (error) {
-    throw new ApiRequestError(0, { detail: error instanceof Error ? error.message : 'Không thể kết nối máy chủ' });
+    console.error('API network error', error);
+    throw new ApiRequestError(0, { detail: 'Không kết nối được máy chủ. Kiểm tra VITE_API_URL hoặc backend port 8000.' });
   }
 
   const payload = (await response.json().catch(() => ({ detail: 'Unexpected API response' }))) as ApiResponse<T> | ErrorPayload;

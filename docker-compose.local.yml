@@ -1,0 +1,71 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: crm-bds-backend-local
+    environment:
+      DATABASE_URL: postgresql://crm_bds:crm_bds@postgres:5432/crm_bds
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: change-me-in-local
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      REFRESH_TOKEN_EXPIRE_DAYS: 7
+      DEFAULT_ADMIN_EMAIL: admin@example.com
+      DEFAULT_ADMIN_PASSWORD: Admin@123456
+      DEFAULT_ADMIN_NAME: System Admin
+      SEED_DEMO_USERS: "true"
+      DEMO_USER_PASSWORD: Admin@123456
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:8000
+    container_name: crm-bds-frontend-local
+    environment:
+      VITE_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: crm-bds-postgres-local
+    environment:
+      POSTGRES_DB: crm_bds
+      POSTGRES_USER: crm_bds
+      POSTGRES_PASSWORD: crm_bds
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm_bds -d crm_bds"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: crm-bds-redis-local
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_local_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+    name: crm_bds_all_in_one_postgres_data
+  redis_local_data:

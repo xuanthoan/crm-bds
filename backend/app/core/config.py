@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     default_admin_email: str = "admin@example.com"
     default_admin_password: str = "Admin@123456"
     default_admin_name: str = "System Admin"
+    seed_demo_users: bool = False
+    demo_user_password: str = "Admin@123456"
     cors_origins: list[str] = ["http://localhost:3000"]
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")

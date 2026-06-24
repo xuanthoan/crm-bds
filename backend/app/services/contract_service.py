@@ -18,6 +18,7 @@ from app.permissions.dependencies import get_user_permissions
 from app.schemas.contract import ContractActivityCreate, ContractCreate, ContractPaymentConfirm, ContractPaymentCreate, ContractPaymentUpdate, ContractStatusChange, ContractUpdate
 from app.services.audit_service import write_audit_log
 from app.services.organization_service import get_accessible_user_ids_for_lead_scope
+from app.services.task_service import auto_complete_contract_payment_tasks, auto_task_for_contract_payment
 
 def _scope(user,prefix):
     if user.is_superuser:return "all"
@@ -228,7 +229,7 @@ def create_contract(db,payload:ContractCreate,actor):
     if inherited_deposit > 0:
         content += f"\nTiền cọc kế thừa từ booking {deal.booking.booking_code}: {inherited_deposit}"
         metadata = {"booking_code": deal.booking.booking_code, "inherited_deposit_amount": str(inherited_deposit)}
-    add_contract_activity(db,item,actor,"created",content=content,metadata=metadata); _apply_status(db,item,actor,item.status); write_audit_log(db,action="contracts.create",user_id=actor.id,entity_type="contracts",entity_id=str(item.id)); db.commit(); db.refresh(item); return item
+    add_contract_activity(db,item,actor,"created",content=content,metadata=metadata); _apply_status(db,item,actor,item.status); auto_task_for_contract_payment(db,item,actor); write_audit_log(db,action="contracts.create",user_id=actor.id,entity_type="contracts",entity_id=str(item.id)); db.commit(); db.refresh(item); return item
 def update_contract(db,id,payload,actor):
     item=_get(db,id); _require(db,actor,item,"contracts.update"); data=payload.model_dump(exclude_unset=True); old={k:str(getattr(item,k)) for k in data}; [setattr(item,k,v) for k,v in data.items()]; item.updated_by_id=actor.id; add_contract_activity(db,item,actor,"updated",content=", ".join(data)); write_audit_log(db,action="contracts.update",user_id=actor.id,entity_type="contracts",entity_id=str(item.id),before_data=old,after_data={k:str(v) for k,v in data.items()}); db.commit(); db.refresh(item); return item
 def change_contract_status(db, id, payload: ContractStatusChange, actor):
@@ -268,6 +269,10 @@ def change_contract_status(db, id, payload: ContractStatusChange, actor):
         },
     )
     _deal_contract_activity(db, item, actor, old, payload.status, payload.note)
+    if payload.status in {"signed", "active"}:
+        auto_task_for_contract_payment(db, item, actor)
+    elif payload.status == "completed":
+        auto_complete_contract_payment_tasks(db, item, actor)
     write_audit_log(db, action="contracts.status_change", user_id=actor.id, entity_type="contracts", entity_id=str(item.id))
     db.commit()
     db.refresh(item)
