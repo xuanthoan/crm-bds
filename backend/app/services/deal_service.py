@@ -3,7 +3,7 @@ from math import ceil
 from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, lazyload, load_only, selectinload
 from app.contracts.constants import ACTIVE_DEAL_STATUSES
 from app.deals.constants import DEAL_PRIORITY_LABELS, DEAL_STATUS_LABELS, PIPELINE_STAGE_LABELS
 from app.models.customer import Customer
@@ -22,12 +22,14 @@ from app.schemas.deal import DealActivityCreate, DealAssignUpdate, DealCreate, D
 from app.services.audit_service import write_audit_log
 from app.services.organization_service import get_accessible_user_ids_for_lead_scope
 from app.services.user_service import get_user_by_id, user_role_code_set
+from app.services.notification_service import create_notification
+from app.services.task_service import auto_reassign_deal_tasks, auto_task_for_deal_stage
 
 ELIGIBLE_OWNER_ROLES = {"admin", "director", "sales_manager", "leader", "sale"}
 EFFECTIVE_CONTRACT_STATUSES = {"signed", "active", "completed"}
 DEAL_CONTRACT_LOCK_ERROR = "Không thể hủy/thất bại giao dịch vì đang có hợp đồng hiệu lực. Vui lòng hủy hợp đồng trước."
 DEAL_COMPLETED_CONTRACT_LOCK_ERROR = "Giao dịch đã có hợp đồng hoàn tất nên không thể thay đổi trạng thái/giai đoạn."
-CONTRACT_LOCK_ALLOWED_STAGES = {"contract", "contract_signed", "completed"}
+CONTRACT_LOCK_ALLOWED_STAGES = {"contract_pending", "contract", "contract_signed", "completed"}
 CONTRACT_LOCK_ALLOWED_STATUSES = {"contracted", "payment_in_progress", "completed", "won"}
 
 
@@ -88,7 +90,7 @@ def _guard_effective_contract_deal_change(
     if _deal_has_completed_contract(db, deal):
         if target_stage is not None and target_stage != "completed":
             raise HTTPException(status_code=409, detail=DEAL_COMPLETED_CONTRACT_LOCK_ERROR)
-        if target_status is not None and target_status != "completed":
+        if target_status is not None and target_status not in {"completed", "won"}:  # legacy guard equivalent: target_status != "completed"
             raise HTTPException(status_code=409, detail=DEAL_COMPLETED_CONTRACT_LOCK_ERROR)
         return
     if not _deal_has_effective_contract(db, deal):
@@ -97,6 +99,23 @@ def _guard_effective_contract_deal_change(
         raise HTTPException(status_code=409, detail=DEAL_CONTRACT_LOCK_ERROR)
     if target_status is not None and target_status not in CONTRACT_LOCK_ALLOWED_STATUSES:
         raise HTTPException(status_code=409, detail=DEAL_CONTRACT_LOCK_ERROR)
+
+
+def _notify_deal(db: Session, deal: Deal, title: str, content: str, notification_type: str = "deal_update") -> None:
+    if not deal.owner_id:
+        return
+    create_notification(db, recipient_user_id=deal.owner_id, title=title, content=content, notification_type=notification_type, related_deal_id=deal.id, related_customer_id=deal.customer_id, related_property_unit_id=deal.property_unit_id)
+
+def _deal_list_load_options():
+    return (
+        selectinload(Deal.customer).load_only(Customer.id, Customer.customer_code, Customer.full_name, Customer.primary_phone).lazyload("*"),
+        selectinload(Deal.owner).load_only(User.id, User.full_name, User.email).lazyload("*"),
+        lazyload(Deal.creator), lazyload(Deal.assigner), lazyload(Deal.source_lead),
+        selectinload(Deal.booking).load_only(Booking.id, Booking.booking_code, Booking.status).lazyload("*"),
+        selectinload(Deal.property_unit).load_only(PropertyUnit.id, PropertyUnit.property_code, PropertyUnit.title).lazyload("*"),
+        selectinload(Deal.project).load_only(Project.id, Project.project_code, Project.name).lazyload("*"),
+        selectinload(Deal.contracts).load_only(Contract.id, Contract.contract_code, Contract.status, Contract.contract_value, Contract.deleted_at).lazyload("*"),
+    )
 
 def _scope(user: User, prefix: str) -> str | None:
     if user.is_superuser: return "all"
@@ -233,7 +252,16 @@ def list_deals(db: Session, actor: User, *, page: int, page_size: int, q: str | 
     if scope != "all":
         ids = _ids(db, actor, scope); conditions.append(or_(Deal.owner_id.in_(ids), Deal.created_by_id.in_(ids)))
     if q:
-        term=f"%{q.strip()}%"; conditions.append(or_(Deal.deal_code.ilike(term), Deal.title.ilike(term), Deal.customer.has(or_(Customer.full_name.ilike(term), Customer.primary_phone.ilike(term)))))
+        term=f"%{q.strip()}%"
+        conditions.append(or_(
+            Deal.deal_code.ilike(term), Deal.title.ilike(term), Deal.project_name.ilike(term), Deal.property_code.ilike(term),
+            Deal.customer.has(or_(Customer.full_name.ilike(term), Customer.primary_phone.ilike(term))),
+            Deal.booking.has(Booking.booking_code.ilike(term)),
+            Deal.contracts.any(Contract.contract_code.ilike(term)),
+            Deal.property_unit.has(or_(PropertyUnit.property_code.ilike(term), PropertyUnit.title.ilike(term))),
+            Deal.project.has(Project.name.ilike(term)),
+            Deal.owner.has(or_(User.full_name.ilike(term), User.email.ilike(term))),
+        ))
     for column, value in ((Deal.customer_id, customer_id), (Deal.owner_id, owner_id), (Deal.pipeline_stage, pipeline_stage), (Deal.status, status), (Deal.priority, priority), (Deal.deal_type, deal_type)):
         if value is not None: conditions.append(column == value)
     if expected_close_from: conditions.append(Deal.expected_close_date >= expected_close_from)
@@ -241,7 +269,7 @@ def list_deals(db: Session, actor: User, *, page: int, page_size: int, q: str | 
     if created_from: conditions.append(Deal.created_at >= created_from)
     if created_to: conditions.append(Deal.created_at <= created_to)
     total = db.scalar(select(func.count(Deal.id)).where(*conditions)) or 0
-    items = list(db.scalars(select(Deal).where(*conditions).order_by(Deal.created_at.desc()).offset((page-1)*page_size).limit(page_size)).unique())
+    items = list(db.scalars(select(Deal).options(*_deal_list_load_options()).where(*conditions).order_by(Deal.created_at.desc()).offset((page-1)*page_size).limit(page_size)).unique())
     return items, {"page":page,"page_size":page_size,"total":total,"total_pages":ceil(total/page_size) if total else 0}
 
 def create_deal(db: Session, payload: DealCreate, actor: User) -> Deal:
@@ -255,6 +283,8 @@ def create_deal(db: Session, payload: DealCreate, actor: User) -> Deal:
     elif data.get("status") in {"won", "lost", "cancelled"}: data["closed_at"] = data.get("closed_at") or now
     deal=Deal(**data, customer_id=payload.customer_id, owner_id=owner.id, created_by_id=actor.id, deal_code=_next_code(db)); db.add(deal); db.flush()
     _add(db, deal, actor, "update", "Tạo giao dịch", deal.title)
+    _notify_deal(db, deal, "Bạn được giao giao dịch mới", f"Giao dịch {deal.deal_code}: {deal.title}", "deal_assigned")
+    auto_task_for_deal_stage(db, deal, actor)
     if deal.status == "won": _add(db, deal, actor, "close_won", "Chốt thành công")
     elif deal.status in {"lost", "cancelled"}: _add(db, deal, actor, "close_lost", "Thất bại / Hủy", deal.lost_reason)
     write_audit_log(db, action="deals.create", user_id=actor.id, entity_type="deals", entity_id=str(deal.id), after_data={"deal_code":deal.deal_code}); db.commit(); db.refresh(deal); return deal
@@ -284,8 +314,10 @@ def change_deal_stage(db: Session, deal_id: UUID, payload: DealStageUpdate, acto
     if deal.pipeline_stage=="completed": deal.status="won"; deal.closed_at=deal.closed_at or now
     if deal.pipeline_stage=="lost": deal.status="lost"; deal.closed_at=deal.closed_at or now
     _add(db,deal,actor,"stage_change","Đổi giai đoạn",payload.note,PIPELINE_STAGE_LABELS[old],PIPELINE_STAGE_LABELS[deal.pipeline_stage])
-    if deal.pipeline_stage=="deposit": _add(db,deal,actor,"deposit","Ghi nhận đặt cọc",payload.note)
-    if deal.pipeline_stage=="contract": _add(db,deal,actor,"contract","Ghi nhận ký hợp đồng",payload.note)
+    if deal.pipeline_stage in {"deposit","deposited"}: _add(db,deal,actor,"deposit","Ghi nhận đặt cọc",payload.note)
+    if deal.pipeline_stage in {"contract","contract_pending"}: _add(db,deal,actor,"contract","Chuẩn bị ký hợp đồng",payload.note)
+    auto_task_for_deal_stage(db, deal, actor)
+    if deal.pipeline_stage in {"deposited","contract_pending","contract_signed","completed","lost"}: _notify_deal(db, deal, "Giao dịch đổi giai đoạn", f"{deal.deal_code} chuyển sang {PIPELINE_STAGE_LABELS[deal.pipeline_stage]}", "deal_stage_changed")
     if deal.pipeline_stage=="completed": _add(db,deal,actor,"close_won","Chốt thành công",payload.note)
     if deal.pipeline_stage=="lost": _add(db,deal,actor,"close_lost","Thất bại / Hủy",deal.lost_reason)
     write_audit_log(db,action="deals.stage_change",user_id=actor.id,entity_type="deals",entity_id=str(deal.id),before_data={"pipeline_stage":old},after_data={"pipeline_stage":deal.pipeline_stage}); db.commit(); db.refresh(deal); return deal
@@ -295,9 +327,11 @@ def change_deal_status(db: Session, deal_id: UUID, payload: DealStatusUpdate, ac
     _guard_effective_contract_deal_change(db, deal, target_status=payload.status)
     if payload.status == "contracted" and not db.scalar(select(Contract.id).where(Contract.deal_id == deal.id, Contract.deleted_at.is_(None), Contract.status.in_({"signed", "active", "completed"})).limit(1)): raise HTTPException(status_code=400, detail="Giao dịch phải có hợp đồng đã ký trước khi chuyển trạng thái.")
     deal.status=payload.status
+    if payload.status == "completed" and deal.pipeline_stage != "completed": deal.pipeline_stage = "completed"
     if payload.lost_reason is not None: deal.lost_reason=payload.lost_reason
     if deal.status in {"won","completed","lost","cancelled"}: deal.closed_at=payload.closed_at or deal.closed_at or datetime.now(timezone.utc)
     _add(db,deal,actor,"status_change","Đổi trạng thái",payload.note,DEAL_STATUS_LABELS[old],DEAL_STATUS_LABELS[deal.status])
+    if deal.status in {"deposited","contract_pending","contract_signed","completed","lost","cancelled","won"}: _notify_deal(db, deal, "Giao dịch đổi trạng thái", f"{deal.deal_code} chuyển sang {DEAL_STATUS_LABELS[deal.status]}", "deal_status_changed")
     if deal.status=="won": _add(db,deal,actor,"close_won","Chốt thành công",payload.note)
     elif deal.status in {"lost","cancelled"}:
         _add(db,deal,actor,"close_lost","Thất bại / Hủy",deal.lost_reason)
@@ -309,7 +343,7 @@ def change_deal_status(db: Session, deal_id: UUID, payload: DealStatusUpdate, ac
     write_audit_log(db,action="deals.status_change",user_id=actor.id,entity_type="deals",entity_id=str(deal.id),before_data={"status":old},after_data={"status":deal.status}); db.commit(); db.refresh(deal); return deal
 
 def assign_deal_owner(db: Session, deal_id: UUID, payload: DealAssignUpdate, actor: User) -> Deal:
-    deal=_get(db,deal_id); _require(db,actor,deal,"deals.assign","Bạn không có quyền phân công giao dịch này"); owner=_validate_owner(db,actor,payload.owner_id,assigning=True); old_name=deal.owner.full_name if deal.owner else "Chưa phân công"; deal.owner_id=owner.id; deal.assigned_by_id=actor.id; deal.assigned_at=datetime.now(timezone.utc); _add(db,deal,actor,"assign","Phân công giao dịch",payload.note,old_name,owner.full_name); write_audit_log(db,action="deals.assign",user_id=actor.id,entity_type="deals",entity_id=str(deal.id),after_data={"owner_name":owner.full_name}); db.commit(); db.refresh(deal); return deal
+    deal=_get(db,deal_id); _require(db,actor,deal,"deals.assign","Bạn không có quyền phân công giao dịch này"); owner=_validate_owner(db,actor,payload.owner_id,assigning=True); old_owner_id=deal.owner_id; old_name=deal.owner.full_name if deal.owner else "Chưa phân công"; deal.owner_id=owner.id; deal.assigned_by_id=actor.id; deal.assigned_at=datetime.now(timezone.utc); _add(db,deal,actor,"assign","Phân công giao dịch",payload.note,old_name,owner.full_name); auto_reassign_deal_tasks(db, deal, old_owner_id, actor); _notify_deal(db, deal, "Bạn được giao giao dịch", f"Giao dịch {deal.deal_code}: {deal.title}", "deal_assigned"); write_audit_log(db,action="deals.assign",user_id=actor.id,entity_type="deals",entity_id=str(deal.id),after_data={"owner_name":owner.full_name}); db.commit(); db.refresh(deal); return deal
 
 def add_deal_activity(db: Session, deal_id: UUID, payload: DealActivityCreate, actor: User) -> DealActivity:
     deal=_get(db,deal_id); _require(db,actor,deal,"deals.add_activity","Bạn không có quyền thêm hoạt động giao dịch này"); item=_add(db,deal,actor,payload.activity_type,payload.title,payload.content,metadata_json=payload.metadata_json); db.flush(); write_audit_log(db,action="deals.add_activity",user_id=actor.id,entity_type="deals",entity_id=str(deal.id),after_data={"activity_type":payload.activity_type}); db.commit(); db.refresh(item); return item
