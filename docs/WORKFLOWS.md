@@ -169,3 +169,17 @@ Có hai biểu diễn kết quả thành công hiện đang cùng tồn tại:
 - Contract status `completed` đặt Deal status `completed`, stage `completed`, đặt `closed_at`.
 
 Do đó reporting/logic tương lai phải xem `completed` và `won` là kết quả thành công cho đến khi lifecycle được chuẩn hóa sâu hơn.
+
+## Sprint 16 — Contract Payment Management
+
+```text
+Contract hợp lệ
+  -> tạo Payment Schedule theo đợt
+  -> ghi nhận Receipt draft hoặc confirmed
+  -> confirmed Receipt cập nhật paid/remaining/status
+  -> quá hạn nếu due_date < today và chưa paid/cancelled
+  -> áp dụng Penalty thủ công nếu có lý do
+  -> tạo Invoice Stub nếu cần chứng từ nháp
+```
+
+Timeline tiếng Việt được ghi vào Contract Activity khi tạo/cập nhật lịch thanh toán, xác nhận/hủy receipt, chuyển paid, overdue, áp dụng phí phạt và tạo invoice stub.

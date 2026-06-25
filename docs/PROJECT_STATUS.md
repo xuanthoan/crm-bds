@@ -123,3 +123,9 @@ Luồng Deal trực tiếp từ Customer/Property vẫn tồn tại khi Property
 ## 7. Sprint 16 — Next / In Progress
 
 Sprint 16 là **Payment Management**: hoàn thiện quản lý thanh toán sau Contract Payment foundation, bao gồm UX/quy trình payment sâu hơn, kiểm soát trạng thái thanh toán và các báo cáo/payment views cần thiết. Không mặc định bao gồm invoice/commission/revenue dashboard lớn nếu chưa được scope riêng.
+
+## Sprint 16 implementation note (2026-06-25)
+
+- Sprint 16 Payment Management đã được triển khai trên branch làm việc, chưa merge `dev` và chưa tạo tag release.
+- Phạm vi đã có: payment schedule theo Contract, receipt/confirm/cancel, phí phạt thủ công, invoice stub, payment timeline qua Contract Activity, task/notification in-app cơ bản cho lịch đến hạn/quá hạn và trang UI `/payments`.
+- Không reset DB, không đổi Docker volume, không seed đè dữ liệu thật.

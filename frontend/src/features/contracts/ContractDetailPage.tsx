@@ -11,6 +11,10 @@ import { ContractPaymentTable } from './components/ContractPaymentTable';
 import { ContractSummaryCard } from './components/ContractSummaryCard';
 import { ContractTimeline } from './components/ContractTimeline';
 import type { Contract, ContractPayment } from './types';
+import { contractPayments, contractPaymentSummary } from '../payments/api';
+import { PaymentBadge } from '../payments/PaymentBadge';
+import { PaymentScheduleForm } from '../payments/PaymentForms';
+import type { PaymentSchedule } from '../payments/types';
 
 const show = (value: unknown) => value || 'Chưa cập nhật';
 const date = (value?: string | null) => value ? new Date(value).toLocaleString('vi-VN') : 'Chưa cập nhật';
@@ -19,9 +23,13 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
   const [contract, setContract] = useState<Contract | null>(null);
   const [modal, setModal] = useState<'payment' | 'status' | ContractPayment | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
+  const [paymentSchedules, setPaymentSchedules] = useState<PaymentSchedule[]>([]);
+  const [paymentSummary, setPaymentSummary] = useState<Record<string, number> | null>(null);
   const load = useCallback(async () => {
     try {
       setContract((await getContract(contractId)).data);
+      setPaymentSchedules((await contractPayments(contractId)).data);
+      setPaymentSummary((await contractPaymentSummary(contractId)).data);
       setErrors([]);
     } catch (error) {
       setErrors(formatApiError(error));
@@ -54,7 +62,8 @@ export function ContractDetailPage({ contractId }: { contractId: string }) {
       <section className="detail-card"><h2>Thời gian</h2><dl className="info-grid"><div><dt>Ngày ký</dt><dd>{date(contract.signed_date)}</dd></div><div><dt>Ngày hiệu lực</dt><dd>{date(contract.effective_date)}</dd></div><div><dt>Ngày bàn giao</dt><dd>{date(contract.handover_date)}</dd></div></dl></section>
       <section className="detail-card"><h2>Người mua</h2><dl className="info-grid"><div><dt>Tên</dt><dd>{show(contract.buyer_name)}</dd></div><div><dt>SĐT</dt><dd>{show(contract.buyer_phone)}</dd></div><div><dt>Email</dt><dd>{show(contract.buyer_email)}</dd></div><div><dt>CCCD/CMND</dt><dd>{show(contract.buyer_id_number)}</dd></div><div className="full-span"><dt>Địa chỉ</dt><dd>{show(contract.buyer_address)}</dd></div></dl></section>
       <section className="detail-card"><h2>Bên bán</h2><dl className="info-grid"><div><dt>Tên</dt><dd>{show(contract.seller_name)}</dd></div><div><dt>SĐT</dt><dd>{show(contract.seller_phone)}</dd></div><div><dt>Email</dt><dd>{show(contract.seller_email)}</dd></div><div><dt>Đại diện</dt><dd>{show(contract.seller_representative)}</dd></div></dl></section>
-      <section className="detail-card"><h2>Thanh toán</h2><ContractPaymentTable items={contract.payments || []} onConfirm={(payment) => setModal(payment)} /></section>
+      <section className="detail-card"><h2>Thanh toán cũ</h2><ContractPaymentTable items={contract.payments || []} onConfirm={(payment) => setModal(payment)} /></section>
+      <section className="detail-card"><h2>Thanh toán</h2>{paymentSummary && <dl className="info-grid"><div><dt>Tổng phải thu</dt><dd>{Number(paymentSummary.total_expected || 0).toLocaleString('vi-VN')}đ</dd></div><div><dt>Đã thu</dt><dd>{Number(paymentSummary.total_paid || 0).toLocaleString('vi-VN')}đ</dd></div><div><dt>Còn lại</dt><dd>{Number(paymentSummary.total_remaining || 0).toLocaleString('vi-VN')}đ</dd></div><div><dt>Quá hạn</dt><dd>{paymentSummary.overdue_count || 0}</dd></div></dl>}<PaymentScheduleForm contractId={contract.id} onSaved={load}/><table><thead><tr><th>Mã</th><th>Đợt</th><th>Hạn</th><th>Phải thu</th><th>Đã thu</th><th>Còn lại</th><th>Trạng thái</th><th>Hành động</th></tr></thead><tbody>{paymentSchedules.map((p)=><tr key={p.id}><td>{p.payment_code}</td><td>{p.sequence_no}. {p.title}</td><td>{new Date(p.due_date).toLocaleDateString('vi-VN')}</td><td>{Number(p.expected_amount).toLocaleString('vi-VN')}đ</td><td>{Number(p.paid_amount).toLocaleString('vi-VN')}đ</td><td>{Number(p.remaining_amount).toLocaleString('vi-VN')}đ</td><td><PaymentBadge status={p.status}/></td><td><button onClick={() => navigateTo(`/payments/${p.id}`)}>Chi tiết</button></td></tr>)}</tbody></table></section>
       <section className="detail-card"><h2>Timeline</h2><ContractActivityForm contractId={contract.id} onSaved={load} /><ContractTimeline items={contract.activities || []} /></section>
       {modal === 'payment' && <ContractPaymentModal contractId={contract.id} onClose={() => setModal(null)} onSaved={close} />}
       {modal === 'status' && <ContractStatusModal contract={contract} onClose={() => setModal(null)} onSaved={close} />}
