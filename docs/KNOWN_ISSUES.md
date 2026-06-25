@@ -73,3 +73,12 @@ Một số tài liệu cũ trong `docs/` mô tả kiến trúc/roadmap mục ti�
 - Chưa có automated browser E2E; UI guard cần kiểm thử thủ công hoặc bổ sung Playwright/Cypress sau.
 - Timeline đã được polish một phần ở các màn chính, nhưng một số event cũ phụ thuộc dữ liệu backend có thể vẫn cần mapping tiếng Việt bổ sung nếu phát sinh activity type mới.
 - Related Booking trực tiếp trên Property phụ thuộc API hiện tại; Sprint 13 không thay đổi schema/API để thêm quan hệ mới.
+
+## Sprint 15 known limitations / backlog
+
+- Notification Router đầy đủ chưa được triển khai: notification có `task_id` mở công việc theo Sprint 14, nhưng điều hướng tổng quát cho mọi entity liên quan Deal/Booking/Contract/Customer/Property vẫn là backlog.
+- Click toàn bộ notification row/card chưa được chuẩn hóa; hiện hành ưu tiên nội dung/button/link sẵn có thay vì toàn bộ card click target thống nhất.
+- Dashboard nâng cao/revenue dashboard chưa nằm trong Sprint 15; reports hiện vẫn ở mức nền và cần scope riêng.
+- Payment Management chuyên sâu được chuyển sang Sprint 16; Sprint 15 chỉ đảm bảo Contract Payment foundation không regression trong luồng Deal.
+- Không có realtime notification/websocket/email/SMS/Zalo; notification vẫn là in-app polling/list/badge.
+- Chưa có browser E2E tự động cho toàn bộ Booking → Deal → Contract → Payment → Completed; Sprint 15 dựa trên manual QA và source/build/backend regression checks.
