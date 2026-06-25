@@ -3,11 +3,11 @@ import type { ContractPayment } from '../types';
 const money = (value: number) => `${new Intl.NumberFormat('vi-VN').format(value)} đ`;
 const date = (value: string | null) => value ? new Date(value).toLocaleString('vi-VN') : 'Chưa cập nhật';
 
-export function ContractPaymentTable({ items, onConfirm }: { items: ContractPayment[]; onConfirm: (payment: ContractPayment) => void }) {
+export function ContractPaymentTable({ items }: { items: ContractPayment[] }) {
   return (
     <div className="table-scroll">
       <table>
-        <thead><tr><th>Mã thanh toán</th><th>Số tiền</th><th>Loại</th><th>Trạng thái</th><th>Hạn thanh toán</th><th>Ngày thanh toán</th><th>Phương thức</th><th>Mã tham chiếu</th><th>Hành động</th></tr></thead>
+        <thead><tr><th>Mã thanh toán cũ</th><th>Số tiền</th><th>Loại</th><th>Trạng thái</th><th>Hạn thanh toán</th><th>Ngày thanh toán</th><th>Phương thức</th><th>Mã tham chiếu</th></tr></thead>
         <tbody>
           {items.map((payment) => (
             <tr key={payment.id}>
@@ -19,10 +19,9 @@ export function ContractPaymentTable({ items, onConfirm }: { items: ContractPaym
               <td>{payment.status === 'paid' ? date(payment.paid_date) : 'Chưa thanh toán'}</td>
               <td>{payment.payment_method_label || 'Chưa cập nhật'}</td>
               <td>{payment.reference_number || 'Chưa cập nhật'}</td>
-              <td>{payment.status === 'planned' ? <button onClick={() => onConfirm(payment)}>Xác nhận</button> : '—'}</td>
             </tr>
           ))}
-          {!items.length && <tr><td colSpan={9} className="empty-cell">Chưa có khoản thanh toán.</td></tr>}
+          {!items.length && <tr><td colSpan={8} className="empty-cell">Không có dữ liệu thanh toán cũ.</td></tr>}
         </tbody>
       </table>
     </div>
