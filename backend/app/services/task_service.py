@@ -126,9 +126,37 @@ def create_auto_task_if_not_exists(db,actor=None,**kw):
     cond=[Task.deleted_at.is_(None),Task.status.in_(["open","in_progress"]),Task.source_event==kw.get("source_event"),Task.task_type==kw.get("task_type"),Task.assigned_user_id==kw.get("assigned_user_id")]
     if kw.get("related_booking_id"): cond.append(Task.related_booking_id==kw["related_booking_id"])
     if kw.get("related_contract_id"): cond.append(Task.related_contract_id==kw["related_contract_id"])
+    if kw.get("related_deal_id"): cond.append(Task.related_deal_id==kw["related_deal_id"])
     existing=db.scalar(select(Task).where(*cond).limit(1))
     if existing: return existing
     return create_task(db,kw,actor,auto=True,source_event=kw.get("source_event"),notify_type="contract_payment_due" if kw.get("task_type")=="payment_due" else "task_assigned")
+
+
+def auto_task_for_deal_stage(db,deal,actor):
+    stage_map={
+        "consulting": ("follow_up", "deal_consulting", f"Theo dõi giao dịch {deal.deal_code}", "medium"),
+        "contract_pending": ("contract_signing", "deal_contract_pending", f"Chuẩn bị ký hợp đồng cho giao dịch {deal.deal_code}", "high"),
+        "deposited": ("follow_up", "deal_deposited", f"Nhắc xử lý đặt cọc/giao dịch {deal.deal_code}", "high"),
+        "deposit": ("follow_up", "deal_deposited", f"Nhắc xử lý đặt cọc/giao dịch {deal.deal_code}", "high"),
+    }
+    if deal.pipeline_stage not in stage_map or not deal.owner_id:
+        return None
+    task_type,source_event,title,priority=stage_map[deal.pipeline_stage]
+    return create_auto_task_if_not_exists(db,actor,title=title,task_type=task_type,priority=priority,assigned_user_id=deal.owner_id,related_deal_id=deal.id,related_customer_id=deal.customer_id,related_property_unit_id=deal.property_unit_id,source_event=source_event)
+
+def auto_reassign_deal_tasks(db,deal,old_assignee_id,actor):
+    if not old_assignee_id or old_assignee_id==deal.owner_id:
+        return
+    old_user=db.scalar(select(User).where(User.id==old_assignee_id))
+    new_user=db.scalar(select(User).where(User.id==deal.owner_id))
+    content=f"Deal đổi người phụ trách nên công việc được chuyển từ {getattr(old_user,'full_name',None) or 'người phụ trách cũ'} sang {getattr(new_user,'full_name',None) or 'người phụ trách mới'}."
+    for t in db.scalars(select(Task).where(Task.related_deal_id==deal.id,Task.auto_generated.is_(True),Task.source_event.in_(["deal_consulting","deal_contract_pending","deal_deposited"]),Task.deleted_at.is_(None),Task.status.in_(["open","in_progress"]))):
+        if t.assigned_user_id==deal.owner_id:
+            continue
+        old=str(t.assigned_user_id) if t.assigned_user_id else None
+        t.assigned_user_id=deal.owner_id
+        _act(db,t,"assigned","Tự động chuyển công việc",content,old,str(deal.owner_id),actor)
+        create_task_notification(db,t,"Bạn được giao công việc")
 
 def get_today_tasks(db,actor):
     start=datetime.combine(_now().date(),time.min,tzinfo=timezone.utc); end=start+timedelta(days=1)
