@@ -1,5 +1,17 @@
 import type { ContractActivity } from '../types';
 
+const ACTIVITY_LABELS: Record<string, string> = {
+  payment_schedule_created: 'Tạo lịch thanh toán',
+  payment_schedule_updated: 'Cập nhật lịch thanh toán',
+  payment_schedule_cancelled: 'Hủy lịch thanh toán',
+  payment_receipt_confirmed: 'Xác nhận phiếu thu',
+  payment_receipt_cancelled: 'Hủy phiếu thu',
+  payment_schedule_paid: 'Đợt thanh toán đã thanh toán đủ',
+  payment_overdue: 'Đợt thanh toán quá hạn',
+  payment_penalty: 'Áp dụng phí phạt',
+  payment_invoice_created: 'Tạo hóa đơn nháp',
+};
+
 const formatVnd = (value: string | number | null | undefined) => {
   if (value === null || value === undefined || value === '') return 'Chưa cập nhật';
   const amount = Number(value);
@@ -8,6 +20,7 @@ const formatVnd = (value: string | number | null | undefined) => {
 };
 
 const show = (value: string | null | undefined) => value || 'Chưa cập nhật';
+const labelFor = (activity: ContractActivity) => ACTIVITY_LABELS[activity.activity_type] || activity.activity_label || activity.title || 'Hoạt động hợp đồng';
 
 const formatTime = (value: string) =>
   new Intl.DateTimeFormat('vi-VN', {
@@ -60,25 +73,28 @@ function PaymentDetails({ activity }: { activity: ContractActivity }) {
 export function ContractTimeline({ items }: { items: ContractActivity[] }) {
   return (
     <div className="lead-timeline contract-timeline">
-      {items.map((activity) => (
-        <article className="timeline-item" key={activity.id}>
-          <span className="timeline-marker" />
-          <div>
-            <header>
-              <strong>{activity.activity_label}</strong>
-              <time>{formatTime(activity.created_at)}</time>
-            </header>
-            <h4>{activity.title}</h4>
-            {activity.old_value && activity.new_value && (
-              <span className="value-change contract-timeline-transition"><ContractTimelineValueBadge value={activity.old_value}/><span className="contract-timeline-transition-arrow">→</span><ContractTimelineValueBadge value={activity.new_value}/></span>
-            )}
-            <PaymentDetails activity={activity} />
-            {activity.content && <p className="contract-timeline-note">Ghi chú: {activity.content}</p>}
-            <small>Người thực hiện: {activity.actor.full_name}</small>
-            <small>Thời gian: {formatTime(activity.created_at)}</small>
-          </div>
-        </article>
-      ))}
+      {items.map((activity) => {
+        const label = labelFor(activity);
+        return (
+          <article className="timeline-item" key={activity.id}>
+            <span className="timeline-marker" />
+            <div>
+              <header>
+                <strong>{label}</strong>
+                <time>{formatTime(activity.created_at)}</time>
+              </header>
+              <h4>{label}</h4>
+              {activity.old_value && activity.new_value && (
+                <span className="value-change contract-timeline-transition"><ContractTimelineValueBadge value={activity.old_value}/><span className="contract-timeline-transition-arrow">→</span><ContractTimelineValueBadge value={activity.new_value}/></span>
+              )}
+              <PaymentDetails activity={activity} />
+              {activity.content && <p className="contract-timeline-note">Ghi chú: {activity.content}</p>}
+              <small>Người thực hiện: {activity.actor.full_name}</small>
+              <small>Thời gian: {formatTime(activity.created_at)}</small>
+            </div>
+          </article>
+        );
+      })}
       {!items.length && <p className="empty-state">Chưa có hoạt động.</p>}
     </div>
   );
