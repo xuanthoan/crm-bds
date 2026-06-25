@@ -149,3 +149,89 @@ Kiểm tra backend log xác nhận `alembic upgrade head` thành công và migra
 - Run Sprint 11/12 booking-contract validation tests when dependencies are available.
 - Run `cd frontend && npm run build`.
 - Run `git diff --check` and `git diff --cached --check` before delivery.
+
+## Sprint 15 — Professional Deal Workflow completed checklist
+
+### Required automated checks
+
+```bash
+python -m compileall backend/app backend/tests
+PYTHONPATH=backend python -m unittest backend.tests.test_sprint8_deal_validation backend.tests.test_sprint12_contract_validation backend.tests.test_sprint14_task_notification backend.tests.test_sprint15_deal_workflow -v
+cd frontend && npm run build
+git diff --check
+git diff --cached --check
+```
+
+### Manual QA — passed before approval
+
+#### A. Deal workflow basic
+
+- [x] Tạo Booking.
+- [x] Đặt cọc Booking.
+- [x] Tạo Deal từ Booking.
+- [x] Chuyển Deal qua các stage hợp lệ.
+- [x] Kiểm tra timeline Deal hiển thị tiếng Việt và mới nhất/nhất quán theo UI hiện có.
+
+#### B. Contract lock
+
+- [x] Tạo Contract từ Deal.
+- [x] Chuyển Contract sang Đã ký hoặc Có hiệu lực.
+- [x] Thử hủy/thất bại Deal.
+- [x] Kỳ vọng bị chặn với thông báo tiếng Việt: không thể hủy/thất bại vì đang có hợp đồng hiệu lực.
+
+#### C. Completed contract
+
+- [x] Chuyển Contract Hoàn tất.
+- [x] Deal auto Hoàn tất/Thành công theo logic hiện hành.
+- [x] Thử chuyển Deal khỏi hoàn tất.
+- [x] Kỳ vọng backend chặn direct API mutation không hợp lệ.
+
+#### D. Cancelled contract
+
+- [x] Tạo Contract.
+- [x] Hủy Contract.
+- [x] Deal không bị khóa nếu chỉ còn cancelled Contract.
+- [x] Có thể tạo Contract mới khi các điều kiện nghiệp vụ khác hợp lệ.
+
+#### E. Deal auto task
+
+- [x] Chuyển Deal sang `consulting` / `contract_pending` / `deposited`.
+- [x] Kiểm tra `/tasks` có task liên quan Deal.
+- [x] Cột Liên kết ưu tiên hiển thị Deal `DL-xxxxx` khi task linked trực tiếp tới Deal.
+- [x] Không tạo trùng active auto task khi thao tác lại.
+
+#### F. Deal reassignment
+
+- [x] Deal có active auto task.
+- [x] Đổi người phụ trách Deal.
+- [x] Active auto task đổi assignee theo owner mới.
+- [x] Task done/cancelled không đổi assignee và không bị reopen.
+
+#### G. Notification
+
+- [x] Đổi assignee Deal hoặc tạo Deal auto task.
+- [x] User nhận có notification in-app.
+- [x] Header unread badge đúng.
+- [x] `/notifications` không lỗi.
+
+#### H. Search
+
+- [x] Search `deal_code`.
+- [x] Search `booking_code`.
+- [x] Search `contract_code`.
+- [x] Search customer phone.
+- [x] Search `property_code`.
+- [x] Không lỗi 500 và không tái diễn TooManyColumns.
+
+### Sprint 15 regression expectations
+
+- [x] Deal có Contract `signed`/`active` không thể lost/cancelled.
+- [x] Deal có Contract `completed` không thể chuyển khỏi completed/won.
+- [x] Cancelled Contract không khóa Deal.
+- [x] Contract completed auto chuyển Deal completed/won và ghi timeline tiếng Việt.
+- [x] Deal lost/cancelled bắt buộc reason.
+- [x] Deal stage/status timeline dùng label tiếng Việt.
+- [x] Deal auto task không trùng.
+- [x] Deal đổi assignee thì active auto task đổi assignee.
+- [x] Task done/cancelled không bị đổi assignee.
+- [x] Deal search/list dùng query narrow, không joinedload rộng object graph.

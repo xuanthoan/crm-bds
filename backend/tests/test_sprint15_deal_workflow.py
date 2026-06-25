@@ -36,8 +36,15 @@ class Sprint15DealWorkflowSourceTests(unittest.TestCase):
     def test_frontend_labels_and_task_link_precedence(self):
         constants = Path('frontend/src/features/deals/constants.ts').read_text()
         table = Path('frontend/src/features/tasks/components/TaskTable.tsx').read_text()
-        self.assertIn("deposited:'Đã đặt cọc'", constants)
-        self.assertIn("contract_pending:'Chờ ký hợp đồng'", constants)
+        badge = Path('frontend/src/features/deals/components/DealBadge.tsx').read_text()
+        types = Path('frontend/src/features/deals/types.ts').read_text()
+        for needle in ("deposited: 'Đã đặt cọc'", "deposit: 'Đã đặt cọc'", "contract_pending: 'Chờ ký hợp đồng'", "contract: 'Chờ ký hợp đồng'", "contracted: 'Đã ký'", "signed: 'Đã ký'", "active: 'Có hiệu lực'"):
+            self.assertIn(needle, constants)
+        for status in ('payment_pending', 'payment', 'signed', 'active'):
+            self.assertIn(status, types)
+            self.assertIn(status + ':', badge)
+        for tone_map in ('DEAL_STAGE_BADGE_TONES: Record<DealStage, BadgeTone>', 'DEAL_STATUS_BADGE_TONES: Record<DealStatus, BadgeTone>'):
+            self.assertIn(tone_map, badge)
         self.assertIn('if(x.related_deal_id)', table)
         self.assertLess(table.index('if(x.related_contract_id)'), table.index('if(x.related_deal_id)'))
 
