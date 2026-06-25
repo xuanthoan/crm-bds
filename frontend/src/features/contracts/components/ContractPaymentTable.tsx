@@ -7,7 +7,7 @@ export function ContractPaymentTable({ items }: { items: ContractPayment[] }) {
   return (
     <div className="table-scroll">
       <table>
-        <thead><tr><th>Mã thanh toán cũ</th><th>Số tiền</th><th>Loại</th><th>Trạng thái</th><th>Hạn thanh toán</th><th>Ngày thanh toán</th><th>Phương thức</th><th>Mã tham chiếu</th></tr></thead>
+        <thead><tr><th>Mã thanh toán</th><th>Số tiền</th><th>Loại</th><th>Trạng thái</th><th>Hạn thanh toán</th><th>Ngày thanh toán</th><th>Phương thức</th><th>Mã tham chiếu</th></tr></thead>
         <tbody>
           {items.map((payment) => (
             <tr key={payment.id}>
@@ -21,7 +21,7 @@ export function ContractPaymentTable({ items }: { items: ContractPayment[] }) {
               <td>{payment.reference_number || 'Chưa cập nhật'}</td>
             </tr>
           ))}
-          {!items.length && <tr><td colSpan={8} className="empty-cell">Không có dữ liệu thanh toán cũ.</td></tr>}
+          {!items.length && <tr><td colSpan={8} className="empty-cell">Không có khoản thanh toán.</td></tr>}
         </tbody>
       </table>
     </div>

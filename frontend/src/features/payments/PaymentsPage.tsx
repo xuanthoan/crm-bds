@@ -39,7 +39,7 @@ export function PaymentsPage() {
         <div>
           <p>Quản lý thanh toán</p>
           <h1>Lịch thanh toán</h1>
-          <span>Trang này hiển thị lịch thanh toán Sprint 16. Các khoản PAY cũ vẫn nằm trong chi tiết Hợp đồng để đối chiếu dữ liệu cũ.</span>
+          <span>Quản lý các đợt thanh toán theo hợp đồng.</span>
         </div>
       </header>
       {errors.length > 0 && <div className="form-error">{errors.join('. ')}</div>}
@@ -52,7 +52,7 @@ export function PaymentsPage() {
         <button onClick={() => void load()}>Lọc</button>
       </div>
       <PaymentScheduleForm onSaved={load} />
-      {items.length === 0 && <div className="form-warning">Chưa có lịch thanh toán Sprint 16. Nếu hợp đồng đang có mã PAY cũ, hãy mở chi tiết Hợp đồng để xem mục thanh toán ghi nhận nhanh trước Sprint 16.</div>}
+      {items.length === 0 && <div className="form-warning">Chưa có lịch thanh toán. Hãy tạo lịch thanh toán từ chi tiết hợp đồng hoặc tại đây.</div>}
       <div className="table-wrapper">
         <table>
           <thead><tr><th>Mã lịch thanh toán</th><th>Hợp đồng</th><th>Khách hàng</th><th>Đợt</th><th>Hạn thanh toán</th><th>Phải thu</th><th>Đã thu</th><th>Còn lại</th><th>Phí phạt</th><th>Trạng thái</th><th>Hành động</th></tr></thead>
