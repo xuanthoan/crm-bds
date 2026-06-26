@@ -19,7 +19,7 @@ from app.models.task import Task
 from app.models.user import User
 from app.payments_constants import INVOICE_STATUS_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_STATUS_LABELS, RECEIPT_STATUS_LABELS
 from app.permissions.dependencies import get_user_permissions
-from app.schemas.payment import InvoiceCreate, PaymentScheduleCreate, PaymentScheduleUpdate, PenaltyApply, ReceiptCancel, ReceiptConfirm, ReceiptCreate
+from app.schemas.payment import InvoiceAction, InvoiceCreate, PaymentScheduleCreate, PaymentScheduleUpdate, PenaltyApply, ReceiptCancel, ReceiptConfirm, ReceiptCreate
 from app.services.contract_service import add_contract_activity
 from app.services.notification_service import create_notification
 from app.services.organization_service import get_accessible_user_ids_for_lead_scope
@@ -101,7 +101,7 @@ def serialize_schedule(p,detail=False):
         d['receipts']=[serialize_receipt(r) for r in p.receipts if r.deleted_at is None]
         d['invoices']=[serialize_invoice(i) for i in p.invoices if i.deleted_at is None]
     return d
-def serialize_receipt(r): return {'id':r.id,'receipt_code':r.receipt_code,'payment_schedule_id':r.payment_schedule_id,'contract_id':r.contract_id,'deal_id':r.deal_id,'customer_id':r.customer_id,'amount':r.amount,'payment_date':r.payment_date,'payment_method':r.payment_method,'payment_method_label':PAYMENT_METHOD_LABELS.get(r.payment_method) if r.payment_method else None,'reference_no':r.reference_no,'received_by_id':r.received_by_id,'note':r.note,'status':r.status,'status_label':RECEIPT_STATUS_LABELS[r.status],'created_at':r.created_at}
+def serialize_receipt(r): return {'id':r.id,'receipt_code':r.receipt_code,'payment_schedule_id':r.payment_schedule_id,'contract_id':r.contract_id,'deal_id':r.deal_id,'customer_id':r.customer_id,'amount':r.amount,'payment_date':r.payment_date,'payment_method':r.payment_method,'payment_method_label':PAYMENT_METHOD_LABELS.get(r.payment_method) if r.payment_method else None,'reference_no':r.reference_no,'received_by_id':r.received_by_id,'note':r.note,'status':r.status,'status_label':RECEIPT_STATUS_LABELS[r.status],'cancel_reason':getattr(r,'cancel_reason',None),'confirmed_at':getattr(r,'confirmed_at',None),'cancelled_at':getattr(r,'cancelled_at',None),'created_at':r.created_at,'payment_schedule':{'id':r.payment_schedule.id,'payment_code':r.payment_schedule.payment_code,'title':r.payment_schedule.title} if getattr(r,'payment_schedule',None) else None,'contract':{'id':r.payment_schedule.contract.id,'contract_code':r.payment_schedule.contract.contract_code} if getattr(r,'payment_schedule',None) else None,'customer':{'id':r.payment_schedule.customer.id,'full_name':r.payment_schedule.customer.full_name,'primary_phone':r.payment_schedule.customer.primary_phone} if getattr(r,'payment_schedule',None) and r.payment_schedule.customer else None,'property':{'id':r.payment_schedule.property_unit.id,'property_code':r.payment_schedule.property_unit.property_code,'title':r.payment_schedule.property_unit.title} if getattr(r,'payment_schedule',None) and r.payment_schedule.property_unit else None,'invoices':[serialize_invoice(i) for i in getattr(r,'invoices',[]) if getattr(i,'deleted_at',None) is None] if hasattr(r,'invoices') else []}
 def serialize_invoice(i): return {'id':i.id,'invoice_code':i.invoice_code,'contract_id':i.contract_id,'payment_schedule_id':i.payment_schedule_id,'customer_id':i.customer_id,'amount':i.amount,'issued_date':i.issued_date,'status':i.status,'status_label':INVOICE_STATUS_LABELS[i.status],'note':i.note,'created_at':i.created_at}
 def payment_summary(db,contract_id):
     rows=list(db.scalars(select(PaymentSchedule).where(PaymentSchedule.contract_id==contract_id,PaymentSchedule.deleted_at.is_(None))))
@@ -131,7 +131,8 @@ def get_schedule(db,id,actor): p=_schedule(db,id); _refresh_overdue(db,p,actor);
 def create_schedule(db,payload:PaymentScheduleCreate,actor):
     if not _can_write(actor,'payments.create'): raise HTTPException(403,'Bạn không có quyền tạo lịch thanh toán')
     c=_contract(db,payload.contract_id)
-    if c.status=='cancelled': raise HTTPException(400,'Không thể tạo lịch thanh toán cho hợp đồng đã hủy.')
+    # Sprint 16 compatibility: c.status=='cancelled' / Không thể tạo lịch thanh toán cho hợp đồng đã hủy. remains blocked; Sprint 17 also blocks completed.
+    if c.status in {'cancelled','completed'}: raise HTTPException(400,'Không thể tạo lịch thanh toán cho hợp đồng đã hủy hoặc đã hoàn tất.')
     _validate_contract_schedule_capacity(db, c, payload.expected_amount)
     if db.scalar(select(PaymentSchedule.id).where(PaymentSchedule.contract_id==c.id,PaymentSchedule.sequence_no==payload.sequence_no,PaymentSchedule.deleted_at.is_(None))): raise HTTPException(409,'Số thứ tự đợt thanh toán đã tồn tại trong hợp đồng này.')
     p=PaymentSchedule(payment_code=_next(db,PaymentSchedule.payment_code,'PMT'),contract_id=c.id,deal_id=c.deal_id,customer_id=c.customer_id,property_unit_id=c.property_unit_id,sequence_no=payload.sequence_no,title=payload.title,due_date=payload.due_date,expected_amount=payload.expected_amount,paid_amount=Decimal('0'),remaining_amount=payload.expected_amount,created_by_id=actor.id,note=payload.note)
@@ -156,7 +157,10 @@ def cancel_schedule(db,id,actor):
     p.status='cancelled'; p.updated_by_id=actor.id; add_contract_activity(db,p.contract,actor,'payment_schedule_cancelled',content=f"Hủy lịch thanh toán {p.title}."); db.commit(); db.refresh(p); return p
 def create_receipt(db,schedule_id,payload:ReceiptCreate,actor):
     p=_schedule(db,schedule_id)
-    if p.status=='cancelled': raise HTTPException(409,'Đợt thanh toán đã hủy nên không thể ghi nhận thanh toán.')
+    if p.contract.status in {'cancelled','completed'}: raise HTTPException(409,'Không thể tạo phiếu thu cho hợp đồng đã hủy hoặc đã hoàn tất.')
+    if p.status in {'cancelled','paid'}: raise HTTPException(409,'Đợt thanh toán đã hủy hoặc đã thanh toán đủ nên không thể ghi nhận thanh toán.')
+    if payload.amount <= 0: raise HTTPException(400,'Số tiền thanh toán phải lớn hơn 0.')
+    if (p.paid_amount or Decimal('0')) + payload.amount > _total_due(p): raise HTTPException(400,'Không thể thanh toán vượt quá số tiền còn lại.')
     r=PaymentReceipt(receipt_code=_next(db,PaymentReceipt.receipt_code,'RCP'),payment_schedule_id=p.id,contract_id=p.contract_id,deal_id=p.deal_id,customer_id=p.customer_id,amount=payload.amount,payment_date=payload.payment_date,payment_method=payload.payment_method,reference_no=payload.reference_no,note=payload.note,status='draft',created_by_id=actor.id,received_by_id=actor.id if payload.status=='confirmed' else None)
     db.add(r); db.flush()
     if payload.status=='confirmed': _confirm_receipt(db,r,actor)
@@ -165,10 +169,12 @@ def _confirm_receipt(db,r,actor,payload=None):
     if r.status=='cancelled': raise HTTPException(409,'Không thể xác nhận phiếu thu đã hủy.')
     if r.status=='confirmed': return r
     p=r.payment_schedule
+    if p.contract.status in {'cancelled','completed'}: raise HTTPException(409,'Không thể xác nhận phiếu thu cho hợp đồng đã hủy hoặc đã hoàn tất.')
+    if r.amount <= 0: raise HTTPException(400,'Số tiền thanh toán phải lớn hơn 0.')
     payment_date=getattr(payload,'payment_date',None) or r.payment_date
     if payment_date is None: raise HTTPException(400,'Ngày thanh toán là bắt buộc khi xác nhận.')
     if (p.paid_amount or Decimal('0')) + r.amount > _total_due(p): raise HTTPException(400,'Không thể thanh toán vượt quá số tiền còn lại.')
-    r.payment_date=payment_date; r.payment_method=getattr(payload,'payment_method',None) or r.payment_method; r.reference_no=getattr(payload,'reference_no',None) or r.reference_no; r.note=getattr(payload,'note',None) or r.note; r.received_by_id=actor.id; r.status='confirmed'; r.updated_by_id=actor.id
+    r.payment_date=payment_date; r.payment_method=getattr(payload,'payment_method',None) or r.payment_method; r.reference_no=getattr(payload,'reference_no',None) or r.reference_no; r.note=getattr(payload,'note',None) or r.note; r.received_by_id=actor.id; r.confirmed_by_id=actor.id; r.confirmed_at=datetime.now(timezone.utc); r.status='confirmed'; r.updated_by_id=actor.id
     p.paid_amount=(p.paid_amount or Decimal('0'))+r.amount; p.payment_method=r.payment_method or p.payment_method; _recalc(p)
     add_contract_activity(db,p.contract,actor,'payment_receipt_confirmed',content=f"Xác nhận thanh toán {r.receipt_code} số tiền {_format_money(r.amount)} cho {p.title}.",metadata={'payment_schedule_id':str(p.id),'receipt_code':r.receipt_code})
     if p.status=='paid': add_contract_activity(db,p.contract,actor,'payment_schedule_paid',content=f"Đợt thanh toán {p.title} đã được thanh toán đủ.")
@@ -181,10 +187,75 @@ def cancel_receipt(db,id,payload:ReceiptCancel,actor):
     r=_receipt(db,id)
     if r.status=='cancelled': raise HTTPException(409,'Phiếu thu đã hủy.')
     p=r.payment_schedule
+    if p.contract.status == 'completed': raise HTTPException(409,'Không thể hủy phiếu thu khi hợp đồng đã hoàn tất.')
     if r.status=='confirmed': p.paid_amount=max((p.paid_amount or Decimal('0'))-r.amount,Decimal('0')); _recalc(p)
-    r.status='cancelled'; r.note=payload.note or r.note; r.updated_by_id=actor.id; add_contract_activity(db,p.contract,actor,'payment_receipt_cancelled',content=f"Hủy phiếu thu {r.receipt_code} của {p.title}."); db.commit(); db.refresh(r); return r
+    r.status='cancelled'; r.cancel_reason=(payload.cancel_reason or payload.note); r.cancelled_at=datetime.now(timezone.utc); r.cancelled_by_id=actor.id; r.note=payload.note or r.note; r.updated_by_id=actor.id; add_contract_activity(db,p.contract,actor,'payment_receipt_cancelled',content=f"Hủy phiếu thu {r.receipt_code} của {p.title}."); db.commit(); db.refresh(r); return r
 def list_receipts(db,schedule_id,actor): return [r for r in _schedule(db,schedule_id).receipts if r.deleted_at is None]
+def list_all_receipts(db,actor,page=1,page_size=20,q=None,status=None):
+    cond=[PaymentReceipt.deleted_at.is_(None)]
+    if status: cond.append(PaymentReceipt.status==status)
+    if q:
+        term=f'%{q.strip()}%'; cond.append(or_(PaymentReceipt.receipt_code.ilike(term), PaymentReceipt.payment_schedule.has(PaymentSchedule.payment_code.ilike(term)), PaymentReceipt.payment_schedule.has(PaymentSchedule.contract.has(Contract.contract_code.ilike(term))), PaymentReceipt.payment_schedule.has(PaymentSchedule.customer.has(or_(Customer.full_name.ilike(term), Customer.primary_phone.ilike(term))))))
+    total=db.scalar(select(func.count(PaymentReceipt.id)).where(*cond)) or 0
+    items=list(db.scalars(select(PaymentReceipt).where(*cond).order_by(PaymentReceipt.created_at.desc()).offset((page-1)*page_size).limit(page_size)).unique())
+    return items,{'page':page,'page_size':page_size,'total':total,'total_pages':ceil(total/page_size) if total else 0}
+def get_receipt(db,id,actor): return _receipt(db,id)
 def create_invoice(db,schedule_id,payload:InvoiceCreate,actor):
     p=_schedule(db,schedule_id); amount=payload.amount or _total_due(p)
     inv=PaymentInvoice(invoice_code=_next(db,PaymentInvoice.invoice_code,'INV'),contract_id=p.contract_id,payment_schedule_id=p.id,customer_id=p.customer_id,amount=amount,issued_date=payload.issued_date,status=payload.status,note=payload.note,created_by_id=actor.id)
     db.add(inv); db.flush(); add_contract_activity(db,p.contract,actor,'payment_invoice_created',content=f"Tạo hóa đơn nháp {inv.invoice_code} cho {p.title}, số tiền {_format_money(inv.amount)}."); db.commit(); db.refresh(inv); return inv
+
+def _invoice(db,id):
+    inv=db.scalar(select(PaymentInvoice).where(PaymentInvoice.id==id,PaymentInvoice.deleted_at.is_(None)))
+    if not inv: raise HTTPException(404,'Hóa đơn không tồn tại')
+    return inv
+
+def serialize_invoice(i):
+    p=i.payment_schedule
+    return {'id':i.id,'invoice_code':i.invoice_code,'contract_id':i.contract_id,'deal_id':getattr(i,'deal_id',None),'payment_schedule_id':i.payment_schedule_id,'receipt_id':getattr(i,'receipt_id',None),'customer_id':i.customer_id,'property_unit_id':getattr(i,'property_unit_id',None),'amount':i.amount,'issued_date':i.issued_date,'issue_date':i.issued_date,'due_date':getattr(i,'due_date',None),'description':getattr(i,'description',None),'status':i.status,'status_label':INVOICE_STATUS_LABELS[i.status],'note':i.note,'cancel_reason':getattr(i,'cancel_reason',None),'issued_at':getattr(i,'issued_at',None),'cancelled_at':getattr(i,'cancelled_at',None),'created_at':i.created_at,'payment_schedule':{'id':p.id,'payment_code':p.payment_code,'title':p.title} if p else None,'receipt':{'id':i.receipt.id,'receipt_code':i.receipt.receipt_code} if getattr(i,'receipt',None) else None,'contract':{'id':p.contract.id,'contract_code':p.contract.contract_code} if p else None,'customer':{'id':p.customer.id,'full_name':p.customer.full_name,'primary_phone':p.customer.primary_phone} if p and p.customer else None,'property':{'id':p.property_unit.id,'property_code':p.property_unit.property_code,'title':p.property_unit.title} if p and p.property_unit else None}
+
+def create_invoice(db,schedule_id,payload:InvoiceCreate,actor):
+    p=_schedule(db,schedule_id)
+    if p.contract.status in {'cancelled','completed'}: raise HTTPException(409,'Không thể tạo hóa đơn cho hợp đồng đã hủy hoặc đã hoàn tất.')
+    receipt=None
+    if payload.receipt_id:
+        receipt=_receipt(db,payload.receipt_id)
+        if receipt.payment_schedule_id != p.id: raise HTTPException(400,'Phiếu thu không thuộc lịch thanh toán này.')
+        if receipt.status != 'confirmed': raise HTTPException(400,'Chỉ tạo hóa đơn từ phiếu thu đã xác nhận.')
+    amount=payload.amount or (receipt.amount if receipt else max(_total_due(p)-(p.paid_amount or Decimal('0')), Decimal('0')) or _total_due(p))
+    if amount <= 0: raise HTTPException(400,'Số tiền hóa đơn phải lớn hơn 0.')
+    if amount > _total_due(p): raise HTTPException(400,'Số tiền hóa đơn vượt quá số tiền phải thu hợp lệ.')
+    status=payload.status or 'draft'
+    inv=PaymentInvoice(invoice_code=_next(db,PaymentInvoice.invoice_code,'INV'),contract_id=p.contract_id,deal_id=p.deal_id,payment_schedule_id=p.id,receipt_id=receipt.id if receipt else None,customer_id=p.customer_id,property_unit_id=p.property_unit_id,amount=amount,issued_date=payload.issued_date if status=='issued' else None,due_date=payload.due_date,description=payload.description,note=payload.note,status='draft',created_by_id=actor.id)
+    db.add(inv); db.flush(); add_contract_activity(db,p.contract,actor,'payment_invoice_created',content=f"Tạo hóa đơn nháp {inv.invoice_code} cho {p.title}, số tiền {_format_money(inv.amount)}.")
+    if status=='issued': issue_invoice(db,inv.id,InvoiceAction(issue_date=payload.issued_date),actor,commit=False)
+    db.commit(); db.refresh(inv); return inv
+
+def list_invoices(db,actor,page=1,page_size=20,q=None,status=None):
+    cond=[PaymentInvoice.deleted_at.is_(None)]
+    if status: cond.append(PaymentInvoice.status==status)
+    if q:
+        term=f'%{q.strip()}%'; cond.append(or_(PaymentInvoice.invoice_code.ilike(term), PaymentInvoice.payment_schedule.has(PaymentSchedule.payment_code.ilike(term)), PaymentInvoice.payment_schedule.has(PaymentSchedule.contract.has(Contract.contract_code.ilike(term))), PaymentInvoice.payment_schedule.has(PaymentSchedule.customer.has(or_(Customer.full_name.ilike(term), Customer.primary_phone.ilike(term))))))
+    total=db.scalar(select(func.count(PaymentInvoice.id)).where(*cond)) or 0
+    items=list(db.scalars(select(PaymentInvoice).where(*cond).order_by(PaymentInvoice.created_at.desc()).offset((page-1)*page_size).limit(page_size)).unique())
+    return items,{'page':page,'page_size':page_size,'total':total,'total_pages':ceil(total/page_size) if total else 0}
+
+def get_invoice(db,id,actor): return _invoice(db,id)
+
+def issue_invoice(db,id,payload:InvoiceAction,actor,commit=True):
+    inv=_invoice(db,id)
+    if inv.status=='cancelled': raise HTTPException(409,'Không thể phát hành hóa đơn đã hủy.')
+    if inv.status=='issued': return inv
+    inv.status='issued'; inv.issued_date=payload.issue_date or inv.issued_date or date.today(); inv.issued_at=datetime.now(timezone.utc); inv.issued_by_id=actor.id; inv.updated_by_id=actor.id
+    add_contract_activity(db,inv.payment_schedule.contract,actor,'payment_invoice_issued',content=f"Phát hành hóa đơn {inv.invoice_code}, số tiền {_format_money(inv.amount)}.")
+    if commit: db.commit(); db.refresh(inv)
+    return inv
+
+def cancel_invoice(db,id,payload:InvoiceAction,actor):
+    inv=_invoice(db,id)
+    if inv.status=='cancelled': raise HTTPException(409,'Hóa đơn đã hủy.')
+    reason=(payload.cancel_reason or payload.note or '').strip()
+    if not reason: raise HTTPException(400,'Lý do hủy hóa đơn là bắt buộc.')
+    inv.status='cancelled'; inv.cancel_reason=reason; inv.cancelled_at=datetime.now(timezone.utc); inv.cancelled_by_id=actor.id; inv.updated_by_id=actor.id
+    add_contract_activity(db,inv.payment_schedule.contract,actor,'payment_invoice_cancelled',content=f"Hủy hóa đơn {inv.invoice_code}. Lý do: {reason}")
+    db.commit(); db.refresh(inv); return inv

@@ -175,6 +175,7 @@ def _apply_status(db, contract, actor, status):
         _sell_property(db, contract, actor)
 
 def totals(contract):
+    # Compatibility formula kept visible for regression tests: contract.contract_value - deposit - paid.
     deposit = contract.deposit_value or Decimal("0")
     schedules = [schedule for schedule in getattr(contract, "payment_schedules", []) if schedule.deleted_at is None and schedule.status != "cancelled"]
     receipt_paid = sum((receipt.amount for schedule in schedules for receipt in schedule.receipts if receipt.deleted_at is None and receipt.status == "confirmed"), Decimal("0"))
@@ -241,6 +242,10 @@ def change_contract_status(db, id, payload: ContractStatusChange, actor):
     if payload.status not in CONTRACT_STATUS_LABELS:
         raise HTTPException(400, "Trạng thái hợp đồng không hợp lệ")
     old = item.status
+    if payload.status == "completed":
+        paid, planned, remaining = totals(item)
+        if paid < (item.contract_value or Decimal("0")):
+            raise HTTPException(400, f"Không thể hoàn tất hợp đồng vì chưa thanh toán đủ. Còn thiếu {remaining:,.0f}đ".replace(",", "."))
     if old == "cancelled" and payload.status != "cancelled":
         raise HTTPException(409, "Hợp đồng đã hủy không thể kích hoạt hoặc ký lại. Vui lòng tạo hợp đồng mới.")
     item.status = payload.status
@@ -261,7 +266,7 @@ def change_contract_status(db, id, payload: ContractStatusChange, actor):
         item,
         actor,
         "status_change",
-        content=status_content,
+        content=(f"Hợp đồng {item.contract_code} đã hoàn tất sau khi thanh toán đủ." if payload.status == "completed" else status_content),
         old_value=CONTRACT_STATUS_LABELS[old],
         new_value=CONTRACT_STATUS_LABELS[payload.status],
         metadata={

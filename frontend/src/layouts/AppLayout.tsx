@@ -62,7 +62,7 @@ export function AppLayout({ children, currentPath }: AppLayoutProps) {
     return (
       <a
         href={path}
-        className={currentPath === path || (path === '/customers' && /^\/customers\/[^/]+$/.test(currentPath)) || (path === '/leads' && /^\/leads\/[^/]+$/.test(currentPath)) || (path === '/deals' && /^\/deals\/[^/]+$/.test(currentPath)) || (path === '/projects' && /^\/projects\/[^/]+$/.test(currentPath)) || (path === '/properties' && /^\/properties\/[^/]+$/.test(currentPath)) || (path === '/bookings' && /^\/bookings\/[^/]+$/.test(currentPath)) || (path === '/contracts' && /^\/contracts\/[^/]+$/.test(currentPath)) || (path === '/payments' && /^\/payments\/[^/]+$/.test(currentPath)) ? 'active' : ''}
+        className={currentPath === path || (path === '/customers' && /^\/customers\/[^/]+$/.test(currentPath)) || (path === '/leads' && /^\/leads\/[^/]+$/.test(currentPath)) || (path === '/deals' && /^\/deals\/[^/]+$/.test(currentPath)) || (path === '/projects' && /^\/projects\/[^/]+$/.test(currentPath)) || (path === '/properties' && /^\/properties\/[^/]+$/.test(currentPath)) || (path === '/bookings' && /^\/bookings\/[^/]+$/.test(currentPath)) || (path === '/contracts' && /^\/contracts\/[^/]+$/.test(currentPath)) || ((path === '/payments' && /^\/payments\/[^/]+$/.test(currentPath)) || (path === '/receipts' && /^\/receipts\/[^/]+$/.test(currentPath)) || (path === '/invoices' && /^\/invoices\/[^/]+$/.test(currentPath))) ? 'active' : ''}
         onClick={(event: any) => {
           event.preventDefault();
           navigateTo(path);
@@ -87,7 +87,7 @@ export function AppLayout({ children, currentPath }: AppLayoutProps) {
               {canViewDeals && <div>{renderLink('Giao dịch', '/deals')}</div>}
               {canViewBookings && <div>{renderLink('Booking / Giữ chỗ', '/bookings')}</div>}
               {canViewContracts && <div>{renderLink('Hợp đồng', '/contracts')}</div>}
-              {canViewPayments && <div>{renderLink('Thanh toán', '/payments')}</div>}
+              {canViewPayments && <><div>{renderLink('Thanh toán', '/payments')}</div><div>{renderLink('Phiếu thu', '/receipts')}</div><div>{renderLink('Hóa đơn', '/invoices')}</div></>}
               {(can('tasks.view') || can('tasks.view_all')) && <><div>{renderLink('Công việc', '/tasks')}</div><div>{renderLink('Việc hôm nay', '/tasks/today')}</div><div>{renderLink('Việc quá hạn', '/tasks/overdue')}</div></>}
               {(can('lead_appointments.view.own') || can('lead_appointments.view.team') || can('lead_appointments.view.all')) && <><div>{renderLink('Lịch hẹn', '/appointments')}</div><div>{renderLink('Lịch hẹn hôm nay', '/appointments/today')}</div></>}
             </div>
