@@ -73,6 +73,21 @@ def _create_overdue_task_notification(db,p,actor):
     if assignee and not existing: create_notification(db,recipient_user_id=assignee,title='Đợt thanh toán đã quá hạn',content=f"{p.title} của hợp đồng {p.contract.contract_code} đã quá hạn.",notification_type='payment_overdue',related_task_id=task.id if task else None,related_contract_id=p.contract_id,related_deal_id=p.deal_id,related_customer_id=p.customer_id,related_property_unit_id=p.property_unit_id)
     return task
 
+
+def _validate_contract_schedule_capacity(db, contract, amount, *, exclude_schedule_id=None):
+    if not contract.contract_value or contract.contract_value <= 0:
+        raise HTTPException(400, 'Hợp đồng chưa có giá trị hợp đồng hợp lệ.')
+    conditions = [
+        PaymentSchedule.contract_id == contract.id,
+        PaymentSchedule.deleted_at.is_(None),
+        PaymentSchedule.status != 'cancelled',
+    ]
+    if exclude_schedule_id is not None:
+        conditions.append(PaymentSchedule.id != exclude_schedule_id)
+    current_total = db.scalar(select(func.coalesce(func.sum(PaymentSchedule.expected_amount), 0)).where(*conditions)) or Decimal('0')
+    if Decimal(current_total) + amount > contract.contract_value:
+        raise HTTPException(400, 'Tổng lịch thanh toán không được vượt quá giá trị hợp đồng.')
+
 def serialize_schedule(p,detail=False):
     _recalc(p)
     d={'id':p.id,'payment_code':p.payment_code,'contract_id':p.contract_id,'deal_id':p.deal_id,'customer_id':p.customer_id,'property_unit_id':p.property_unit_id,'sequence_no':p.sequence_no,'title':p.title,'due_date':p.due_date,'expected_amount':p.expected_amount,'paid_amount':p.paid_amount,'remaining_amount':p.remaining_amount,'penalty_amount':p.penalty_amount,'penalty_reason':p.penalty_reason,'penalty_applied_at':p.penalty_applied_at,'status':p.status,'status_label':PAYMENT_STATUS_LABELS[p.status],'payment_method':p.payment_method,'payment_method_label':PAYMENT_METHOD_LABELS.get(p.payment_method) if p.payment_method else None,'note':p.note,'contract':{'id':p.contract.id,'contract_code':p.contract.contract_code,'status':p.contract.status,'status_label':CONTRACT_STATUS_LABELS[p.contract.status]},'deal':{'id':p.deal.id,'deal_code':p.deal.deal_code,'title':p.deal.title} if p.deal else None,'customer':{'id':p.customer.id,'customer_code':p.customer.customer_code,'full_name':p.customer.full_name,'primary_phone':p.customer.primary_phone} if p.customer else None,'property':{'id':p.property_unit.id,'property_code':p.property_unit.property_code,'title':p.property_unit.title} if p.property_unit else None,'created_at':p.created_at,'updated_at':p.updated_at}
@@ -111,6 +126,7 @@ def create_schedule(db,payload:PaymentScheduleCreate,actor):
     if not _can_write(actor,'payments.create'): raise HTTPException(403,'Bạn không có quyền tạo lịch thanh toán')
     c=_contract(db,payload.contract_id)
     if c.status=='cancelled': raise HTTPException(400,'Không thể tạo lịch thanh toán cho hợp đồng đã hủy.')
+    _validate_contract_schedule_capacity(db, c, payload.expected_amount)
     if db.scalar(select(PaymentSchedule.id).where(PaymentSchedule.contract_id==c.id,PaymentSchedule.sequence_no==payload.sequence_no,PaymentSchedule.deleted_at.is_(None))): raise HTTPException(409,'Số thứ tự đợt thanh toán đã tồn tại trong hợp đồng này.')
     p=PaymentSchedule(payment_code=_next(db,PaymentSchedule.payment_code,'PMT'),contract_id=c.id,deal_id=c.deal_id,customer_id=c.customer_id,property_unit_id=c.property_unit_id,sequence_no=payload.sequence_no,title=payload.title,due_date=payload.due_date,expected_amount=payload.expected_amount,paid_amount=Decimal('0'),remaining_amount=payload.expected_amount,created_by_id=actor.id,note=payload.note)
     db.add(p); db.flush(); add_contract_activity(db,c,actor,'payment_schedule_created',content=f"Tạo lịch thanh toán {p.title}, số tiền {_format_money(p.expected_amount)}, hạn {p.due_date.strftime('%d/%m/%Y')}.",metadata={'payment_schedule_id':str(p.id),'payment_code':p.payment_code}); _create_due_task(db,p,actor); _refresh_overdue(db,p,actor); db.commit(); db.refresh(p); return p
@@ -120,6 +136,7 @@ def update_schedule(db,id,payload:PaymentScheduleUpdate,actor):
     if p.status in {'paid','cancelled'}: raise HTTPException(409,'Không thể sửa đợt thanh toán đã thanh toán đủ hoặc đã hủy.')
     data=payload.model_dump(exclude_unset=True)
     if 'sequence_no' in data and data['sequence_no']!=p.sequence_no and db.scalar(select(PaymentSchedule.id).where(PaymentSchedule.contract_id==p.contract_id,PaymentSchedule.sequence_no==data['sequence_no'],PaymentSchedule.id!=p.id,PaymentSchedule.deleted_at.is_(None))): raise HTTPException(409,'Số thứ tự đợt thanh toán đã tồn tại trong hợp đồng này.')
+    _validate_contract_schedule_capacity(db, p.contract, data.get('expected_amount', p.expected_amount), exclude_schedule_id=p.id)
     for k,v in data.items(): setattr(p,k,v)
     _recalc(p); p.updated_by_id=actor.id; add_contract_activity(db,p.contract,actor,'payment_schedule_updated',content=f"Cập nhật lịch thanh toán {p.title}.",metadata={'payment_schedule_id':str(p.id),'payment_code':p.payment_code}); _refresh_overdue(db,p,actor); db.commit(); db.refresh(p); return p
 def apply_penalty(db,id,payload:PenaltyApply,actor):

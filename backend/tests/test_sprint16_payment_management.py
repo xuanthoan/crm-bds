@@ -45,6 +45,24 @@ class Sprint16PaymentManagementSourceTest(unittest.TestCase):
         self.assertIn('selectinload', service)
         self.assertNotIn('joinedload', service)
         self.assertIn('load_only', service)
+
+    def test_schedule_total_cannot_exceed_contract_value(self):
+        service=read('backend/app/services/payment_service.py')
+        self.assertIn('Hợp đồng chưa có giá trị hợp đồng hợp lệ.', service)
+        self.assertIn('Tổng lịch thanh toán không được vượt quá giá trị hợp đồng.', service)
+        self.assertIn("PaymentSchedule.status != 'cancelled'", service)
+        self.assertIn('exclude_schedule_id=p.id', service)
+        self.assertIn('contract.contract_value', service)
+
+    def test_payments_page_contract_selector_is_friendly(self):
+        form=read('frontend/src/features/payments/PaymentForms.tsx')
+        self.assertIn('Tìm hợp đồng theo mã HD, SĐT khách hàng hoặc mã deal', form)
+        self.assertIn('Chọn hợp đồng', form)
+        self.assertIn('Vui lòng chọn hợp đồng.', form)
+        self.assertIn('Giá trị hợp đồng', form)
+        self.assertIn('Tổng đã lập lịch', form)
+        self.assertIn('Còn có thể lập lịch', form)
+
     def test_frontend_vietnamese_labels_complete(self):
         constants=read('frontend/src/features/payments/constants.ts')
         for status in ('pending','partial','paid','overdue','cancelled'):

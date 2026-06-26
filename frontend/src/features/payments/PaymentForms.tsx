@@ -1,21 +1,30 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { listContracts } from '../contracts/api';
 import type { Contract } from '../contracts/types';
 import { formatApiError } from '../../services/apiClient';
-import { applyPenalty, createInvoice, createPaymentSchedule, createReceipt } from './api';
+import { applyPenalty, contractPaymentSummary, createInvoice, createPaymentSchedule, createReceipt } from './api';
+
+const money = (value: number) => `${new Intl.NumberFormat('vi-VN').format(value || 0)}đ`;
 
 type PaymentScheduleFormProps = {
   contractId?: string;
   contractLabel?: string;
+  contractValue?: number;
+  scheduledTotal?: number;
   onSaved: () => void;
 };
 
-export function PaymentScheduleForm({ contractId, contractLabel, onSaved }: PaymentScheduleFormProps) {
+export function PaymentScheduleForm({ contractId, contractLabel, contractValue, scheduledTotal, onSaved }: PaymentScheduleFormProps) {
   const [form, setForm] = useState({ contract_id: contractId || '', sequence_no: '', title: '', due_date: '', expected_amount: '', note: '' });
   const [contractSearch, setContractSearch] = useState('');
   const [contracts, setContracts] = useState<Contract[]>([]);
+  const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
+  const [selectedScheduledTotal, setSelectedScheduledTotal] = useState<number>(scheduledTotal || 0);
   const [errors, setErrors] = useState<string[]>([]);
+
+  const effectiveContractValue = contractValue ?? selectedContract?.contract_value ?? 0;
+  const remainingSchedulable = Math.max(effectiveContractValue - selectedScheduledTotal, 0);
 
   const loadContracts = useCallback(async () => {
     if (contractId) return;
@@ -33,13 +42,30 @@ export function PaymentScheduleForm({ contractId, contractLabel, onSaved }: Paym
     void loadContracts();
   }, [loadContracts]);
 
+  useEffect(() => {
+    setForm((current) => ({ ...current, contract_id: contractId || current.contract_id }));
+    setSelectedScheduledTotal(scheduledTotal || 0);
+  }, [contractId, scheduledTotal]);
+
+  useEffect(() => {
+    if (!form.contract_id || contractId) return;
+    const contract = contracts.find((item) => item.id === form.contract_id) || null;
+    setSelectedContract(contract);
+    if (!contract) return;
+    void contractPaymentSummary(contract.id)
+      .then((response) => setSelectedScheduledTotal(Number(response.data.total_expected || 0)))
+      .catch((error) => setErrors(formatApiError(error)));
+  }, [contracts, contractId, form.contract_id]);
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!form.contract_id) return setErrors(['Vui lòng chọn hợp đồng.']);
-    if (Number(form.expected_amount) <= 0) return setErrors(['Số tiền phải thu phải lớn hơn 0.']);
+    const expectedAmount = Number(form.expected_amount);
+    if (expectedAmount <= 0) return setErrors(['Số tiền phải thu phải lớn hơn 0.']);
     if (!form.due_date) return setErrors(['Ngày đến hạn là bắt buộc.']);
+    if (effectiveContractValue > 0 && expectedAmount > remainingSchedulable) return setErrors(['Tổng lịch thanh toán không được vượt quá giá trị hợp đồng.']);
     try {
-      await createPaymentSchedule({ ...form, sequence_no: Number(form.sequence_no), expected_amount: Number(form.expected_amount) });
+      await createPaymentSchedule({ ...form, sequence_no: Number(form.sequence_no), expected_amount: expectedAmount });
       setForm({ contract_id: contractId || '', sequence_no: '', title: '', due_date: '', expected_amount: '', note: '' });
       setErrors([]);
       onSaved();
@@ -47,6 +73,12 @@ export function PaymentScheduleForm({ contractId, contractLabel, onSaved }: Paym
       setErrors(formatApiError(error));
     }
   }
+
+  const contractOptions = useMemo(() => contracts.map((contract) => (
+    <option key={contract.id} value={contract.id}>
+      {contract.contract_code} · {contract.customer.full_name} · {contract.customer.primary_phone || 'Chưa có SĐT'} · {contract.deal.deal_code}
+    </option>
+  )), [contracts]);
 
   return (
     <form onSubmit={submit} className="inline-form">
@@ -56,27 +88,20 @@ export function PaymentScheduleForm({ contractId, contractLabel, onSaved }: Paym
         <p className="helper-text">Hợp đồng: {contractLabel || 'Hợp đồng hiện tại'}</p>
       ) : (
         <>
-          <input
-            placeholder="Tìm hợp đồng theo mã HD, SĐT khách hàng hoặc mã deal"
-            value={contractSearch}
-            onChange={(event) => setContractSearch(event.target.value)}
-          />
+          <input placeholder="Tìm hợp đồng theo mã HD, SĐT khách hàng hoặc mã deal" value={contractSearch} onChange={(event) => setContractSearch(event.target.value)} />
           <select value={form.contract_id} onChange={(event) => setForm({ ...form, contract_id: event.target.value })}>
             <option value="">Chọn hợp đồng</option>
-            {contracts.map((contract) => (
-              <option key={contract.id} value={contract.id}>
-                {contract.contract_code} · {contract.customer.full_name} · {contract.customer.primary_phone || 'Chưa có SĐT'} · {contract.deal.deal_code}
-              </option>
-            ))}
+            {contractOptions}
           </select>
         </>
       )}
+      {effectiveContractValue > 0 && <dl className="info-grid"><div><dt>Giá trị hợp đồng</dt><dd>{money(effectiveContractValue)}</dd></div><div><dt>Tổng đã lập lịch</dt><dd>{money(selectedScheduledTotal)}</dd></div><div><dt>Còn có thể lập lịch</dt><dd>{money(remainingSchedulable)}</dd></div></dl>}
       <input type="number" placeholder="Số thứ tự đợt" value={form.sequence_no} onChange={(event) => setForm({ ...form, sequence_no: event.target.value })} />
       <input placeholder="Tên đợt thanh toán" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
       <input type="date" value={form.due_date} onChange={(event) => setForm({ ...form, due_date: event.target.value })} />
       <input type="number" placeholder="Số tiền phải thu" value={form.expected_amount} onChange={(event) => setForm({ ...form, expected_amount: event.target.value })} />
       <input placeholder="Ghi chú" value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} />
-      <button type="submit">Tạo lịch thanh toán</button>
+      <button type="submit" disabled={!form.contract_id}>Tạo lịch thanh toán</button>
     </form>
   );
 }
