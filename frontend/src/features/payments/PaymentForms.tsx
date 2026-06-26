@@ -28,6 +28,8 @@ export function PaymentScheduleForm({ contractId, contractLabel, contractValue, 
   const effectiveDepositAmount = depositAmount ?? selectedContract?.deposit_amount ?? selectedContract?.deposit_value ?? 0;
   const schedulableAmount = Math.max(effectiveContractValue - effectiveDepositAmount, 0);
   const remainingSchedulable = Math.max(schedulableAmount - selectedScheduledTotal, 0);
+  const hasSelectedContract = Boolean(form.contract_id);
+  const hasFullyScheduledContract = hasSelectedContract && effectiveContractValue > 0 && remainingSchedulable <= 0;
 
   const loadContracts = useCallback(async () => {
     if (contractId) return;
@@ -63,6 +65,7 @@ export function PaymentScheduleForm({ contractId, contractLabel, contractValue, 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!form.contract_id) return setErrors(['Vui lòng chọn hợp đồng.']);
+    if (hasFullyScheduledContract) return setErrors(['Hợp đồng này đã lập đủ lịch thanh toán.']);
     const expectedAmount = Number(form.expected_amount);
     if (expectedAmount <= 0) return setErrors(['Số tiền phải thu phải lớn hơn 0.']);
     if (!form.due_date) return setErrors(['Ngày đến hạn là bắt buộc.']);
@@ -99,12 +102,14 @@ export function PaymentScheduleForm({ contractId, contractLabel, contractValue, 
         </>
       )}
       {effectiveContractValue > 0 && <dl className="info-grid"><div><dt>Giá trị hợp đồng</dt><dd>{money(effectiveContractValue)}</dd></div><div><dt>Tiền cọc đã ghi nhận</dt><dd>{money(effectiveDepositAmount)}</dd></div><div><dt>Còn phải lập lịch</dt><dd>{money(schedulableAmount)}</dd></div><div><dt>Tổng đã lập lịch</dt><dd>{money(selectedScheduledTotal)}</dd></div><div><dt>Còn có thể lập lịch</dt><dd>{money(remainingSchedulable)}</dd></div></dl>}
-      <input type="number" placeholder="Số thứ tự đợt" value={form.sequence_no} onChange={(event) => setForm({ ...form, sequence_no: event.target.value })} />
-      <input placeholder="Tên đợt thanh toán" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
-      <input type="date" value={form.due_date} onChange={(event) => setForm({ ...form, due_date: event.target.value })} />
-      <input type="number" placeholder="Số tiền phải thu" value={form.expected_amount} onChange={(event) => setForm({ ...form, expected_amount: event.target.value })} />
-      <input placeholder="Ghi chú" value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} />
-      <button type="submit" disabled={!form.contract_id}>Tạo lịch thanh toán</button>
+      {hasFullyScheduledContract ? <div className="form-warning">Hợp đồng này đã lập đủ lịch thanh toán.</div> : <>
+        <input type="number" placeholder="Số thứ tự đợt" value={form.sequence_no} onChange={(event) => setForm({ ...form, sequence_no: event.target.value })} />
+        <input placeholder="Tên đợt thanh toán" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
+        <input type="date" value={form.due_date} onChange={(event) => setForm({ ...form, due_date: event.target.value })} />
+        <input type="number" placeholder="Số tiền phải thu" value={form.expected_amount} onChange={(event) => setForm({ ...form, expected_amount: event.target.value })} />
+        <input placeholder="Ghi chú" value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} />
+        <button type="submit" disabled={!form.contract_id}>Tạo lịch thanh toán</button>
+      </>}
     </form>
   );
 }
