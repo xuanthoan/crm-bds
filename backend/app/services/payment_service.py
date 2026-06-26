@@ -74,9 +74,15 @@ def _create_overdue_task_notification(db,p,actor):
     return task
 
 
+def _schedulable_amount(contract):
+    return (contract.contract_value or Decimal('0')) - (contract.deposit_value or Decimal('0'))
+
 def _validate_contract_schedule_capacity(db, contract, amount, *, exclude_schedule_id=None):
     if not contract.contract_value or contract.contract_value <= 0:
         raise HTTPException(400, 'Hợp đồng chưa có giá trị hợp đồng hợp lệ.')
+    schedulable_amount = _schedulable_amount(contract)
+    if schedulable_amount <= 0:
+        raise HTTPException(400, 'Tổng lịch thanh toán không được vượt quá số tiền còn phải thu sau cọc.')
     conditions = [
         PaymentSchedule.contract_id == contract.id,
         PaymentSchedule.deleted_at.is_(None),
@@ -85,8 +91,8 @@ def _validate_contract_schedule_capacity(db, contract, amount, *, exclude_schedu
     if exclude_schedule_id is not None:
         conditions.append(PaymentSchedule.id != exclude_schedule_id)
     current_total = db.scalar(select(func.coalesce(func.sum(PaymentSchedule.expected_amount), 0)).where(*conditions)) or Decimal('0')
-    if Decimal(current_total) + amount > contract.contract_value:
-        raise HTTPException(400, 'Tổng lịch thanh toán không được vượt quá giá trị hợp đồng.')
+    if Decimal(current_total) + amount > schedulable_amount:
+        raise HTTPException(400, 'Tổng lịch thanh toán không được vượt quá số tiền còn phải thu sau cọc.')
 
 def serialize_schedule(p,detail=False):
     _recalc(p)
@@ -100,7 +106,7 @@ def serialize_invoice(i): return {'id':i.id,'invoice_code':i.invoice_code,'contr
 def payment_summary(db,contract_id):
     rows=list(db.scalars(select(PaymentSchedule).where(PaymentSchedule.contract_id==contract_id,PaymentSchedule.deleted_at.is_(None))))
     for p in rows: _recalc(p)
-    return {'total_expected':sum((_total_due(p) for p in rows),Decimal('0')),'total_paid':sum((p.paid_amount for p in rows),Decimal('0')),'total_remaining':sum((p.remaining_amount for p in rows),Decimal('0')),'overdue_count':sum(1 for p in rows if p.status=='overdue')}
+    active=[p for p in rows if p.status!='cancelled']; return {'total_expected':sum((p.expected_amount for p in active),Decimal('0')),'total_paid':sum((p.paid_amount for p in active),Decimal('0')),'total_remaining':sum((p.remaining_amount for p in active),Decimal('0')),'overdue_count':sum(1 for p in active if p.status=='overdue')}
 def list_schedules(db,actor,page=1,page_size=20,q=None,status=None,contract_id=None,deal_id=None,customer_id=None,overdue=None):
     scope=_scope(actor)
     if not scope: raise HTTPException(403,'Bạn không có quyền xem thanh toán')

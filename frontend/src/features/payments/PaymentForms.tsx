@@ -12,10 +12,11 @@ type PaymentScheduleFormProps = {
   contractLabel?: string;
   contractValue?: number;
   scheduledTotal?: number;
+  depositAmount?: number;
   onSaved: () => void;
 };
 
-export function PaymentScheduleForm({ contractId, contractLabel, contractValue, scheduledTotal, onSaved }: PaymentScheduleFormProps) {
+export function PaymentScheduleForm({ contractId, contractLabel, contractValue, scheduledTotal, depositAmount, onSaved }: PaymentScheduleFormProps) {
   const [form, setForm] = useState({ contract_id: contractId || '', sequence_no: '', title: '', due_date: '', expected_amount: '', note: '' });
   const [contractSearch, setContractSearch] = useState('');
   const [contracts, setContracts] = useState<Contract[]>([]);
@@ -24,7 +25,9 @@ export function PaymentScheduleForm({ contractId, contractLabel, contractValue, 
   const [errors, setErrors] = useState<string[]>([]);
 
   const effectiveContractValue = contractValue ?? selectedContract?.contract_value ?? 0;
-  const remainingSchedulable = Math.max(effectiveContractValue - selectedScheduledTotal, 0);
+  const effectiveDepositAmount = depositAmount ?? selectedContract?.deposit_amount ?? selectedContract?.deposit_value ?? 0;
+  const schedulableAmount = Math.max(effectiveContractValue - effectiveDepositAmount, 0);
+  const remainingSchedulable = Math.max(schedulableAmount - selectedScheduledTotal, 0);
 
   const loadContracts = useCallback(async () => {
     if (contractId) return;
@@ -63,7 +66,7 @@ export function PaymentScheduleForm({ contractId, contractLabel, contractValue, 
     const expectedAmount = Number(form.expected_amount);
     if (expectedAmount <= 0) return setErrors(['Số tiền phải thu phải lớn hơn 0.']);
     if (!form.due_date) return setErrors(['Ngày đến hạn là bắt buộc.']);
-    if (effectiveContractValue > 0 && expectedAmount > remainingSchedulable) return setErrors(['Tổng lịch thanh toán không được vượt quá giá trị hợp đồng.']);
+    if (effectiveContractValue > 0 && expectedAmount > remainingSchedulable) return setErrors(['Tổng lịch thanh toán không được vượt quá số tiền còn phải thu sau cọc.']);
     try {
       await createPaymentSchedule({ ...form, sequence_no: Number(form.sequence_no), expected_amount: expectedAmount });
       setForm({ contract_id: contractId || '', sequence_no: '', title: '', due_date: '', expected_amount: '', note: '' });
@@ -95,7 +98,7 @@ export function PaymentScheduleForm({ contractId, contractLabel, contractValue, 
           </select>
         </>
       )}
-      {effectiveContractValue > 0 && <dl className="info-grid"><div><dt>Giá trị hợp đồng</dt><dd>{money(effectiveContractValue)}</dd></div><div><dt>Tổng đã lập lịch</dt><dd>{money(selectedScheduledTotal)}</dd></div><div><dt>Còn có thể lập lịch</dt><dd>{money(remainingSchedulable)}</dd></div></dl>}
+      {effectiveContractValue > 0 && <dl className="info-grid"><div><dt>Giá trị hợp đồng</dt><dd>{money(effectiveContractValue)}</dd></div><div><dt>Tiền cọc đã ghi nhận</dt><dd>{money(effectiveDepositAmount)}</dd></div><div><dt>Còn phải lập lịch</dt><dd>{money(schedulableAmount)}</dd></div><div><dt>Tổng đã lập lịch</dt><dd>{money(selectedScheduledTotal)}</dd></div><div><dt>Còn có thể lập lịch</dt><dd>{money(remainingSchedulable)}</dd></div></dl>}
       <input type="number" placeholder="Số thứ tự đợt" value={form.sequence_no} onChange={(event) => setForm({ ...form, sequence_no: event.target.value })} />
       <input placeholder="Tên đợt thanh toán" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
       <input type="date" value={form.due_date} onChange={(event) => setForm({ ...form, due_date: event.target.value })} />

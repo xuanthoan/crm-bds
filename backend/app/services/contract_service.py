@@ -175,11 +175,12 @@ def _apply_status(db, contract, actor, status):
         _sell_property(db, contract, actor)
 
 def totals(contract):
-    active = [payment for payment in contract.payments if payment.deleted_at is None]
-    paid = sum((payment.amount for payment in active if payment.status == "paid"), Decimal("0"))
-    planned = sum((payment.amount for payment in active if payment.status in {"planned", "overdue"}), Decimal("0"))
     deposit = contract.deposit_value or Decimal("0")
-    remaining = max(contract.contract_value - deposit - paid, Decimal("0"))
+    schedules = [schedule for schedule in getattr(contract, "payment_schedules", []) if schedule.deleted_at is None and schedule.status != "cancelled"]
+    receipt_paid = sum((receipt.amount for schedule in schedules for receipt in schedule.receipts if receipt.deleted_at is None and receipt.status == "confirmed"), Decimal("0"))
+    paid = deposit + receipt_paid
+    planned = sum((schedule.expected_amount for schedule in schedules), Decimal("0"))
+    remaining = max(contract.contract_value - paid, Decimal("0"))
     return paid, planned, remaining
 
 
