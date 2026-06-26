@@ -53,5 +53,27 @@ class Sprint17ReceiptInvoiceContractCompletionSourceTest(unittest.TestCase):
         self.assertIn('window.print()', self.read('frontend/src/features/invoices/InvoiceDetailPage.tsx'))
         self.assertNotIn('stub', self.read('frontend/src/features/invoices/InvoiceDetailPage.tsx').lower())
 
+    def test_payment_detail_uses_uuid_routes_and_cancel_modal(self):
+        detail = self.read('frontend/src/features/payments/PaymentDetailPage.tsx')
+        self.assertIn('navigateTo(`/receipts/${receipt.id}`)', detail)
+        self.assertIn('navigateTo(`/invoices/${invoice.id}`)', detail)
+        self.assertNotIn('receipt.receipt_code}`)', detail)
+        self.assertNotIn('invoice.invoice_code}`)', detail)
+        self.assertIn('CancelReasonModal', detail)
+        self.assertIn('Vui lòng nhập lý do hủy phiếu thu.', detail)
+        self.assertIn('cancel_reason: reason', detail)
+
+    def test_cancel_reason_modals_replace_browser_prompts(self):
+        receipt = self.read('frontend/src/features/receipts/ReceiptDetailPage.tsx')
+        invoice = self.read('frontend/src/features/invoices/InvoiceDetailPage.tsx')
+        modal = self.read('frontend/src/features/payments/CancelReasonModal.tsx')
+        self.assertNotIn('window.prompt', receipt)
+        self.assertNotIn('window.prompt', invoice)
+        self.assertIn('Hủy phiếu thu sẽ trừ lại số tiền đã thu khỏi lịch thanh toán', receipt)
+        self.assertIn('Hủy hóa đơn sẽ chuyển hóa đơn sang trạng thái đã hủy', invoice)
+        self.assertIn('trim()', modal)
+        self.assertIn('Hủy thao tác', modal)
+        self.assertIn('Xác nhận hủy', receipt + invoice)
+
 if __name__ == '__main__':
     unittest.main()
