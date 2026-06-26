@@ -44,6 +44,10 @@ import { CONTRACT_VIEW_PERMISSIONS } from '../features/contracts/constants';
 import { PaymentsPage } from '../features/payments/PaymentsPage';
 import { PaymentDetailPage } from '../features/payments/PaymentDetailPage';
 import { PAYMENT_VIEW_PERMISSIONS } from '../features/payments/constants';
+import { ReceiptsPage } from '../features/receipts/ReceiptsPage';
+import { ReceiptDetailPage } from '../features/receipts/ReceiptDetailPage';
+import { InvoicesPage } from '../features/invoices/InvoicesPage';
+import { InvoiceDetailPage } from '../features/invoices/InvoiceDetailPage';
 
 export function navigateTo(path: string): void {
   window.history.pushState({}, '', path);
@@ -79,6 +83,8 @@ const protectedPages: Record<string, ProtectedPage> = {
   '/bookings': { element: <BookingsPage />, permission: BOOKING_VIEW_PERMISSIONS },
   '/contracts': { element: <ContractsPage />, permission: CONTRACT_VIEW_PERMISSIONS },
   '/payments': { element: <PaymentsPage />, permission: PAYMENT_VIEW_PERMISSIONS },
+  '/receipts': { element: <ReceiptsPage />, permission: PAYMENT_VIEW_PERMISSIONS },
+  '/invoices': { element: <InvoicesPage />, permission: PAYMENT_VIEW_PERMISSIONS },
   '/reports': { element: <ReportsPage />, permission: 'reports.view.own' },
   '/notifications': { element: <NotificationsPage />, permission: 'notifications.view' },
 };
@@ -119,6 +125,10 @@ export function AppRoutes() {
   }, [authenticated, normalizedPath]);
 
   const page = useMemo(() => {
+    const receiptDetailMatch = normalizedPath.match(/^\/receipts\/([0-9a-f-]+)$/i);
+    if (receiptDetailMatch) return { element: <ReceiptDetailPage receiptId={receiptDetailMatch[1]} />, permission: PAYMENT_VIEW_PERMISSIONS };
+    const invoiceDetailMatch = normalizedPath.match(/^\/invoices\/([0-9a-f-]+)$/i);
+    if (invoiceDetailMatch) return { element: <InvoiceDetailPage invoiceId={invoiceDetailMatch[1]} />, permission: PAYMENT_VIEW_PERMISSIONS };
     const paymentDetailMatch = normalizedPath.match(/^\/payments\/([0-9a-f-]+)$/i);
     if (paymentDetailMatch) return { element: <PaymentDetailPage paymentId={paymentDetailMatch[1]} />, permission: PAYMENT_VIEW_PERMISSIONS };
     const contractDetailMatch = normalizedPath.match(/^\/contracts\/([0-9a-f-]+)$/i);

@@ -12,3 +12,9 @@ export const cancelReceipt=(id:string,payload:Record<string,unknown>)=>apiReques
 export const createInvoice=(id:string,payload:Record<string,unknown>)=>apiRequest<PaymentInvoice>(`/api/v1/payment-schedules/${id}/invoice`,{method:'POST',body:JSON.stringify(payload)});
 export const contractPayments=(contractId:string)=>apiRequest<PaymentSchedule[]>(`/api/v1/contracts/${contractId}/payment-schedules`);
 export const contractPaymentSummary=(contractId:string)=>apiRequest<Record<string,number>>(`/api/v1/contracts/${contractId}/payment-summary`);
+export const listReceipts=(filters:Record<string,string>={})=>apiRequest<PaymentReceipt[]>(`/api/v1/payment-receipts?${new URLSearchParams(filters)}`);
+export const getReceipt=(id:string)=>apiRequest<PaymentReceipt>(`/api/v1/payment-receipts/${id}`);
+export const listInvoices=(filters:Record<string,string>={})=>apiRequest<PaymentInvoice[]>(`/api/v1/invoices?${new URLSearchParams(filters)}`);
+export const getInvoice=(id:string)=>apiRequest<PaymentInvoice>(`/api/v1/invoices/${id}`);
+export const issueInvoice=(id:string,payload:Record<string,unknown>={})=>apiRequest<PaymentInvoice>(`/api/v1/invoices/${id}/issue`,{method:'POST',body:JSON.stringify(payload)});
+export const cancelInvoice=(id:string,payload:Record<string,unknown>)=>apiRequest<PaymentInvoice>(`/api/v1/invoices/${id}/cancel`,{method:'POST',body:JSON.stringify(payload)});

@@ -129,3 +129,10 @@ Sprint 16 là **Payment Management**: hoàn thiện quản lý thanh toán sau C
 - Sprint 16 Payment Management đã được triển khai trên branch làm việc, chưa merge `dev` và chưa tạo tag release.
 - Phạm vi đã có: payment schedule theo Contract, receipt/confirm/cancel, phí phạt thủ công, invoice stub, payment timeline qua Contract Activity, task/notification in-app cơ bản cho lịch đến hạn/quá hạn và trang UI `/payments`.
 - Không reset DB, không đổi Docker volume, không seed đè dữ liệu thật.
+
+## Sprint 17 — Receipt, Invoice & Contract Completion
+- Bổ sung quản lý phiếu thu với danh sách/chi tiết, xác nhận, hủy có lý do bắt buộc và bản in bằng trình duyệt.
+- Bổ sung quản lý hóa đơn/chứng từ với trạng thái Nháp / Đã phát hành / Đã hủy, tạo từ lịch thanh toán hoặc phiếu thu đã xác nhận, phát hành, hủy có lý do và bản in bằng trình duyệt.
+- Hoàn tất hợp đồng chỉ được phép khi tiền cọc cộng tổng phiếu thu đã xác nhận của các lịch thanh toán chưa hủy đạt tối thiểu giá trị hợp đồng; nếu thiếu tiền, API trả lỗi tiếng Việt và không ghi timeline.
+- Khi hợp đồng đã hoàn tất hoặc đã hủy, hệ thống chặn tạo mới lịch thanh toán, phiếu thu và hóa đơn; các dữ liệu tài chính cũ vẫn xem và in được.
+- Giới hạn hiện tại: bản in phiếu thu/hóa đơn dùng `window.print()` của trình duyệt, chưa sinh PDF binary phía server.
