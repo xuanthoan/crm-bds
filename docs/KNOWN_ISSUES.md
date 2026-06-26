@@ -82,3 +82,10 @@ Một số tài liệu cũ trong `docs/` mô tả kiến trúc/roadmap mục ti�
 - Payment Management chuyên sâu được chuyển sang Sprint 16; Sprint 15 chỉ đảm bảo Contract Payment foundation không regression trong luồng Deal.
 - Không có realtime notification/websocket/email/SMS/Zalo; notification vẫn là in-app polling/list/badge.
 - Chưa có browser E2E tự động cho toàn bộ Booking → Deal → Contract → Payment → Completed; Sprint 15 dựa trên manual QA và source/build/backend regression checks.
+
+## Sprint 16 known limitations / backlog
+
+- Invoice mới là stub: chưa có PDF, chữ ký số, thuế/VAT, accounting ledger hoặc tích hợp payment gateway.
+- Notification vẫn là in-app; chưa có realtime/websocket/email/SMS/Zalo.
+- Overdue được refresh khi list/detail payment load qua service; chưa có scheduler/background job.
+- Code generation `PMT/RCP/INV` vẫn theo pattern max+1 hiện có và chưa concurrency-safe.

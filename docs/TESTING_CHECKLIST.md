@@ -235,3 +235,26 @@ git diff --cached --check
 - [x] Deal đổi assignee thì active auto task đổi assignee.
 - [x] Task done/cancelled không bị đổi assignee.
 - [x] Deal search/list dùng query narrow, không joinedload rộng object graph.
+
+## Sprint 16 — Payment Management checklist
+
+### Automated checks
+
+```bash
+python -m compileall backend/app backend/tests
+PYTHONPATH=backend python -m unittest backend.tests.test_sprint12_contract_validation backend.tests.test_sprint14_task_notification backend.tests.test_sprint15_deal_workflow backend.tests.test_sprint16_payment_management -v
+cd frontend && npm run build
+git diff --check
+git diff --cached --check
+```
+
+### Manual browser checklist
+
+- Contract detail: mở Contract còn hiệu lực, tạo 3 đợt thanh toán và kiểm tra section Thanh toán.
+- Payment list: search contract code/customer phone, filter pending/partial/paid/overdue.
+- Receipt: ghi nhận một phần, ghi nhận phần còn lại, thử thanh toán vượt và kỳ vọng bị chặn.
+- Penalty: áp dụng phí phạt có lý do, thử phí phạt âm/không lý do và kỳ vọng bị chặn.
+- Overdue: tạo due date quá khứ và kiểm tra badge Quá hạn.
+- Contract cancelled: thử tạo payment schedule và kỳ vọng bị chặn.
+- Notification/task: kiểm tra task/notification đến hạn/quá hạn không bị tạo trùng.
+- Regression: Deal completed từ Contract completed, Deal/Contract/Task/Notification Sprint 15 vẫn hoạt động.

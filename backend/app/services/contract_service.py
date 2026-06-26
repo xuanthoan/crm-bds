@@ -11,6 +11,7 @@ from app.models.contract_activity import ContractActivity
 from app.models.contract_payment import ContractPayment
 from app.models.booking import Booking
 from app.models.deal import Deal
+from app.models.customer import Customer
 from app.models.deal_activity import DealActivity
 from app.models.property_status_history import PropertyStatusHistory
 from app.models.user import User
@@ -174,11 +175,12 @@ def _apply_status(db, contract, actor, status):
         _sell_property(db, contract, actor)
 
 def totals(contract):
-    active = [payment for payment in contract.payments if payment.deleted_at is None]
-    paid = sum((payment.amount for payment in active if payment.status == "paid"), Decimal("0"))
-    planned = sum((payment.amount for payment in active if payment.status in {"planned", "overdue"}), Decimal("0"))
     deposit = contract.deposit_value or Decimal("0")
-    remaining = max(contract.contract_value - deposit - paid, Decimal("0"))
+    schedules = [schedule for schedule in getattr(contract, "payment_schedules", []) if schedule.deleted_at is None and schedule.status != "cancelled"]
+    receipt_paid = sum((receipt.amount for schedule in schedules for receipt in schedule.receipts if receipt.deleted_at is None and receipt.status == "confirmed"), Decimal("0"))
+    paid = deposit + receipt_paid
+    planned = sum((schedule.expected_amount for schedule in schedules), Decimal("0"))
+    remaining = max(contract.contract_value - paid, Decimal("0"))
     return paid, planned, remaining
 
 
@@ -199,7 +201,7 @@ def _validate_payment_capacity(db, contract, amount, *, exclude_payment_id=None,
     if Decimal(current) + amount > _receivable_amount(contract):
         raise HTTPException(400, "Số tiền thanh toán vượt quá số tiền còn phải thu của hợp đồng.")
 def serialize_contract(item,detail=False):
-    paid,planned,remaining=totals(item); data={"id":item.id,"contract_code":item.contract_code,"deal_id":item.deal_id,"booking_id":item.booking_id,"customer_id":item.customer_id,"property_unit_id":item.property_unit_id,"project_id":item.project_id,"contract_type":item.contract_type,"contract_type_label":CONTRACT_TYPE_LABELS[item.contract_type],"status":item.status,"status_label":CONTRACT_STATUS_LABELS[item.status],"contract_number":item.contract_number,"signed_date":item.signed_date,"contract_value":item.contract_value,"deposit_value":item.deposit_value,"deposit_amount":item.deposit_value or Decimal("0"),"total_paid":paid,"total_planned":planned,"remaining_amount":remaining,"customer":{"id":item.customer.id,"customer_code":item.customer.customer_code,"full_name":item.customer.full_name},"property":{"id":item.property_unit.id,"property_code":item.property_unit.property_code,"title":item.property_unit.title},"project":{"id":item.project.id,"project_code":item.project.project_code,"name":item.project.name} if item.project else None,"deal":{"id":item.deal.id,"deal_code":item.deal.deal_code,"title":item.deal.title,"status":item.deal.status},"created_at":item.created_at}
+    paid,planned,remaining=totals(item); data={"id":item.id,"contract_code":item.contract_code,"deal_id":item.deal_id,"booking_id":item.booking_id,"customer_id":item.customer_id,"property_unit_id":item.property_unit_id,"project_id":item.project_id,"contract_type":item.contract_type,"contract_type_label":CONTRACT_TYPE_LABELS[item.contract_type],"status":item.status,"status_label":CONTRACT_STATUS_LABELS[item.status],"contract_number":item.contract_number,"signed_date":item.signed_date,"contract_value":item.contract_value,"deposit_value":item.deposit_value,"deposit_amount":item.deposit_value or Decimal("0"),"total_paid":paid,"total_planned":planned,"remaining_amount":remaining,"customer":{"id":item.customer.id,"customer_code":item.customer.customer_code,"full_name":item.customer.full_name,"primary_phone":item.customer.primary_phone},"property":{"id":item.property_unit.id,"property_code":item.property_unit.property_code,"title":item.property_unit.title},"project":{"id":item.project.id,"project_code":item.project.project_code,"name":item.project.name} if item.project else None,"deal":{"id":item.deal.id,"deal_code":item.deal.deal_code,"title":item.deal.title,"status":item.deal.status},"created_at":item.created_at}
     if detail:data.update({k:getattr(item,k) for k in ("effective_date","handover_date","buyer_name","buyer_phone","buyer_email","buyer_id_number","buyer_address","seller_name","seller_phone","seller_email","seller_representative","note","updated_at")}); data["booking"]={"id":item.booking.id,"booking_code":item.booking.booking_code,"status":item.booking.status} if item.booking else None; data["payments"]=[serialize_payment(p) for p in item.payments if p.deleted_at is None]; data["activities"]=[{"id":a.id,"activity_type":a.activity_type,"activity_label":CONTRACT_ACTIVITY_LABELS.get(a.activity_type,a.activity_type),"title":a.title,"content":a.content,"old_value":a.old_value,"new_value":a.new_value,"metadata":a.metadata_json,"actor":{"id":a.actor.id,"full_name":a.actor.full_name},"created_at":a.created_at} for a in item.activities]
     return data
 def serialize_payment(p):return {"id":p.id,"payment_code":p.payment_code,"contract_id":p.contract_id,"payment_type":p.payment_type,"payment_type_label":PAYMENT_TYPE_LABELS[p.payment_type],"status":p.status,"status_label":PAYMENT_STATUS_LABELS[p.status],"amount":p.amount,"due_date":p.due_date,"paid_date":p.paid_date,"payment_method":p.payment_method,"payment_method_label":PAYMENT_METHOD_LABELS.get(p.payment_method) if p.payment_method else None,"reference_number":p.reference_number,"note":p.note,"created_at":p.created_at}
@@ -209,7 +211,8 @@ def list_contracts(db,actor,page=1,page_size=20,q=None,status=None,contract_type
     conditions=[Contract.deleted_at.is_(None)]
     if scope!="all":
         ids=get_accessible_user_ids_for_lead_scope(db,actor,scope); conditions.append(or_(Contract.created_by_id.in_(ids),Contract.deal.has(or_(Deal.owner_id.in_(ids),Deal.created_by_id.in_(ids)))))
-    if q: conditions.append(or_(Contract.contract_code.ilike(f"%{q}%"),Contract.contract_number.ilike(f"%{q}%")))
+    if q:
+        term=f"%{q}%"; conditions.append(or_(Contract.contract_code.ilike(term),Contract.contract_number.ilike(term),Contract.customer.has(or_(Customer.full_name.ilike(term),Customer.primary_phone.ilike(term))),Contract.deal.has(or_(Deal.deal_code.ilike(term),Deal.title.ilike(term)))))
     for col,val in ((Contract.status,status),(Contract.contract_type,contract_type),(Contract.customer_id,customer_id),(Contract.property_unit_id,property_unit_id),(Contract.project_id,project_id)):
         if val is not None:conditions.append(col==val)
     total=db.scalar(select(func.count(Contract.id)).where(*conditions)) or 0; items=list(db.scalars(select(Contract).where(*conditions).order_by(Contract.created_at.desc()).offset((page-1)*page_size).limit(page_size)).unique()); return items,{"page":page,"page_size":page_size,"total":total,"total_pages":ceil(total/page_size) if total else 0}

@@ -1,0 +1,14 @@
+import { apiRequest } from '../../services/apiClient';
+import type { PaymentInvoice, PaymentReceipt, PaymentSchedule } from './types';
+export const listPayments=(filters:Record<string,string>={})=>apiRequest<PaymentSchedule[]>(`/api/v1/payment-schedules?${new URLSearchParams(filters)}`);
+export const getPayment=(id:string)=>apiRequest<PaymentSchedule>(`/api/v1/payment-schedules/${id}`);
+export const createPaymentSchedule=(payload:Record<string,unknown>)=>apiRequest<PaymentSchedule>('/api/v1/payment-schedules',{method:'POST',body:JSON.stringify(payload)});
+export const updatePaymentSchedule=(id:string,payload:Record<string,unknown>)=>apiRequest<PaymentSchedule>(`/api/v1/payment-schedules/${id}`,{method:'PATCH',body:JSON.stringify(payload)});
+export const cancelPaymentSchedule=(id:string)=>apiRequest<PaymentSchedule>(`/api/v1/payment-schedules/${id}/cancel`,{method:'POST'});
+export const applyPenalty=(id:string,payload:Record<string,unknown>)=>apiRequest<PaymentSchedule>(`/api/v1/payment-schedules/${id}/apply-penalty`,{method:'POST',body:JSON.stringify(payload)});
+export const createReceipt=(id:string,payload:Record<string,unknown>)=>apiRequest<PaymentReceipt>(`/api/v1/payment-schedules/${id}/receipts`,{method:'POST',body:JSON.stringify(payload)});
+export const confirmReceipt=(id:string,payload:Record<string,unknown>)=>apiRequest<PaymentReceipt>(`/api/v1/receipts/${id}/confirm`,{method:'POST',body:JSON.stringify(payload)});
+export const cancelReceipt=(id:string,payload:Record<string,unknown>)=>apiRequest<PaymentReceipt>(`/api/v1/receipts/${id}/cancel`,{method:'POST',body:JSON.stringify(payload)});
+export const createInvoice=(id:string,payload:Record<string,unknown>)=>apiRequest<PaymentInvoice>(`/api/v1/payment-schedules/${id}/invoice`,{method:'POST',body:JSON.stringify(payload)});
+export const contractPayments=(contractId:string)=>apiRequest<PaymentSchedule[]>(`/api/v1/contracts/${contractId}/payment-schedules`);
+export const contractPaymentSummary=(contractId:string)=>apiRequest<Record<string,number>>(`/api/v1/contracts/${contractId}/payment-summary`);

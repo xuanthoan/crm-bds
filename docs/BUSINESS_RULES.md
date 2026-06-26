@@ -132,3 +132,16 @@ Active closing Deal statuses dùng khi kiểm tra xung đột:
 - Contracts with remaining receivable create payment follow-up tasks; completed contracts auto-complete open/in-progress payment-due tasks for that contract.
 - Task assignment creates in-app notifications only; Sprint 14 does not include realtime push, cron, email, SMS, or Zalo notifications.
 - Manual task assignment: leaving assignee blank assigns the current user; non-admin users need `tasks.assign` to assign another active user, otherwise the API returns a Vietnamese permission error.
+
+## 8. Payment Management (Sprint 16)
+
+- Mỗi Contract có nhiều lịch thanh toán, không tạo lịch mới cho Contract đã hủy.
+- `sequence_no` không được trùng trong cùng Contract.
+- `expected_amount` và receipt `amount` phải lớn hơn 0.
+- `remaining_amount = expected_amount + penalty_amount - paid_amount` và không âm.
+- Chỉ receipt `confirmed` được cộng vào `paid_amount`; `draft` và `cancelled` không được tính.
+- Không cho xác nhận receipt làm thanh toán vượt số tiền còn lại.
+- Hủy receipt đã confirmed sẽ trừ lại `paid_amount` và tính lại trạng thái lịch thanh toán.
+- Lịch chưa `paid/cancelled` có `due_date` trước ngày hiện tại sẽ chuyển `overdue` khi load/refresh qua service.
+- Phí phạt không được âm; phí phạt lớn hơn 0 bắt buộc có lý do.
+- Invoice Sprint 16 là stub nghiệp vụ, chưa phải hóa đơn kế toán/thuế đầy đủ.

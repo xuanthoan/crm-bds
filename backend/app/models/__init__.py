@@ -1,6 +1,9 @@
 from app.models.contract import Contract
 from app.models.contract_payment import ContractPayment
 from app.models.contract_activity import ContractActivity
+from app.models.payment_schedule import PaymentSchedule
+from app.models.payment_receipt import PaymentReceipt
+from app.models.payment_invoice import PaymentInvoice
 from app.models.booking import Booking
 from app.models.booking_activity import BookingActivity
 from app.models.audit_log import AuditLog
@@ -25,7 +28,7 @@ from app.models.team import Team
 from app.models.user import User
 from app.models.user_organization_membership import UserOrganizationMembership
 
-__all__ = ["Contract", "ContractPayment", "ContractActivity", "Booking", "BookingActivity", "AuditLog", "Customer", "CustomerActivity", "CustomerRelatedPerson", "Deal", "DealActivity", "Department", "Lead", "LeadActivity", "LeadAppointment", "LeadTask", "Permission", "Project", "PropertyUnit", "PropertyPriceHistory", "PropertyStatusHistory", "RefreshToken", "Role", "Team", "User", "UserOrganizationMembership"]
+__all__ = ["Contract", "ContractPayment", "ContractActivity", "PaymentSchedule", "PaymentReceipt", "PaymentInvoice", "Booking", "BookingActivity", "AuditLog", "Customer", "CustomerActivity", "CustomerRelatedPerson", "Deal", "DealActivity", "Department", "Lead", "LeadActivity", "LeadAppointment", "LeadTask", "Permission", "Project", "PropertyUnit", "PropertyPriceHistory", "PropertyStatusHistory", "RefreshToken", "Role", "Team", "User", "UserOrganizationMembership"]
 
 from app.models.task import Task
 from app.models.task_activity import TaskActivity

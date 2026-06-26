@@ -99,3 +99,11 @@ git diff --check
 - Task/Notification models, services, API routers, simple frontend task pages, and notification list/badge were added.
 - Auto task rules are implemented synchronously inside booking/contract service flows; there is no cron/realtime/email/SMS/Zalo integration.
 - Next session should validate against a dependency-complete backend environment and apply the SQL migration if the deployment does not rely on metadata table creation.
+
+## Sprint 16 handoff notes
+
+- Payment Management implemented/tested on working branch; chưa merge `dev`, chưa tag release.
+- Có migration Alembic `20260625_0012_payment_management.py` tạo `payment_schedules`, `payment_receipts`, `payment_invoices`.
+- UI mới: `/payments`, `/payments/:id`, và section Thanh toán trong Contract detail.
+- Invoice mới là stub; overdue refresh qua service khi load list/detail; notification router tổng quát vẫn backlog.
+- Không reset DB, không đổi Docker volume, không seed đè dữ liệu thật.

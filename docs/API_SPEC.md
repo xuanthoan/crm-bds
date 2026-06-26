@@ -2576,3 +2576,14 @@ Khi code, Codex cần đảm bảo:
 * Không trả dữ liệu vượt quyền.
 
 Đây là nền tảng để xây hệ thống CRM bất động sản có thể mở rộng từ 5 sale lên 50–500 sale.
+
+## Sprint 16 Payment Management API
+
+- `GET /api/v1/payment-schedules`: danh sách lịch thanh toán, filter `contract_id`, `deal_id`, `customer_id`, `status`, `overdue`, search `q`.
+- `POST /api/v1/payment-schedules`: tạo lịch thanh toán theo Contract.
+- `GET /api/v1/payment-schedules/{id}` / `PATCH /api/v1/payment-schedules/{id}` / `POST /api/v1/payment-schedules/{id}/cancel`.
+- `POST /api/v1/payment-schedules/{id}/apply-penalty`: áp dụng phí phạt thủ công.
+- `POST /api/v1/payment-schedules/{id}/receipts` / `GET /api/v1/payment-schedules/{id}/receipts`.
+- `POST /api/v1/receipts/{id}/confirm` / `POST /api/v1/receipts/{id}/cancel`.
+- `POST /api/v1/payment-schedules/{id}/invoice`: tạo invoice stub.
+- `GET /api/v1/contracts/{id}/payment-schedules` và `GET /api/v1/contracts/{id}/payment-summary`.
