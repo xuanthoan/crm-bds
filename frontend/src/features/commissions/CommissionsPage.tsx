@@ -43,6 +43,15 @@ export function CommissionsPage() {
     window.location.href = `/api/v1/commissions/export?${new URLSearchParams(filters).toString()}`;
   }
 
+  function renderRowActions(c: Commission) {
+    const isFinal = c.status === 'paid' || c.status === 'cancelled';
+    const canApproveAction = can('commissions.approve') && ['eligible', 'on_hold'].includes(c.status);
+    const canHoldAction = can('commissions.hold') && ['eligible', 'approved'].includes(c.status);
+    const canMarkPaidAction = can('commissions.mark_paid') && c.status === 'approved';
+    const canCancelAction = can('commissions.cancel') && ['eligible', 'approved', 'on_hold'].includes(c.status);
+    return <div className="table-actions commission-row-actions"><button onClick={() => navigateTo(`/commissions/${c.id}`)}>Xem</button>{!isFinal && canApproveAction && <button onClick={() => setAction({ type: 'approve', c })}>Duyệt</button>}{!isFinal && canHoldAction && <button onClick={() => setAction({ type: 'hold', c })}>Tạm giữ</button>}{!isFinal && canMarkPaidAction && <button onClick={() => setAction({ type: 'paid', c })}>Đã chi trả</button>}{!isFinal && canCancelAction && <button onClick={() => setAction({ type: 'cancel', c })}>Hủy</button>}</div>;
+  }
+
   const cards = [
     ['Tổng HH đủ điều kiện', money(summary.total_eligible_commission)],
     ['Tổng HH đã duyệt', money(summary.total_approved_commission)],
@@ -59,11 +68,13 @@ export function CommissionsPage() {
       <header className="page-header">
         <div><h1>Quản lý hoa hồng</h1><p>Quản lý hoa hồng đủ điều kiện, duyệt hoa hồng và theo dõi chi trả.</p></div>
         <div className="header-actions">
-          <button onClick={() => setGuide(true)}>Hướng dẫn sử dụng</button>
-          {can('commissions.create') && <button onClick={() => setGen(true)}>Tạo từ hợp đồng</button>}
-          {can('commissions.export') && <button onClick={exportCsv}>Xuất CSV</button>}
+          <button type="button" className="secondary-button" onClick={() => setGuide(true)}>Hướng dẫn sử dụng</button>
         </div>
       </header>
+      <div className="commission-primary-actions">
+        {can('commissions.create') && <button onClick={() => setGen(true)}>Tạo từ hợp đồng</button>}
+        {can('commissions.export') && <button onClick={exportCsv}>Xuất CSV</button>}
+      </div>
       {notice && <div className="form-warning">{notice}</div>}
       <div className="filter-bar filter-panel commission-filter-panel">
         <label>Từ ngày<input type="date" value={filters.date_from || ''} onChange={(e) => set('date_from', e.target.value)} /></label>
@@ -77,7 +88,7 @@ export function CommissionsPage() {
       </section>
       <section className="table-card commission-table-card">
         <div className="section-header commission-table-header"><div><h2>Danh sách hoa hồng</h2><p>{items.length ? `Có ${items.length} hoa hồng đang hiển thị.` : 'Chưa có hoa hồng nào.'}</p></div></div>
-        <div className="responsive-table-wrap"><table><thead><tr><th>Mã HH</th><th>Mã HĐ</th><th>Sale</th><th>Khách hàng</th><th>Giá trị HĐ</th><th>Đã thu</th><th>Tỷ lệ HH</th><th>HH đủ điều kiện</th><th>HH đã duyệt</th><th>Đã chi trả</th><th>Trạng thái</th><th>Ngày duyệt</th><th>Ngày chi trả</th><th>Hành động</th></tr></thead><tbody>{items.map((c) => <tr key={c.id}><td>{c.commission_code}</td><td>{c.contract_code}</td><td>{c.sale_name}</td><td>{c.customer_name}</td><td>{money(c.contract_value)}</td><td>{money(c.total_collected_with_deposit)}</td><td>{c.commission_rate_percent}%</td><td>{money(c.eligible_commission)}</td><td>{money(c.approved_commission)}</td><td>{money(c.paid_amount)}</td><td>{c.status_label}</td><td>{date(c.approved_at)}</td><td>{date(c.paid_at)}</td><td><div className="table-actions"><button onClick={() => navigateTo(`/commissions/${c.id}`)}>Xem</button>{can('commissions.approve') && ['eligible', 'on_hold'].includes(c.status) && <button onClick={() => setAction({ type: 'approve', c })}>Duyệt</button>}{can('commissions.hold') && ['eligible', 'approved'].includes(c.status) && <button onClick={() => setAction({ type: 'hold', c })}>Tạm giữ</button>}{can('commissions.mark_paid') && c.status === 'approved' && <button onClick={() => setAction({ type: 'paid', c })}>Đã chi trả</button>}{can('commissions.cancel') && c.status !== 'paid' && <button onClick={() => setAction({ type: 'cancel', c })}>Hủy</button>}</div></td></tr>)}</tbody></table></div>
+        <div className="responsive-table-wrap"><table><thead><tr><th>Mã HH</th><th>Mã HĐ</th><th>Sale</th><th>Khách hàng</th><th>Giá trị HĐ</th><th>Đã thu</th><th>Tỷ lệ HH</th><th>HH đủ điều kiện</th><th>HH đã duyệt</th><th>Đã chi trả</th><th>Trạng thái</th><th>Ngày duyệt</th><th>Ngày chi trả</th><th>Hành động</th></tr></thead><tbody>{items.map((c) => <tr key={c.id}><td>{c.commission_code}</td><td>{c.contract_code}</td><td>{c.sale_name}</td><td>{c.customer_name}</td><td>{money(c.contract_value)}</td><td>{money(c.total_collected_with_deposit)}</td><td>{c.commission_rate_percent}%</td><td>{money(c.eligible_commission)}</td><td>{money(c.approved_commission)}</td><td>{money(c.paid_amount)}</td><td>{c.status_label}</td><td>{date(c.approved_at)}</td><td>{date(c.paid_at)}</td><td>{renderRowActions(c)}</td></tr>)}</tbody></table></div>
         {!items.length && <p className="empty-state">Chưa có hoa hồng nào.</p>}
       </section>
       {guide && <GuideModal onClose={() => setGuide(false)} />}

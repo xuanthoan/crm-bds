@@ -39,6 +39,19 @@ class Sprint20CommissionPayoutWorkflowSourceTest(unittest.TestCase):
         self.assertIn("list_commissions(db,page=1,page_size=10000,**summary_filters)", summary_block)
         self.assertNotIn("**f", summary_block)
 
+
+    def test_commission_list_action_gating_for_final_statuses(self):
+        page=self.read('frontend/src/features/commissions/CommissionsPage.tsx')
+        styles=self.read('frontend/src/styles.css')
+        self.assertIn("const isFinal = c.status === 'paid' || c.status === 'cancelled'", page)
+        self.assertIn("['eligible', 'approved', 'on_hold'].includes(c.status)", page)
+        self.assertIn("!isFinal && canApproveAction", page)
+        self.assertIn("!isFinal && canHoldAction", page)
+        self.assertIn("!isFinal && canMarkPaidAction", page)
+        self.assertIn("!isFinal && canCancelAction", page)
+        self.assertIn('commission-primary-actions', page + styles)
+        self.assertIn('className="secondary-button" onClick={() => setGuide(true)}', page)
+
     def test_frontend_vietnamese_ui_and_no_browser_prompts(self):
         combined='\n'.join(Path(p).read_text() for p in Path('frontend/src/features/commissions').glob('*.tsx'))
         for text in ['Đã tạo hoa hồng nhưng chưa tải lại được danh sách. Vui lòng bấm Lọc hoặc tải lại trang.','Tạo hoa hồng thành công.','Quản lý hoa hồng','Hướng dẫn sử dụng','Tạo từ hợp đồng','Xuất CSV','Duyệt hoa hồng','Tạm giữ hoa hồng','Hủy hoa hồng','Đánh dấu đã chi trả','Phiếu thu đã hủy không được tính','Hóa đơn không quyết định hoa hồng']:
