@@ -48,6 +48,7 @@ import { ReceiptsPage } from '../features/receipts/ReceiptsPage';
 import { ReceiptDetailPage } from '../features/receipts/ReceiptDetailPage';
 import { InvoicesPage } from '../features/invoices/InvoicesPage';
 import { InvoiceDetailPage } from '../features/invoices/InvoiceDetailPage';
+import { FinanceReportsPage } from '../features/reports/FinanceReportsPage';
 
 export function navigateTo(path: string): void {
   window.history.pushState({}, '', path);
@@ -86,6 +87,7 @@ const protectedPages: Record<string, ProtectedPage> = {
   '/receipts': { element: <ReceiptsPage />, permission: PAYMENT_VIEW_PERMISSIONS },
   '/invoices': { element: <InvoicesPage />, permission: PAYMENT_VIEW_PERMISSIONS },
   '/reports': { element: <ReportsPage />, permission: 'reports.view.own' },
+  '/reports/finance': { element: <FinanceReportsPage />, permission: 'reports.view.finance' },
   '/notifications': { element: <NotificationsPage />, permission: 'notifications.view' },
 };
 
