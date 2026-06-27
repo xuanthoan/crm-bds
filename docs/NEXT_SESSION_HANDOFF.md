@@ -155,3 +155,60 @@ Manual QA checklist:
 ### Sprint 18 UI guide update
 
 Sprint 18 đã bổ sung nút “Hướng dẫn sử dụng” trên trang `/reports/finance`. Modal hướng dẫn giải thích KPI, tab báo cáo, bộ lọc, CSV export và rule nghiệp vụ quan trọng: phiếu thu đã hủy không tính vào tiền đã thu, hóa đơn bản nháp/đã hủy không tính vào giá trị hóa đơn phát hành, tiền cọc được tính vào tổng đã thu, số liệu phụ thuộc quyền truy cập và người không có quyền export sẽ không thấy nút Xuất CSV.
+
+## Sprint 19 — Sales Commission, Revenue Attribution & Performance Report
+
+Sprint 19 adds dynamic reporting for sales commission and revenue attribution without creating payroll, accounting, commission payout, or multi-level approval workflows.
+
+### Business rules
+- Default `commission_rate_percent` is `1` (1%). API validates the rate from 0 to 100 and uses it only for report-time calculation.
+- `estimated_commission = contract_value × commission_rate`.
+- `confirmed_receipts_amount` includes only confirmed receipts; cancelled receipts are excluded.
+- `total_collected_with_deposit = deposit_value + confirmed_receipts_amount`.
+- `collected_commission = total_collected_with_deposit × commission_rate`.
+- `eligible_commission = estimated_commission` only when the contract is completed or collected enough to cover contract value.
+- Cancelled contracts are never commission eligible.
+- Invoice data does not decide actual collected revenue or commission; invoices are evidence documents only.
+- Detail links must use the internal UUID (`contract_id`) and display `contract_code` separately.
+
+### API
+- `GET /api/v1/reports/commissions/summary`
+- `GET /api/v1/reports/commissions`
+- `GET /api/v1/reports/revenue/by-sale`
+- `GET /api/v1/reports/revenue/by-source`
+- `GET /api/v1/reports/revenue/by-project`
+- `GET /api/v1/reports/commissions/export`
+- `GET /api/v1/reports/revenue/by-sale/export`
+- `GET /api/v1/reports/revenue/by-source/export`
+- `GET /api/v1/reports/revenue/by-project/export`
+
+CSV exports use UTF-8 BOM, Vietnamese headers, raw numeric amounts, and filenames for sales commission, revenue by sale, revenue by lead source, and revenue by project/property.
+
+### Permissions
+- `reports.view.commissions`: required for commission summary/detail endpoints and `/reports/commissions` UI.
+- `reports.view.revenue`: required for revenue attribution endpoints/tabs.
+- `reports.export`: reused for all Sprint 19 CSV exports.
+- Superuser/admin bypass remains available through the existing permission pattern.
+
+### Frontend
+- New route: `/reports/commissions`.
+- New sidebar menu: “Báo cáo hoa hồng”.
+- Page includes KPI cards, filters, four tabs (Hoa hồng, Doanh thu theo sale, Doanh thu theo nguồn, Doanh thu theo dự án), per-tab CSV export, loading/error/empty states, and “Hướng dẫn sử dụng” modal.
+
+### Manual QA checklist
+1. Admin sees menu “Báo cáo hoa hồng” and opens `/reports/commissions`.
+2. KPI cards and all four tabs render.
+3. Contract value 10,000 + deposit 2,000 + confirmed receipt 3,000 at 1% shows collected 5,000, remaining 5,000, estimated commission 100, collected commission 50, eligible commission 0 unless completed/fully paid.
+4. Fully collected or completed contract shows eligible commission equal to contract value × rate.
+5. Cancelled receipt reduces collected revenue and collected commission.
+6. Cancelled contract shows commission status “Đã hủy” and eligible commission 0.
+7. Revenue by sale/source/project matches contract grouping and collected totals.
+8. Each CSV opens in Excel with Vietnamese text and numbers matching UI.
+9. Users without view/export permissions are blocked or do not see export buttons.
+10. Guide modal opens/closes and explains KPIs, tabs, and business rules.
+
+### Known limitations
+- This is a temporary/dynamic report, not payroll or an actual payout ledger.
+- No commission payment voucher.
+- No multi-person commission split.
+- No approval/payment workflow for commissions.

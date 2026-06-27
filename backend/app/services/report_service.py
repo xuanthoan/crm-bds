@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.contracts.constants import CONTRACT_STATUS_LABELS
 from app.models.contract import Contract
 from app.models.customer import Customer
+from app.models.deal import Deal
 from app.models.payment_invoice import PaymentInvoice
 from app.models.payment_receipt import PaymentReceipt
 from app.models.payment_schedule import PaymentSchedule
@@ -266,3 +267,127 @@ def get_invoice_report(db: Session, f: ReportFilters, user: User, paginate=True)
 
 def build_csv(headers, rows):
     buf=io.StringIO(); buf.write('\ufeff'); writer=csv.writer(buf); writer.writerow(headers); writer.writerows(rows); return buf.getvalue()
+
+# Sprint 19 — Sales Commission, Revenue Attribution & Performance Report
+DEFAULT_COMMISSION_RATE_PERCENT = Decimal('1')
+UNKNOWN_LEAD_SOURCE = 'Không rõ nguồn'
+UNASSIGNED_SALE = 'Chưa gán sale'
+UNKNOWN_PROJECT = 'Không xác định'
+
+
+def normalize_commission_rate_percent(value: Decimal | int | float | None) -> Decimal:
+    rate = DEFAULT_COMMISSION_RATE_PERCENT if value is None else Decimal(str(value))
+    if rate < 0 or rate > 100:
+        raise HTTPException(422, 'Tỷ lệ hoa hồng phải từ 0 đến 100%.')
+    return rate
+
+
+def _commission_ratio(rate_percent: Decimal) -> Decimal:
+    return rate_percent / Decimal('100')
+
+
+def require_commission_view(user: User) -> None:
+    if user.is_superuser:
+        return
+    perms = set(get_user_permissions(user))
+    if 'reports.view.commissions' not in perms and 'reports.view.all' not in perms:
+        raise HTTPException(403, 'Bạn không có quyền xem báo cáo hoa hồng.')
+
+
+def require_revenue_view(user: User) -> None:
+    if user.is_superuser:
+        return
+    perms = set(get_user_permissions(user))
+    if 'reports.view.revenue' not in perms and 'reports.view.all' not in perms:
+        raise HTTPException(403, 'Bạn không có quyền xem báo cáo doanh thu.')
+
+
+def _commission_contracts(db: Session, f: ReportFilters):
+    return list(db.scalars(select(Contract).options(selectinload(Contract.customer), selectinload(Contract.project), selectinload(Contract.property_unit), selectinload(Contract.creator), selectinload(Contract.deal).selectinload(Deal.property_unit), selectinload(Contract.deal).selectinload(Deal.project), selectinload(Contract.deal).selectinload(Deal.owner)).where(*_contract_conditions(f)).order_by(Contract.created_at.desc())).unique())
+
+
+def _sale_id(c: Contract):
+    return c.created_by_id or (c.deal.owner_id if c.deal else None)
+
+
+def _sale_name(c: Contract):
+    return (c.creator.full_name if getattr(c, 'creator', None) else None) or (c.deal.owner.full_name if getattr(c, 'deal', None) and c.deal.owner else None) or UNASSIGNED_SALE
+
+
+def _lead_source(c: Contract):
+    return (c.customer.source if getattr(c, 'customer', None) else None) or UNKNOWN_LEAD_SOURCE
+
+
+def _project_id(c: Contract):
+    return c.project_id or (c.deal.project_id if c.deal else None)
+
+
+def _project_name(c: Contract):
+    return (c.project.name if getattr(c, 'project', None) else None) or (c.deal.project.name if getattr(c, 'deal', None) and c.deal.project else None) or (c.property_unit.title if getattr(c, 'property_unit', None) else None) or (c.deal.property_unit.title if getattr(c, 'deal', None) and c.deal.property_unit else None) or UNKNOWN_PROJECT
+
+
+def _commission_row(c: Contract, receipt_total: Decimal, rate_percent: Decimal):
+    ratio = _commission_ratio(rate_percent)
+    deposit = money(c.deposit_value); value = money(c.contract_value); collected = deposit + receipt_total
+    remaining = max(value - collected, Decimal('0'))
+    estimated = value * ratio; collected_commission = collected * ratio
+    is_cancelled = c.status == 'cancelled'
+    eligible = (not is_cancelled) and (c.status == 'completed' or collected >= value)
+    status = 'cancelled' if is_cancelled else ('eligible' if eligible else 'not_eligible')
+    return {'contract_id': str(c.id), 'contract_code': c.contract_code, 'customer_name': c.customer.full_name if c.customer else c.buyer_name, 'customer_phone': c.customer.primary_phone if c.customer else c.buyer_phone, 'sale_id': str(_sale_id(c)) if _sale_id(c) else None, 'sale_name': _sale_name(c), 'lead_source': _lead_source(c), 'project_id': str(_project_id(c)) if _project_id(c) else None, 'project_name': _project_name(c), 'contract_status': c.status, 'payment_status': 'paid' if collected >= value else ('partial' if collected > 0 else 'pending'), 'contract_value': value, 'deposit_value': deposit, 'confirmed_receipts_amount': receipt_total, 'total_collected_with_deposit': collected, 'remaining_amount': remaining, 'commission_rate_percent': rate_percent, 'estimated_commission': estimated, 'collected_commission': collected_commission, 'eligible_commission': estimated if eligible else Decimal('0'), 'commission_status': status}
+
+
+def get_commission_report(db: Session, f: ReportFilters, user: User, commission_rate_percent=None, paginate=True):
+    require_commission_view(user); rate = normalize_commission_rate_percent(commission_rate_percent)
+    contracts = _commission_contracts(db, f); receipts = _receipt_sum_by_contract(db, [c.id for c in contracts])
+    items = [_commission_row(c, receipts.get(c.id, Decimal('0')), rate) for c in contracts]
+    if f.payment_status: items = [i for i in items if i['payment_status'] == f.payment_status]
+    total = len(items)
+    if paginate: items = items[(f.page-1)*f.page_size:f.page*f.page_size]
+    return {'items': items, 'total': total, 'page': f.page, 'page_size': f.page_size, 'total_pages': ceil(total/f.page_size) if total else 0}
+
+
+def get_commission_summary(db: Session, f: ReportFilters, user: User, commission_rate_percent=None):
+    items = get_commission_report(db, f, user, commission_rate_percent, False)['items']
+    return {'total_contract_count': len(items), 'eligible_contract_count': sum(1 for i in items if i['commission_status']=='eligible'), 'not_eligible_contract_count': sum(1 for i in items if i['commission_status']=='not_eligible'), 'cancelled_contract_count': sum(1 for i in items if i['commission_status']=='cancelled'), 'total_contract_value': sum((money(i['contract_value']) for i in items), Decimal('0')), 'total_collected_with_deposit': sum((money(i['total_collected_with_deposit']) for i in items), Decimal('0')), 'total_remaining_amount': sum((money(i['remaining_amount']) for i in items), Decimal('0')), 'estimated_commission': sum((money(i['estimated_commission']) for i in items), Decimal('0')), 'collected_commission': sum((money(i['collected_commission']) for i in items), Decimal('0')), 'eligible_commission': sum((money(i['eligible_commission']) for i in items), Decimal('0')), 'commission_rate_percent': normalize_commission_rate_percent(commission_rate_percent)}
+
+
+def _group_revenue(items, key_fn, id_key, name_key, include_commission=True):
+    groups = {}
+    for i in items:
+        gid, name = key_fn(i); g = groups.setdefault((gid, name), {'total_contract_count':0,'completed_contract_count':0,'cancelled_contract_count':0,'total_contract_value':Decimal('0'),'total_deposit_value':Decimal('0'),'confirmed_receipts_amount':Decimal('0'),'total_collected_with_deposit':Decimal('0'),'total_remaining_amount':Decimal('0'),'estimated_commission':Decimal('0'),'collected_commission':Decimal('0'),'eligible_commission':Decimal('0')})
+        g['total_contract_count'] += 1; g['completed_contract_count'] += 1 if i['contract_status']=='completed' else 0; g['cancelled_contract_count'] += 1 if i['contract_status']=='cancelled' else 0
+        source_fields = {
+            'total_contract_value': 'contract_value',
+            'total_deposit_value': 'deposit_value',
+            'confirmed_receipts_amount': 'confirmed_receipts_amount',
+            'total_collected_with_deposit': 'total_collected_with_deposit',
+            'total_remaining_amount': 'remaining_amount',
+            'estimated_commission': 'estimated_commission',
+            'collected_commission': 'collected_commission',
+            'eligible_commission': 'eligible_commission',
+        }
+        for aggregate_field, source_field in source_fields.items():
+            g[aggregate_field] += money(i[source_field])
+    rows=[]
+    for (gid,name), g in groups.items():
+        count=g['total_contract_count']; row={id_key: gid, name_key: name, **g, 'average_contract_value': g['total_contract_value']/count if count else Decimal('0'), 'completion_rate': g['completed_contract_count']/count if count else 0}
+        if not include_commission:
+            row.pop('estimated_commission', None); row.pop('collected_commission', None); row.pop('eligible_commission', None); row.pop('total_deposit_value', None); row.pop('confirmed_receipts_amount', None)
+        rows.append(row)
+    rows.sort(key=lambda r: r['total_contract_value'], reverse=True)
+    return rows
+
+
+def _revenue_items(db, f, user, rate):
+    require_revenue_view(user); contracts=_commission_contracts(db,f); receipts=_receipt_sum_by_contract(db,[c.id for c in contracts]); return [_commission_row(c, receipts.get(c.id, Decimal('0')), rate) for c in contracts]
+
+
+def get_revenue_by_sale(db: Session, f: ReportFilters, user: User, commission_rate_percent=None):
+    rate=normalize_commission_rate_percent(commission_rate_percent); rows=_group_revenue(_revenue_items(db,f,user,rate), lambda i:(i['sale_id'], i['sale_name']), 'sale_id', 'sale_name', True); return {'items':rows,'total':len(rows)}
+
+def get_revenue_by_source(db: Session, f: ReportFilters, user: User, commission_rate_percent=None):
+    rate=normalize_commission_rate_percent(commission_rate_percent); rows=_group_revenue(_revenue_items(db,f,user,rate), lambda i:(i['lead_source'], i['lead_source']), 'lead_source', 'lead_source', False); return {'items':rows,'total':len(rows)}
+
+def get_revenue_by_project(db: Session, f: ReportFilters, user: User, commission_rate_percent=None):
+    rate=normalize_commission_rate_percent(commission_rate_percent); rows=_group_revenue(_revenue_items(db,f,user,rate), lambda i:(i['project_id'], i['project_name']), 'project_id', 'project_name', False); return {'items':rows,'total':len(rows)}

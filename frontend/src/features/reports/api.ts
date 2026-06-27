@@ -12,3 +12,15 @@ export async function downloadFinanceCsv(report:string, filters:Record<string,st
   const blob=await res.blob(); const cd=res.headers.get('Content-Disposition')||''; const name=cd.match(/filename="?([^";]+)"?/)?.[1] || 'bao-cao.csv';
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
 }
+import type { CommissionRow, CommissionSummary, RevenueProjectRow, RevenueSaleRow, RevenueSourceRow } from './types';
+export const commissionSummary=(f:Record<string,string>)=>apiRequest<CommissionSummary>(`/api/v1/reports/commissions/summary?${qs(f)}`);
+export const commissionReport=(f:Record<string,string>)=>apiRequest<Paginated<CommissionRow>>(`/api/v1/reports/commissions?${qs(f)}`);
+export const revenueBySale=(f:Record<string,string>)=>apiRequest<{items:RevenueSaleRow[];total:number}>(`/api/v1/reports/revenue/by-sale?${qs(f)}`);
+export const revenueBySource=(f:Record<string,string>)=>apiRequest<{items:RevenueSourceRow[];total:number}>(`/api/v1/reports/revenue/by-source?${qs(f)}`);
+export const revenueByProject=(f:Record<string,string>)=>apiRequest<{items:RevenueProjectRow[];total:number}>(`/api/v1/reports/revenue/by-project?${qs(f)}`);
+export async function downloadCommissionRevenueCsv(report:string, filters:Record<string,string>){
+  const token=getAccessToken(); const url=`${import.meta.env.VITE_API_URL || ''}/api/v1/reports/${report}/export?${qs(filters)}`;
+  const res=await fetch(url,{headers: token ? {Authorization:`Bearer ${token}`} : {}}); if(!res.ok) throw new Error('Không thể xuất CSV. Vui lòng kiểm tra quyền hoặc thử lại.');
+  const blob=await res.blob(); const cd=res.headers.get('Content-Disposition')||''; const name=cd.match(/filename="?([^";]+)"?/)?.[1] || 'bao-cao.csv';
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+}
