@@ -88,7 +88,12 @@ def _contract_conditions(f: ReportFilters):
         cond.append(Contract.customer.has(Customer.source == f.lead_source))
     if f.customer_keyword:
         term = f'%{f.customer_keyword.strip()}%'
-        cond.append(Contract.customer.has(or_(Customer.full_name.ilike(term), Customer.primary_phone.ilike(term), Customer.customer_code.ilike(term))))
+        cond.append(or_(
+            Contract.contract_code.ilike(term),
+            Contract.customer.has(or_(Customer.full_name.ilike(term), Customer.primary_phone.ilike(term), Customer.customer_code.ilike(term), Customer.source.ilike(term))),
+            Contract.creator.has(User.full_name.ilike(term)),
+            Contract.deal.has(Deal.owner.has(User.full_name.ilike(term))),
+        ))
     if f.contract_keyword:
         cond.append(Contract.contract_code.ilike(f'%{f.contract_keyword.strip()}%'))
     return cond

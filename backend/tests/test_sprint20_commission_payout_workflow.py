@@ -44,10 +44,12 @@ class Sprint20CommissionPayoutWorkflowSourceTest(unittest.TestCase):
         for text in ['Đã tạo hoa hồng nhưng chưa tải lại được danh sách. Vui lòng bấm Lọc hoặc tải lại trang.','Tạo hoa hồng thành công.','Quản lý hoa hồng','Hướng dẫn sử dụng','Tạo từ hợp đồng','Xuất CSV','Duyệt hoa hồng','Tạm giữ hoa hồng','Hủy hoa hồng','Đánh dấu đã chi trả','Phiếu thu đã hủy không được tính','Hóa đơn không quyết định hoa hồng']:
             self.assertIn(text, combined)
         styles=self.read('frontend/src/styles.css')
-        for text in ['commission-kpi-grid', 'commission-guide-body', 'commission-modal-form', 'commission-contract-option', 'commission-table-card', 'commission-timeline-list']:
+        for text in ['commission-action-summary', 'commission-kpi-grid', 'commission-guide-body', 'commission-modal-form', 'commission-contract-option', 'commission-table-card', 'commission-timeline-list']:
             self.assertIn(text, styles)
         self.assertIn('Modal title="Hướng dẫn sử dụng Quản lý hoa hồng"', combined)
         self.assertIn('Modal title="Tạo hoa hồng từ hợp đồng"', combined)
+        for text in ['Bạn đang thao tác hoa hồng:', 'Mã hoa hồng', 'Hoa hồng đủ điều kiện', 'Trạng thái hiện tại', 'Hoa hồng đã duyệt', 'Hủy hoa hồng cần lý do để đối chiếu. Hoa hồng đã chi trả không được hủy.']:
+            self.assertIn(text, combined)
         for forbidden in ['window.alert','window.confirm','window.prompt']:
             self.assertNotIn(forbidden, combined)
 

@@ -1175,3 +1175,37 @@ th {
     width: 100%;
   }
 }
+
+.commission-action-summary {
+  background: #f8fafc;
+  border: 1px solid #dfe5f2;
+  border-radius: 0.9rem;
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+}
+
+.commission-action-summary strong {
+  color: #172033;
+}
+
+.commission-action-summary dl {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  margin: 0;
+}
+
+.commission-action-summary dt {
+  color: #667085;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.commission-action-summary dd {
+  color: #172033;
+  font-weight: 700;
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+}

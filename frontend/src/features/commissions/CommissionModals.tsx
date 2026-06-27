@@ -142,5 +142,28 @@ export function ActionModal({ type, commission, onClose, onSubmit }: { type: 'ap
     if (type === 'cancel') { if (!reason.trim()) return setErr('Vui lòng nhập lý do hủy.'); p.cancel_reason = reason.trim(); }
     try { await onSubmit(p); onClose(); } catch (e) { setErr(e instanceof Error ? e.message : 'Không thực hiện được thao tác.'); }
   }
-  return <Modal title={titles[type]} onClose={onClose}><div className="commission-modal-form">{err && <div className="form-error full-span">{err}</div>}{(type === 'approve' || type === 'paid') && <label className="full-span">{type === 'approve' ? 'Số tiền duyệt' : 'Số tiền đã chi trả'}<input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>}{(type === 'hold' || type === 'cancel') && <label className="full-span">{type === 'hold' ? 'Lý do tạm giữ' : 'Lý do hủy'}<textarea value={reason} onChange={(e) => setReason(e.target.value)} /></label>}<label className="full-span">Ghi chú<textarea value={note} onChange={(e) => setNote(e.target.value)} /></label></div><footer className="modal-actions commission-modal-footer"><button type="button" className="secondary-button" onClick={onClose}>Đóng</button><button type="button" onClick={submit}>Xác nhận</button></footer></Modal>;
+  return (
+    <Modal title={titles[type]} onClose={onClose}>
+      <div className="commission-action-summary">
+        <strong>Bạn đang thao tác hoa hồng:</strong>
+        <dl>
+          <div><dt>Mã hoa hồng</dt><dd>{commission.commission_code}</dd></div>
+          <div><dt>Hợp đồng</dt><dd>{commission.contract_code}</dd></div>
+          <div><dt>Sale</dt><dd>{commission.sale_name || 'Chưa gán sale'}</dd></div>
+          <div><dt>Khách hàng</dt><dd>{commission.customer_name || 'Chưa cập nhật'}</dd></div>
+          <div><dt>Hoa hồng đủ điều kiện</dt><dd>{money(commission.eligible_commission)}</dd></div>
+          <div><dt>Trạng thái hiện tại</dt><dd>{commission.status_label}</dd></div>
+          {type === 'paid' && <><div><dt>Hoa hồng đã duyệt</dt><dd>{money(commission.approved_commission)}</dd></div><div><dt>Số đã chi trả hiện tại</dt><dd>{money(commission.paid_amount)}</dd></div></>}
+        </dl>
+      </div>
+      {type === 'cancel' && <div className="form-warning">Hủy hoa hồng cần lý do để đối chiếu. Hoa hồng đã chi trả không được hủy.</div>}
+      <div className="commission-modal-form">
+        {err && <div className="form-error full-span">{err}</div>}
+        {(type === 'approve' || type === 'paid') && <label className="full-span">{type === 'approve' ? 'Số tiền duyệt' : 'Số tiền đã chi trả'}<input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>}
+        {(type === 'hold' || type === 'cancel') && <label className="full-span">{type === 'hold' ? 'Lý do tạm giữ' : 'Lý do hủy'}<textarea value={reason} onChange={(e) => setReason(e.target.value)} /></label>}
+        <label className="full-span">Ghi chú<textarea value={note} onChange={(e) => setNote(e.target.value)} /></label>
+      </div>
+      <footer className="modal-actions commission-modal-footer"><button type="button" className="secondary-button" onClick={onClose}>Đóng</button><button type="button" onClick={submit}>Xác nhận</button></footer>
+    </Modal>
+  );
 }
