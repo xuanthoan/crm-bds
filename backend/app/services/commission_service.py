@@ -59,7 +59,10 @@ def list_commissions(db, page=1, page_size=20, **f):
     return {"items":[row(c) for c in items],"total":total}
 
 def summary(db, **f):
-    items=list_commissions(db,page=1,page_size=10000,**f)['items']
+    summary_filters = dict(f)
+    summary_filters.pop('page', None)
+    summary_filters.pop('page_size', None)
+    items=list_commissions(db,page=1,page_size=10000,**summary_filters)['items']
     return {"total_eligible_commission":sum(i['eligible_commission'] for i in items),"total_approved_commission":sum(i['approved_commission'] for i in items),"total_paid_amount":sum(i['paid_amount'] for i in items),"pending_count":sum(i['status']=='eligible' for i in items),"approved_count":sum(i['status']=='approved' for i in items),"paid_count":sum(i['status']=='paid' for i in items),"on_hold_count":sum(i['status']=='on_hold' for i in items),"cancelled_count":sum(i['status']=='cancelled' for i in items)}
 
 

@@ -16,8 +16,10 @@ export function CommissionsPage() {
   const [guide, setGuide] = useState(false);
   const [gen, setGen] = useState(false);
   const [action, setAction] = useState<ActionState | null>(null);
+  const [notice, setNotice] = useState('');
 
   async function load(nextFilters = filters) {
+    setNotice('');
     const [listResponse, summaryResponse] = await Promise.all([listCommissions(nextFilters), commissionSummary(nextFilters)]);
     setItems(listResponse.data.items);
     setSummary(summaryResponse.data);
@@ -62,6 +64,7 @@ export function CommissionsPage() {
           {can('commissions.export') && <button onClick={exportCsv}>Xuất CSV</button>}
         </div>
       </header>
+      {notice && <div className="form-warning">{notice}</div>}
       <div className="filter-bar filter-panel commission-filter-panel">
         <label>Từ ngày<input type="date" value={filters.date_from || ''} onChange={(e) => set('date_from', e.target.value)} /></label>
         <label>Đến ngày<input type="date" value={filters.date_to || ''} onChange={(e) => set('date_to', e.target.value)} /></label>
@@ -78,7 +81,7 @@ export function CommissionsPage() {
         {!items.length && <p className="empty-state">Chưa có hoa hồng nào.</p>}
       </section>
       {guide && <GuideModal onClose={() => setGuide(false)} />}
-      {gen && <GenerateModal onClose={() => setGen(false)} onSubmit={async (p) => { await generateCommission(p); await load(); }} />}
+      {gen && <GenerateModal onClose={() => setGen(false)} onSubmit={async (p) => { await generateCommission(p); try { await load(); setNotice('Tạo hoa hồng thành công.'); } catch { setNotice('Đã tạo hoa hồng nhưng chưa tải lại được danh sách. Vui lòng bấm Lọc hoặc tải lại trang.'); } }} />}
       {action && <ActionModal type={action.type} commission={action.c} onClose={() => setAction(null)} onSubmit={submitAction} />}
     </div>
   );

@@ -29,9 +29,19 @@ class Sprint20CommissionPayoutWorkflowSourceTest(unittest.TestCase):
         for text in ['searchEligibleContracts', 'Tìm hợp đồng', 'Nhập mã hợp đồng, tên khách hàng hoặc số điện thoại', 'selected.contract_id', 'contract_id: selected.contract_id', 'UUID nội bộ']:
             self.assertIn(text, frontend_api + modal)
 
+
+    def test_summary_strips_pagination_filters_before_aggregation(self):
+        service=self.read('backend/app/services/commission_service.py')
+        self.assertIn('summary_filters = dict(f)', service)
+        self.assertIn("summary_filters.pop('page', None)", service)
+        self.assertIn("summary_filters.pop('page_size', None)", service)
+        summary_block = service.split('def summary(db, **f):', 1)[1].split('def search_eligible_contracts', 1)[0]
+        self.assertIn("list_commissions(db,page=1,page_size=10000,**summary_filters)", summary_block)
+        self.assertNotIn("**f", summary_block)
+
     def test_frontend_vietnamese_ui_and_no_browser_prompts(self):
         combined='\n'.join(Path(p).read_text() for p in Path('frontend/src/features/commissions').glob('*.tsx'))
-        for text in ['Quản lý hoa hồng','Hướng dẫn sử dụng','Tạo từ hợp đồng','Xuất CSV','Duyệt hoa hồng','Tạm giữ hoa hồng','Hủy hoa hồng','Đánh dấu đã chi trả','Phiếu thu đã hủy không được tính','Hóa đơn không quyết định hoa hồng']:
+        for text in ['Đã tạo hoa hồng nhưng chưa tải lại được danh sách. Vui lòng bấm Lọc hoặc tải lại trang.','Tạo hoa hồng thành công.','Quản lý hoa hồng','Hướng dẫn sử dụng','Tạo từ hợp đồng','Xuất CSV','Duyệt hoa hồng','Tạm giữ hoa hồng','Hủy hoa hồng','Đánh dấu đã chi trả','Phiếu thu đã hủy không được tính','Hóa đơn không quyết định hoa hồng']:
             self.assertIn(text, combined)
         styles=self.read('frontend/src/styles.css')
         for text in ['commission-kpi-grid', 'commission-guide-body', 'commission-modal-form', 'commission-contract-option', 'commission-table-card', 'commission-timeline-list']:
