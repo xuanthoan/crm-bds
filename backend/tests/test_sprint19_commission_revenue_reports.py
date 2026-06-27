@@ -33,6 +33,21 @@ class Sprint19CommissionRevenueReportsSourceTest(unittest.TestCase):
         for text in ['Phiếu thu đã hủy không được tính', 'Hóa đơn không quyết định hoa hồng', 'Đây là báo cáo tạm tính']:
             self.assertIn(text, guide)
 
+
+    def test_commission_report_keyword_search_includes_contract_code_customer_sale_and_source(self):
+        api = Path('backend/app/api/v1/reports.py').read_text()
+        service = Path('backend/app/services/report_service.py').read_text()
+        frontend = Path('frontend/src/features/reports/CommissionRevenueReportsPage.tsx').read_text()
+        self.assertIn('keyword:str|None=None', api)
+        self.assertIn('customer_keyword or keyword', api)
+        self.assertIn('Contract.contract_code.ilike(term)', service)
+        self.assertIn('Customer.full_name.ilike(term)', service)
+        self.assertIn('Customer.source.ilike(term)', service)
+        self.assertIn('Contract.creator.has(User.full_name.ilike(term))', service)
+        self.assertIn('Deal.owner.has(User.full_name.ilike(term))', service)
+        self.assertIn('placeholder="Tìm khách hàng / mã hợp đồng"', frontend)
+        self.assertIn('keyword:e.target.value', frontend)
+
 if __name__ == '__main__':
     unittest.main()
 
