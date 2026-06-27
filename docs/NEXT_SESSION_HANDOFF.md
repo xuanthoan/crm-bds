@@ -212,3 +212,59 @@ CSV exports use UTF-8 BOM, Vietnamese headers, raw numeric amounts, and filename
 - No commission payment voucher.
 - No multi-person commission split.
 - No approval/payment workflow for commissions.
+
+## Sprint 20 — Commission Payout, Approval Workflow & Payment Tracking
+
+Sprint 20 bổ sung nghiệp vụ quản lý hoa hồng thật từ hợp đồng đủ điều kiện: tạo bản ghi hoa hồng, duyệt, tạm giữ, hủy có lý do, đánh dấu đã chi trả, theo dõi timeline thao tác và xuất CSV.
+
+### Quy tắc nghiệp vụ
+- Chỉ tạo hoa hồng cho hợp đồng không bị hủy và đã hoàn tất hoặc đã thu đủ tiền.
+- Tiền đã thu = tiền cọc hợp đồng + tổng phiếu thu trạng thái `confirmed`.
+- Phiếu thu đã hủy không được tính vào điều kiện và số tiền hoa hồng.
+- Hóa đơn không quyết định doanh thu thực thu hoặc hoa hồng.
+- Hoa hồng đủ điều kiện = giá trị hợp đồng × tỷ lệ hoa hồng snapshot tại thời điểm tạo.
+- Chỉ `eligible` hoặc `on_hold` được duyệt; số tiền duyệt không âm và không vượt hoa hồng đủ điều kiện.
+- Chỉ `approved` được đánh dấu đã chi trả; số tiền chi trả không âm và không vượt số tiền đã duyệt.
+- Chỉ `eligible` hoặc `approved` được tạm giữ và bắt buộc nhập lý do.
+- Hoa hồng đã chi trả không được hủy; các trạng thái chưa chi trả khi hủy bắt buộc nhập lý do.
+- Nếu dữ liệu phiếu thu thay đổi sau khi hoa hồng đã duyệt/chi trả, Sprint 20 giữ snapshot và chưa tự tạo điều chỉnh.
+
+### API mới
+- `GET /api/v1/commissions` — danh sách hoa hồng.
+- `GET /api/v1/commissions/summary` — KPI tổng hợp hoa hồng.
+- `POST /api/v1/commissions/generate` — tạo/cập nhật snapshot hoa hồng từ hợp đồng đủ điều kiện.
+- `GET /api/v1/commissions/{id}` — chi tiết hoa hồng và timeline.
+- `POST /api/v1/commissions/{id}/approve` — duyệt hoa hồng.
+- `POST /api/v1/commissions/{id}/mark-paid` — đánh dấu đã chi trả.
+- `POST /api/v1/commissions/{id}/hold` — tạm giữ hoa hồng.
+- `POST /api/v1/commissions/{id}/cancel` — hủy hoa hồng.
+- `GET /api/v1/commissions/export` — xuất CSV UTF-8 BOM với header tiếng Việt.
+
+### Permissions mới
+- `commissions.view`
+- `commissions.create`
+- `commissions.approve`
+- `commissions.mark_paid`
+- `commissions.hold`
+- `commissions.cancel`
+- `commissions.export`
+
+Admin/superuser được bypass theo cơ chế permission hiện có. User thường cần permission tương ứng để xem/tạo/duyệt/tạm giữ/hủy/đánh dấu chi trả/xuất CSV. Row-level visibility của hoa hồng tuân theo các ràng buộc quyền hiện có nếu được mở rộng; hiện tại luồng Sprint 20 tối thiểu guard theo permission.
+
+### Database
+- Bảng `sales_commissions`: snapshot hợp đồng, sale, tỷ lệ hoa hồng, các số tiền eligible/approved/paid, trạng thái, người duyệt, người đánh dấu chi trả, lý do giữ/hủy và ghi chú.
+- Bảng `sales_commission_events`: timeline thao tác `generated`, `regenerated`, `approved`, `held`, `cancelled`, `paid`.
+- Migration mới: `backend/alembic/versions/20260627_0014_sales_commissions.py`.
+
+### Frontend
+- Menu “Hoa hồng”.
+- Route `/commissions` cho danh sách, filter, KPI, action buttons theo quyền/trạng thái và modal “Hướng dẫn sử dụng”.
+- Route `/commissions/:id` cho chi tiết snapshot, hợp đồng, sale/khách hàng, duyệt, chi trả, lý do/ghi chú và timeline.
+- UI tiếng Việt, không dùng `window.alert`, `window.confirm`, `window.prompt`.
+
+### Known limitations
+- Chưa phải bảng lương.
+- Chưa có phiếu chi kế toán.
+- Chưa chia hoa hồng nhiều người.
+- Chưa có workflow duyệt nhiều cấp.
+- Chưa tự động tạo điều chỉnh hoa hồng khi dữ liệu thu tiền thay đổi sau duyệt/chi trả.
