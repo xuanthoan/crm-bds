@@ -956,3 +956,222 @@ th {
 .workflow-hint-box li { margin: 0; }
 .workflow-hint-box b { color: #1d4ed8; }
 @media (max-width: 700px) { .workflow-hint-box { padding: 0.75rem; } }
+
+/* Sprint 20 UX polish - Commission management */
+.commissions-page {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.commission-filter-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+.commission-filter-panel label,
+.commission-modal-form label {
+  color: #344054;
+  display: grid;
+  font-weight: 700;
+  gap: 0.4rem;
+}
+
+.commission-filter-panel input,
+.commission-filter-panel select,
+.commission-modal-form input,
+.commission-modal-form textarea {
+  width: 100%;
+}
+
+.commission-filter-panel .filter-actions {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.commission-kpi-grid {
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  margin: 0;
+}
+
+.commission-kpi-grid .metric-card {
+  min-height: 7.5rem;
+}
+
+.commission-kpi-grid .metric-card strong {
+  overflow-wrap: anywhere;
+}
+
+.commission-count-value {
+  color: #172033 !important;
+}
+
+.commission-table-card {
+  display: grid;
+  gap: 0;
+  margin-top: 0.25rem;
+}
+
+.commission-table-card .responsive-table-wrap {
+  border-top: 1px solid #edf1f7;
+}
+
+.commission-table-card table {
+  min-width: 92rem;
+}
+
+.commission-table-header {
+  margin: 0;
+  padding: 1rem 1.25rem;
+}
+
+.commission-table-header p {
+  color: #667085;
+  margin: 0.25rem 0 0;
+}
+
+.commission-table-card .empty-state,
+.commission-contract-results .empty-state {
+  color: #667085;
+  margin: 0;
+  padding: 1.25rem;
+  text-align: center;
+}
+
+.commission-table-card .table-actions {
+  align-items: center;
+  min-width: 14rem;
+}
+
+.commission-guide-body {
+  display: grid;
+  gap: 1rem;
+  max-height: min(64vh, 42rem);
+  overflow: auto;
+  padding-right: 0.25rem;
+}
+
+.commission-guide-body section {
+  background: #f8fafc;
+  border: 1px solid #edf1f7;
+  border-radius: 0.85rem;
+  padding: 1rem;
+}
+
+.commission-guide-body h3 {
+  margin: 0 0 0.5rem;
+}
+
+.commission-guide-body p,
+.commission-guide-body ul {
+  color: #475467;
+  margin-bottom: 0;
+}
+
+.commission-modal-form {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.commission-modal-form .full-span,
+.commission-modal-form .form-error,
+.commission-modal-form .form-success {
+  grid-column: 1 / -1;
+}
+
+.commission-search-row {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.commission-contract-results {
+  border: 1px solid #dfe5f2;
+  border-radius: 0.85rem;
+  display: grid;
+  gap: 0.6rem;
+  max-height: 18rem;
+  overflow: auto;
+  padding: 0.75rem;
+}
+
+.commission-contract-option {
+  background: #ffffff;
+  border: 1px solid #dfe5f2;
+  border-radius: 0.85rem;
+  color: #172033;
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.85rem;
+  text-align: left;
+  width: 100%;
+}
+
+.commission-contract-option:hover:not(:disabled),
+.commission-contract-option.selected {
+  border-color: #3563e9;
+  box-shadow: 0 0 0 3px rgb(53 99 233 / 12%);
+}
+
+.commission-contract-option:disabled {
+  background: #f8fafc;
+  color: #667085;
+  cursor: not-allowed;
+}
+
+.commission-contract-option small {
+  color: #667085;
+}
+
+.commission-contract-option em {
+  color: #b42318;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.commission-modal-form textarea {
+  min-height: 7rem;
+}
+
+.commission-modal-footer {
+  border-top: 1px solid #edf1f7;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+}
+
+.commission-detail-page {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.commission-timeline-list {
+  display: grid;
+  gap: 0.75rem;
+  list-style: none;
+  margin: 0;
+  max-height: 24rem;
+  overflow: auto;
+  padding: 0;
+}
+
+.commission-timeline-list li {
+  background: #f8fafc;
+  border: 1px solid #edf1f7;
+  border-radius: 0.85rem;
+  overflow-wrap: anywhere;
+  padding: 0.85rem;
+}
+
+@media (max-width: 760px) {
+  .commission-modal-form,
+  .commission-search-row {
+    grid-template-columns: 1fr;
+  }
+
+  .commission-filter-panel .filter-actions button,
+  .commission-search-row button {
+    width: 100%;
+  }
+}
