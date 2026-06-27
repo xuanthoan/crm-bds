@@ -2744,3 +2744,11 @@ Admin/superuser được bypass theo cơ chế permission hiện có. User thư�
 - Chưa chia hoa hồng nhiều người.
 - Chưa có workflow duyệt nhiều cấp.
 - Chưa tự động tạo điều chỉnh hoa hồng khi dữ liệu thu tiền thay đổi sau duyệt/chi trả.
+
+### Sprint 20 UX update — Commission contract search
+
+- `GET /api/v1/commissions/eligible-contracts?keyword=` supports the “Tạo hoa hồng từ hợp đồng” modal.
+- Search keyword matches contract code, buyer/customer name, and buyer/customer phone when available.
+- Response separates `contract_id` (UUID used by generate request) from `contract_code` (human-readable code shown in UI).
+- Each row includes eligibility fields: `is_eligible_for_commission`, `reason`, `has_commission`, contract value, collected amount, remaining amount, contract status, and payment status.
+- Frontend must pass `contract_id` to `POST /api/v1/commissions/generate`; contract code is never used as route/request id.

@@ -286,3 +286,10 @@ Admin/superuser được bypass theo cơ chế permission hiện có. User thư�
 - Chưa chia hoa hồng nhiều người.
 - Chưa có workflow duyệt nhiều cấp.
 - Chưa tự động tạo điều chỉnh hoa hồng khi dữ liệu thu tiền thay đổi sau duyệt/chi trả.
+
+### Sprint 20 UX follow-up — Searchable contract picker
+
+- The generate commission modal now uses “Tìm hợp đồng” instead of asking users to enter an internal UUID.
+- Users can search by contract code, customer name, or phone; the UI displays human-readable rows such as contract code, customer, value, status, collected amount, and remaining amount.
+- Ineligible, cancelled, or already-commissioned contracts are shown with Vietnamese reasons and cannot be selected.
+- The selected row stores the internal `contract_id` UUID for `POST /api/v1/commissions/generate`.

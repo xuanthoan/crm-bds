@@ -33,6 +33,10 @@ def list_commissions(f:dict=Depends(filt),db:Session=Depends(get_db),actor:User=
 @router.get('/summary')
 def summary(f:dict=Depends(filt),db:Session=Depends(get_db),actor:User=Depends(need('commissions.view','commissions.view.all','commissions.view.own','commissions.view.team'))):
     return success_response(svc.summary(db,**f))
+
+@router.get('/eligible-contracts')
+def eligible_contracts(keyword:str|None=None,page:int=Query(1,ge=1),page_size:int=Query(10,ge=1,le=50),db:Session=Depends(get_db),actor:User=Depends(need('commissions.create','commissions.update'))):
+    return success_response(svc.search_eligible_contracts(db,keyword,page,page_size))
 @router.get('/export')
 def export(f:dict=Depends(filt),db:Session=Depends(get_db),actor:User=Depends(need('commissions.export'))):
     content=svc.export_csv(db,**f); return Response(content,media_type='text/csv; charset=utf-8',headers={'Content-Disposition': f'attachment; filename="danh-sach-hoa-hong-{date.today().isoformat()}.csv"'})

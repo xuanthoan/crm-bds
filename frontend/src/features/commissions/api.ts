@@ -1,10 +1,12 @@
 import { apiRequest } from '../../services/apiClient';
 export type Commission={id:string;commission_code:string;contract_id:string;contract_code:string;sale_name:string;customer_name:string;customer_phone?:string;contract_value:number;deposit_value:number;confirmed_receipts_amount:number;total_collected_with_deposit:number;remaining_amount:number;commission_rate_percent:number;eligible_commission:number;approved_commission:number;paid_amount:number;status:string;status_label:string;approved_at:string|null;paid_at:string|null;created_at:string;hold_reason?:string;cancel_reason?:string;note?:string;contract_status?:string;payment_status?:string;approved_by_name?:string;paid_by_name?:string;events?:{id:string;event_type:string;title:string;description?:string;actor_name?:string;created_at:string}[]};
 export type Paginated={items:Commission[];total:number};
+export type EligibleContract={contract_id:string;contract_code:string;customer_name?:string;customer_phone?:string;contract_value:number;deposit_value:number;total_collected_with_deposit:number;remaining_amount:number;contract_status:string;payment_status:string;is_eligible_for_commission:boolean;reason?:string;has_commission:boolean};
 const qs=(f:Record<string,string>)=>new URLSearchParams(Object.entries(f).filter(([,v])=>v)).toString();
 export const listCommissions=(f:Record<string,string>)=>apiRequest<Paginated>(`/api/v1/commissions?${qs(f)}`);
 export const commissionSummary=(f:Record<string,string>)=>apiRequest<Record<string,number>>(`/api/v1/commissions/summary?${qs(f)}`);
 export const getCommission=(id:string)=>apiRequest<Commission>(`/api/v1/commissions/${id}`);
+export const searchEligibleContracts=(keyword:string)=>apiRequest<{items:EligibleContract[];total:number}>(`/api/v1/commissions/eligible-contracts?${qs({keyword})}`);
 export const generateCommission=(p:Record<string,unknown>)=>apiRequest<Commission>('/api/v1/commissions/generate',{method:'POST',body:JSON.stringify(p)});
 export const approveCommission=(id:string,p:Record<string,unknown>)=>apiRequest<Commission>(`/api/v1/commissions/${id}/approve`,{method:'POST',body:JSON.stringify(p)});
 export const holdCommission=(id:string,p:Record<string,unknown>)=>apiRequest<Commission>(`/api/v1/commissions/${id}/hold`,{method:'POST',body:JSON.stringify(p)});

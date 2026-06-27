@@ -62,6 +62,45 @@ def summary(db, **f):
     items=list_commissions(db,page=1,page_size=10000,**f)['items']
     return {"total_eligible_commission":sum(i['eligible_commission'] for i in items),"total_approved_commission":sum(i['approved_commission'] for i in items),"total_paid_amount":sum(i['paid_amount'] for i in items),"pending_count":sum(i['status']=='eligible' for i in items),"approved_count":sum(i['status']=='approved' for i in items),"paid_count":sum(i['status']=='paid' for i in items),"on_hold_count":sum(i['status']=='on_hold' for i in items),"cancelled_count":sum(i['status']=='cancelled' for i in items)}
 
+
+def search_eligible_contracts(db, keyword=None, page=1, page_size=10):
+    q=db.query(Contract).outerjoin(Customer, Contract.customer_id==Customer.id).outerjoin(SalesCommission, SalesCommission.contract_id==Contract.id).filter(Contract.deleted_at.is_(None))
+    if keyword:
+        term=f"%{keyword.strip()}%"
+        q=q.filter(or_(Contract.contract_code.ilike(term), Contract.buyer_name.ilike(term), Contract.buyer_phone.ilike(term), Customer.full_name.ilike(term), Customer.primary_phone.ilike(term)))
+    contracts=q.order_by(Contract.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
+    items=[]
+    for contract in contracts:
+        snap=_snapshot(db, contract, Decimal('1'))
+        has_commission=db.query(SalesCommission.id).filter(SalesCommission.contract_id==contract.id).first() is not None
+        customer=getattr(contract,'customer',None)
+        is_cancelled=contract.status=='cancelled'
+        is_eligible=bool(snap['eligible']) and not is_cancelled and not has_commission
+        if is_cancelled:
+            reason='Hợp đồng đã hủy, không thể tạo hoa hồng.'
+        elif has_commission:
+            reason='Hợp đồng này đã có hoa hồng.'
+        elif not snap['eligible']:
+            reason='Hợp đồng chưa hoàn tất hoặc chưa thu đủ tiền.'
+        else:
+            reason=None
+        items.append({
+            'contract_id': str(contract.id),
+            'contract_code': contract.contract_code,
+            'customer_name': getattr(customer,'full_name',None) or contract.buyer_name,
+            'customer_phone': getattr(customer,'primary_phone',None) or contract.buyer_phone,
+            'contract_value': float(snap['contract_value']),
+            'deposit_value': float(snap['deposit_value']),
+            'total_collected_with_deposit': float(snap['total_collected_with_deposit']),
+            'remaining_amount': float(snap['remaining_amount']),
+            'contract_status': contract.status,
+            'payment_status': 'paid' if snap['remaining_amount'] <= 0 else 'unpaid',
+            'is_eligible_for_commission': is_eligible,
+            'reason': reason,
+            'has_commission': has_commission,
+        })
+    return {'items': items, 'total': len(items)}
+
 def get_commission(db,id):
     c=base_query(db).filter(SalesCommission.id==id).first()
     if not c: raise HTTPException(404,'Không tìm thấy hoa hồng.')
