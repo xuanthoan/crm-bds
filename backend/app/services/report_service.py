@@ -357,8 +357,18 @@ def _group_revenue(items, key_fn, id_key, name_key, include_commission=True):
     for i in items:
         gid, name = key_fn(i); g = groups.setdefault((gid, name), {'total_contract_count':0,'completed_contract_count':0,'cancelled_contract_count':0,'total_contract_value':Decimal('0'),'total_deposit_value':Decimal('0'),'confirmed_receipts_amount':Decimal('0'),'total_collected_with_deposit':Decimal('0'),'total_remaining_amount':Decimal('0'),'estimated_commission':Decimal('0'),'collected_commission':Decimal('0'),'eligible_commission':Decimal('0')})
         g['total_contract_count'] += 1; g['completed_contract_count'] += 1 if i['contract_status']=='completed' else 0; g['cancelled_contract_count'] += 1 if i['contract_status']=='cancelled' else 0
-        for k in ['total_contract_value','total_deposit_value','confirmed_receipts_amount','total_collected_with_deposit','total_remaining_amount','estimated_commission','collected_commission','eligible_commission']:
-            source = {'total_contract_value':'contract_value','total_deposit_value':'deposit_value'}.get(k,k); g[k] += money(i[source])
+        source_fields = {
+            'total_contract_value': 'contract_value',
+            'total_deposit_value': 'deposit_value',
+            'confirmed_receipts_amount': 'confirmed_receipts_amount',
+            'total_collected_with_deposit': 'total_collected_with_deposit',
+            'total_remaining_amount': 'remaining_amount',
+            'estimated_commission': 'estimated_commission',
+            'collected_commission': 'collected_commission',
+            'eligible_commission': 'eligible_commission',
+        }
+        for aggregate_field, source_field in source_fields.items():
+            g[aggregate_field] += money(i[source_field])
     rows=[]
     for (gid,name), g in groups.items():
         count=g['total_contract_count']; row={id_key: gid, name_key: name, **g, 'average_contract_value': g['total_contract_value']/count if count else Decimal('0'), 'completion_rate': g['completed_contract_count']/count if count else 0}

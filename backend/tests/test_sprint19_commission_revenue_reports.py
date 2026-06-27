@@ -35,3 +35,15 @@ class Sprint19CommissionRevenueReportsSourceTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class Sprint19RevenueGroupingRegressionTest(unittest.TestCase):
+    def test_revenue_grouping_maps_total_remaining_to_remaining_amount(self):
+        service = Path('backend/app/services/report_service.py').read_text()
+        self.assertIn("'total_remaining_amount': 'remaining_amount'", service)
+        self.assertIn("g[aggregate_field] += money(i[source_field])", service)
+        self.assertNotIn("get(k,k); g[k] += money(i[source])", service)
+
+    def test_revenue_by_project_export_uses_total_remaining_amount(self):
+        api = Path('backend/app/api/v1/reports.py').read_text()
+        self.assertIn("@router.get('/revenue/by-project/export')", api)
+        self.assertIn("i['total_remaining_amount']", api)
