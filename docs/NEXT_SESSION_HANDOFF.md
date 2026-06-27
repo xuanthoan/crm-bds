@@ -151,3 +151,7 @@ Manual QA checklist:
 - CSV tải được, có UTF-8 BOM để Excel đọc tiếng Việt.
 - User không có `reports.view.finance` không thấy menu và bị chặn 403 khi gọi API.
 - User có quyền xem nhưng không có `reports.export` xem được báo cáo nhưng không thấy nút xuất CSV.
+
+### Sprint 18 UI guide update
+
+Sprint 18 đã bổ sung nút “Hướng dẫn sử dụng” trên trang `/reports/finance`. Modal hướng dẫn giải thích KPI, tab báo cáo, bộ lọc, CSV export và rule nghiệp vụ quan trọng: phiếu thu đã hủy không tính vào tiền đã thu, hóa đơn bản nháp/đã hủy không tính vào giá trị hóa đơn phát hành, tiền cọc được tính vào tổng đã thu, số liệu phụ thuộc quyền truy cập và người không có quyền export sẽ không thấy nút Xuất CSV.

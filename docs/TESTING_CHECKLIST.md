@@ -302,3 +302,12 @@ Manual QA checklist:
 - CSV tải được, có UTF-8 BOM để Excel đọc tiếng Việt.
 - User không có `reports.view.finance` không thấy menu và bị chặn 403 khi gọi API.
 - User có quyền xem nhưng không có `reports.export` xem được báo cáo nhưng không thấy nút xuất CSV.
+
+### Sprint 18 finance report guide modal QA
+
+- Admin vào `/reports/finance` và thấy nút “Hướng dẫn sử dụng” trên header Báo cáo tài chính.
+- Bấm “Hướng dẫn sử dụng” mở modal nội bộ, không dùng alert/prompt mặc định của browser.
+- Modal “Hướng dẫn sử dụng Báo cáo tài chính” hiển thị đầy đủ mục đích màn hình, ý nghĩa KPI, ý nghĩa từng tab, bộ lọc, Xuất CSV và lưu ý nghiệp vụ.
+- Nội dung modal dài có thể scroll trong modal; bấm “Đóng” hoặc icon X đóng modal.
+- Các tab báo cáo, link detail UUID và export CSV Sprint 18 vẫn hoạt động như trước.
+- User không có `reports.view.finance` vẫn bị chặn như trước và không vào được nội dung báo cáo.
