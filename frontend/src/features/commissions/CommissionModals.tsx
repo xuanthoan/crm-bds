@@ -3,6 +3,8 @@ import { Modal } from '../../components/Modal';
 import { searchEligibleContracts, type Commission, type EligibleContract } from './api';
 
 const money = (v: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(v || 0);
+const CONTRACT_STATUS_LABELS: Record<string, string> = { draft: 'Bản nháp', pending_signature: 'Chờ ký', signed: 'Đã ký', active: 'Có hiệu lực', completed: 'Hoàn tất', cancelled: 'Đã hủy' };
+const contractStatusLabel = (status?: string) => status ? (CONTRACT_STATUS_LABELS[status] || status) : 'Chưa cập nhật';
 
 export function GuideModal({ onClose }: { onClose: () => void }) {
   return (
@@ -113,7 +115,7 @@ export function GenerateModal({ onClose, onSubmit }: { onClose: () => void; onSu
               className={`commission-contract-option ${selected?.contract_id === c.contract_id ? 'selected' : ''}`}
               onClick={() => setSelected(c)}
             >
-              <span><b>{c.contract_code}</b> — Khách hàng: {c.customer_name || 'Chưa cập nhật'} {c.customer_phone ? `(${c.customer_phone})` : ''} — Giá trị: {money(c.contract_value)} — Trạng thái: {c.contract_status}</span>
+              <span><b>{c.contract_code}</b> — Khách hàng: {c.customer_name || 'Chưa cập nhật'} {c.customer_phone ? `(${c.customer_phone})` : ''} — Giá trị: {money(c.contract_value)} — Trạng thái: {contractStatusLabel(c.contract_status)}</span>
               <small>Đã thu: {money(c.total_collected_with_deposit)} · Còn lại: {money(c.remaining_amount)}</small>
               {!c.is_eligible_for_commission && <em>{c.reason}</em>}
             </button>

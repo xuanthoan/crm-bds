@@ -14,6 +14,8 @@ from app.models.sales_commission import SalesCommission, SalesCommissionEvent
 from app.models.user import User
 
 STATUSES={"draft":"Tạm tính","eligible":"Đủ điều kiện","approved":"Đã duyệt","paid":"Đã chi trả","on_hold":"Tạm giữ","cancelled":"Đã hủy"}
+COMMISSION_LEGAL_CONTRACT_STATUSES = {'signed', 'active', 'completed'}
+LEGAL_STATUS_ERROR = 'Hợp đồng chưa đủ trạng thái pháp lý để tạo hoa hồng.'
 D=Decimal
 
 def now(): return datetime.now(timezone.utc)
@@ -30,7 +32,7 @@ def _snapshot(db, contract, rate_percent):
     receipts=dec(db.query(func.coalesce(func.sum(PaymentReceipt.amount),0)).filter(PaymentReceipt.contract_id==contract.id, PaymentReceipt.status=='confirmed', PaymentReceipt.deleted_at.is_(None)).scalar())
     cv=dec(contract.contract_value); dep=dec(contract.deposit_value); total=dep+receipts; remaining=max(cv-total,D('0'))
     ratio=dec(rate_percent)/D('100')
-    eligible = contract.status == 'completed' or total >= cv
+    eligible = contract.status in COMMISSION_LEGAL_CONTRACT_STATUSES and (contract.status == 'completed' or total >= cv)
     return dict(contract_value=cv,deposit_value=dep,confirmed_receipts_amount=receipts,total_collected_with_deposit=total,remaining_amount=remaining,estimated_commission=(cv*ratio).quantize(D('0.01')),collected_commission=(total*ratio).quantize(D('0.01')),eligible_commission=((cv*ratio).quantize(D('0.01')) if eligible else D('0')), eligible=eligible)
 
 def _sale_id(contract): return getattr(getattr(contract,'deal',None),'owner_id',None)
@@ -78,11 +80,14 @@ def search_eligible_contracts(db, keyword=None, page=1, page_size=10):
         has_commission=db.query(SalesCommission.id).filter(SalesCommission.contract_id==contract.id).first() is not None
         customer=getattr(contract,'customer',None)
         is_cancelled=contract.status=='cancelled'
+        has_legal_status=contract.status in COMMISSION_LEGAL_CONTRACT_STATUSES
         is_eligible=bool(snap['eligible']) and not is_cancelled and not has_commission
         if is_cancelled:
             reason='Hợp đồng đã hủy, không thể tạo hoa hồng.'
         elif has_commission:
             reason='Hợp đồng này đã có hoa hồng.'
+        elif not has_legal_status:
+            reason=LEGAL_STATUS_ERROR
         elif not snap['eligible']:
             reason='Hợp đồng chưa hoàn tất hoặc chưa thu đủ tiền.'
         else:
@@ -114,6 +119,7 @@ def generate(db, contract_id, rate, note, actor):
     contract=db.query(Contract).options(joinedload(Contract.deal),joinedload(Contract.customer)).filter(Contract.id==contract_id).first()
     if not contract: raise HTTPException(404,'Không tìm thấy hợp đồng.')
     if contract.status=='cancelled': raise HTTPException(400,'Hợp đồng đã hủy, không thể tạo hoa hồng.')
+    if contract.status not in COMMISSION_LEGAL_CONTRACT_STATUSES: raise HTTPException(400,LEGAL_STATUS_ERROR)
     snap=_snapshot(db,contract,rate)
     if not snap.pop('eligible'): raise HTTPException(400,'Hợp đồng chưa đủ điều kiện tạo hoa hồng: chưa hoàn tất hoặc chưa thu đủ tiền.')
     c=db.query(SalesCommission).filter_by(contract_id=contract.id).first()

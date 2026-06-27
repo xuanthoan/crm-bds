@@ -13,7 +13,7 @@ class Sprint20CommissionPayoutWorkflowSourceTest(unittest.TestCase):
             self.assertIn(route, api)
     def test_business_rules_are_explicit(self):
         service=self.read('backend/app/services/commission_service.py')
-        for text in ["PaymentReceipt.status=='confirmed'","contract.status=='cancelled'","contract.status == 'completed' or total >= cv","estimated_commission=(cv*ratio)","Hoa hồng đã chi trả, không thể hủy.","Vui lòng nhập lý do tạm giữ.","Vui lòng nhập lý do hủy.","c.status in ('approved','paid')"]:
+        for text in ["PaymentReceipt.status=='confirmed'","contract.status=='cancelled'","contract.status in COMMISSION_LEGAL_CONTRACT_STATUSES", "contract.status == 'completed' or total >= cv","estimated_commission=(cv*ratio)","Hoa hồng đã chi trả, không thể hủy.","Vui lòng nhập lý do tạm giữ.","Vui lòng nhập lý do hủy.","c.status in ('approved','paid')"]:
             self.assertIn(text, service)
     def test_permissions_and_frontend_routes(self):
         api=self.read('backend/app/api/v1/commissions.py'); constants=self.read('backend/app/permissions/constants.py'); routes=self.read('frontend/src/routes/AppRoutes.tsx'); layout=self.read('frontend/src/layouts/AppLayout.tsx')
@@ -39,6 +39,20 @@ class Sprint20CommissionPayoutWorkflowSourceTest(unittest.TestCase):
         self.assertIn("list_commissions(db,page=1,page_size=10000,**summary_filters)", summary_block)
         self.assertNotIn("**f", summary_block)
 
+
+
+    def test_draft_pending_contracts_are_not_commission_eligible_even_when_fully_collected(self):
+        service=self.read('backend/app/services/commission_service.py')
+        modal=self.read('frontend/src/features/commissions/CommissionModals.tsx')
+        self.assertIn("COMMISSION_LEGAL_CONTRACT_STATUSES = {'signed', 'active', 'completed'}", service)
+        self.assertIn("LEGAL_STATUS_ERROR = 'Hợp đồng chưa đủ trạng thái pháp lý để tạo hoa hồng.'", service)
+        self.assertIn("contract.status in COMMISSION_LEGAL_CONTRACT_STATUSES and (contract.status == 'completed' or total >= cv)", service)
+        self.assertIn("if contract.status not in COMMISSION_LEGAL_CONTRACT_STATUSES: raise HTTPException(400,LEGAL_STATUS_ERROR)", service)
+        self.assertIn('has_legal_status=contract.status in COMMISSION_LEGAL_CONTRACT_STATUSES', service)
+        self.assertIn('reason=LEGAL_STATUS_ERROR', service)
+        self.assertIn("draft: 'Bản nháp'", modal)
+        self.assertIn("pending_signature: 'Chờ ký'", modal)
+        self.assertIn('Hợp đồng chưa đủ trạng thái pháp lý để tạo hoa hồng.', service)
 
     def test_commission_list_action_gating_for_final_statuses(self):
         page=self.read('frontend/src/features/commissions/CommissionsPage.tsx')
