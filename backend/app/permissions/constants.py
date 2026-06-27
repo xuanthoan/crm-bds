@@ -617,3 +617,14 @@ ROLE_PERMISSION_MAP["sales_manager"] += ["tasks.view_all", "tasks.create", "task
 ROLE_PERMISSION_MAP["leader"] += ["tasks.view", "tasks.create", "tasks.update", "tasks.complete", "tasks.cancel", "tasks.assign", "notifications.view", "notifications.update"]
 ROLE_PERMISSION_MAP["sale"] += ["tasks.view", "tasks.create", "tasks.update", "tasks.complete", "tasks.cancel", "notifications.view", "notifications.update"]
 ROLE_PERMISSION_MAP["viewer"] += ["tasks.view", "notifications.view"]
+
+# Sprint 19: report permissions for sales commission and revenue attribution.
+SPRINT19_REPORT_PERMISSIONS = ["reports.view.commissions", "reports.view.revenue"]
+for _permission in SPRINT19_REPORT_PERMISSIONS:
+    if _permission not in PERMISSION_CODES_BY_MODULE["reports"]:
+        PERMISSION_CODES_BY_MODULE["reports"].append(_permission)
+ALL_PERMISSION_CODES = sorted({code for codes in PERMISSION_CODES_BY_MODULE.values() for code in codes})
+ROLE_PERMISSION_MAP["admin"] = list(ALL_PERMISSION_CODES)
+for _role in ("director", "sales_manager", "leader"):
+    ROLE_PERMISSION_MAP[_role] += [p for p in SPRINT19_REPORT_PERMISSIONS if p not in ROLE_PERMISSION_MAP[_role]]
+ROLE_PERMISSION_MAP["accountant"] += [p for p in SPRINT19_REPORT_PERMISSIONS if p not in ROLE_PERMISSION_MAP["accountant"]]
