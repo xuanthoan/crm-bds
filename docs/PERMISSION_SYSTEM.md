@@ -1351,3 +1351,40 @@ Hệ thống bắt buộc phải đảm bảo:
 * Không để người không có quyền sửa dữ liệu quan trọng
 
 Đây là điều kiện bắt buộc trước khi triển khai các module CRM, Lead, Deal, Inventory, Marketing và Reporting.
+
+## Sprint 18 — Finance Reports, Receivable Aging & Revenue Dashboard
+
+Sprint 18 thêm hệ thống báo cáo tài chính tại frontend route `/reports/finance`, gồm KPI tổng quan, Công nợ hợp đồng, PMT quá hạn, Dòng tiền đã thu và Hóa đơn.
+
+API mới:
+- `GET /api/v1/reports/finance/summary`
+- `GET /api/v1/reports/finance/receivables`
+- `GET /api/v1/reports/finance/overdue-payments`
+- `GET /api/v1/reports/finance/cash-collection`
+- `GET /api/v1/reports/finance/invoices`
+- `GET /api/v1/reports/finance/receivables/export`
+- `GET /api/v1/reports/finance/overdue-payments/export`
+- `GET /api/v1/reports/finance/cash-collection/export`
+- `GET /api/v1/reports/finance/invoices/export`
+
+Permissions:
+- `reports.view.finance`: xem báo cáo tài chính; không có quyền thì backend trả 403 và frontend hiển thị “Bạn không có quyền xem báo cáo tài chính.”
+- `reports.export`: xuất CSV báo cáo tài chính; không có quyền thì backend trả 403 và frontend ẩn nút xuất.
+- Admin/superuser có toàn quyền xem và export.
+
+Business rules Sprint 18:
+- `receipt confirmed` mới tính vào đã thu.
+- `receipt cancelled` không tính vào đã thu, KPI dòng tiền hay công nợ.
+- `invoice issued` mới tính tổng hóa đơn phát hành.
+- `invoice draft/cancelled` không tính vào tổng hóa đơn phát hành.
+- `PMT overdue = due_date < today AND remaining > 0`; PMT đã paid không xuất hiện trong báo cáo quá hạn.
+- Tổng đã thu hợp đồng = tiền cọc + phiếu thu confirmed; còn phải thu = max(contract_value - deposit_value - confirmed_receipts, 0).
+
+Manual QA checklist:
+- Admin mở `/reports/finance` thấy menu, KPI, các tab báo cáo và link detail dùng UUID nội bộ.
+- Hủy phiếu thu làm giảm số đã thu và tăng còn phải thu.
+- PMT quá hạn còn nợ xuất hiện, PMT paid không xuất hiện.
+- Invoice issued được tính; invoice draft/cancelled không được tính.
+- CSV tải được, có UTF-8 BOM để Excel đọc tiếng Việt.
+- User không có `reports.view.finance` không thấy menu và bị chặn 403 khi gọi API.
+- User có quyền xem nhưng không có `reports.export` xem được báo cáo nhưng không thấy nút xuất CSV.
