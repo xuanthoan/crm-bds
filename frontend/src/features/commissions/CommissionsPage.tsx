@@ -20,6 +20,8 @@ export function CommissionsPage() {
   const [gen, setGen] = useState(false);
   const [action, setAction] = useState<ActionState | null>(null);
   const [notice, setNotice] = useState('');
+  const [isFiltering, setIsFiltering] = useState(false);
+  const [isClearingFilters, setIsClearingFilters] = useState(false);
 
   async function load(nextFilters = filters) {
     setNotice('');
@@ -31,7 +33,8 @@ export function CommissionsPage() {
   useEffect(() => { void load(); }, []);
 
   const set = (k: string, v: string) => setFilters((current) => ({ ...current, [k]: v }));
-  const clearFilters = () => { setFilters({}); void load({}); };
+  const clearFilters = async () => { setIsClearingFilters(true); setFilters({}); try { await load({}); } finally { setIsClearingFilters(false); } };
+  const applyFilters = async () => { setIsFiltering(true); try { await load(); } finally { setIsFiltering(false); } };
 
   async function submitAction(p: Record<string, unknown>) {
     if (!action) return;
@@ -95,7 +98,7 @@ export function CommissionsPage() {
         <label>Đến ngày<input type="date" value={filters.date_to || ''} onChange={(e) => set('date_to', e.target.value)} /></label>
         <label>Trạng thái<select value={filters.status || ''} onChange={(e) => set('status', e.target.value)}><option value="">Tất cả trạng thái</option><option value="eligible">Đủ điều kiện</option><option value="approved">Đã duyệt</option><option value="paid">Đã chi trả</option><option value="on_hold">Tạm giữ</option><option value="cancelled">Đã hủy</option></select></label>
         <label>Từ khóa<input value={filters.keyword || ''} placeholder="Mã HĐ / mã HH / khách hàng" onChange={(e) => set('keyword', e.target.value)} /></label>
-        <div className="filter-actions"><button onClick={() => void load()}>Lọc</button><button className="secondary-button" onClick={clearFilters}>Xóa lọc</button></div>
+        <div className="filter-actions"><button disabled={isFiltering} onClick={() => void applyFilters()}>{isFiltering ? 'Đang lọc...' : 'Lọc'}</button><button className="secondary-button" disabled={isClearingFilters} onClick={() => void clearFilters()}>{isClearingFilters ? 'Đang xóa...' : 'Xóa lọc'}</button></div>
       </div>
       <section className="metric-grid commission-kpi-grid" aria-label="Chỉ số hoa hồng">
         {cards.map(([label, value], index) => <article className="metric-card" key={String(label)}><span>{label}</span><strong className={index > 2 ? 'commission-count-value' : undefined}>{value}</strong></article>)}

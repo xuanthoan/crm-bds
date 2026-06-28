@@ -5,6 +5,7 @@ import { searchEligibleContracts, type Commission, type EligibleContract } from 
 const money = (v: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(v || 0);
 const CONTRACT_STATUS_LABELS: Record<string, string> = { draft: 'Bản nháp', pending_signature: 'Chờ ký', signed: 'Đã ký', active: 'Có hiệu lực', completed: 'Hoàn tất', cancelled: 'Đã hủy' };
 const contractStatusLabel = (status?: string) => status ? (CONTRACT_STATUS_LABELS[status] || status) : 'Chưa cập nhật';
+const RequiredMark = () => <span className="required-mark">*</span>;
 
 export function GuideModal({ onClose }: { onClose: () => void }) {
   return (
@@ -67,14 +68,19 @@ export function GenerateModal({ onClose, onSubmit }: { onClose: () => void; onSu
   const [rate, setRate] = useState('1');
   const [note, setNote] = useState('');
   const [err, setErr] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
   async function doSearch(term = query) {
     setErr('');
+    setIsSearching(true);
     try {
       const res = await searchEligibleContracts(term);
       setContracts(res.data.items);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Không tìm được hợp đồng.');
+    } finally {
+      setIsSearching(false);
     }
   }
 
@@ -84,15 +90,19 @@ export function GenerateModal({ onClose, onSubmit }: { onClose: () => void; onSu
   }, [query]);
 
   async function submit() {
+    if (isSubmitting) return;
     if (!selected) return setErr('Vui lòng chọn hợp đồng đủ điều kiện.');
     if (!selected.is_eligible_for_commission) return setErr(selected.reason || 'Hợp đồng chưa đủ điều kiện tạo hoa hồng.');
     const r = Number(rate);
     if (Number.isNaN(r) || r < 0 || r > 100) return setErr('Tỷ lệ hoa hồng phải từ 0 đến 100%.');
     try {
+      setIsSubmitting(true);
       await onSubmit({ contract_id: selected.contract_id, commission_rate_percent: r, note });
       onClose();
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Không tạo được hoa hồng.');
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -100,10 +110,10 @@ export function GenerateModal({ onClose, onSubmit }: { onClose: () => void; onSu
     <Modal title="Tạo hoa hồng từ hợp đồng" onClose={onClose}>
       <div className="commission-modal-form">
         {err && <div className="form-error">{err}</div>}
-        <label className="full-span">Tìm hợp đồng
+        <label className="full-span">Tìm hợp đồng <RequiredMark />
           <div className="commission-search-row">
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nhập mã hợp đồng, tên khách hàng hoặc số điện thoại" />
-            <button type="button" onClick={() => void doSearch()}>Tìm</button>
+            <button type="button" disabled={isSearching} onClick={() => void doSearch()}>{isSearching ? 'Đang tìm...' : 'Tìm'}</button>
           </div>
         </label>
         <div className="commission-contract-results full-span">
@@ -122,10 +132,10 @@ export function GenerateModal({ onClose, onSubmit }: { onClose: () => void; onSu
           )) : <p className="empty-state">Nhập từ khóa để tìm hợp đồng.</p>}
         </div>
         {selected && <div className="form-success full-span">Đã chọn {selected.contract_code} — hệ thống sẽ dùng UUID nội bộ khi tạo hoa hồng.</div>}
-        <label>Tỷ lệ hoa hồng (%)<input type="number" min="0" max="100" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} /></label>
+        <label>Tỷ lệ hoa hồng (%) <RequiredMark /><input type="number" min="0" max="100" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} /></label>
         <label className="full-span">Ghi chú<textarea value={note} onChange={(e) => setNote(e.target.value)} /></label>
       </div>
-      <footer className="modal-actions commission-modal-footer"><button type="button" className="secondary-button" onClick={onClose}>Hủy</button><button type="button" onClick={submit}>Tạo hoa hồng</button></footer>
+      <footer className="modal-actions commission-modal-footer"><button type="button" className="secondary-button" onClick={onClose}>Hủy</button><button type="button" disabled={isSubmitting} onClick={submit}>{isSubmitting ? 'Đang tạo...' : 'Tạo hoa hồng'}</button></footer>
     </Modal>
   );
 }
@@ -136,13 +146,15 @@ export function ActionModal({ type, commission, onClose, onSubmit }: { type: 'ap
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
   const [err, setErr] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   async function submit() {
+    if (isSubmitting) return;
     const p: Record<string, unknown> = { note };
     if (type === 'approve') { if (commission.payout_policy?.can_approve_sales_commission === false) return setErr(commission.payout_policy.approve_block_reason || 'Chưa đủ điều kiện duyệt hoa hồng sale.'); const v = Number(amount); if (v < 0 || v > commission.eligible_commission) return setErr(`Số tiền duyệt phải từ 0 đến ${money(commission.eligible_commission)}.`); p.approved_commission = v; }
     if (type === 'paid') { if (commission.payout_policy?.can_mark_paid_sales_commission === false) return setErr(commission.payout_policy.mark_paid_block_reason || 'Chưa đủ điều kiện chi hoa hồng sale.'); const v = Number(amount); const cap = commission.payout_policy?.remaining_payable_capacity ?? commission.remaining_payable_capacity ?? commission.approved_commission; if (v < 0 || v > commission.approved_commission) return setErr(`Số tiền chi trả phải từ 0 đến ${money(commission.approved_commission)}.`); if (v > cap) return setErr('Số tiền chi hoa hồng sale không được vượt số hoa hồng công ty đã nhận.'); p.paid_amount = v; }
     if (type === 'hold') { if (!reason.trim()) return setErr('Vui lòng nhập lý do tạm giữ.'); p.hold_reason = reason.trim(); }
     if (type === 'cancel') { if (!reason.trim()) return setErr('Vui lòng nhập lý do hủy.'); p.cancel_reason = reason.trim(); }
-    try { await onSubmit(p); onClose(); } catch (e) { setErr(e instanceof Error ? e.message : 'Không thực hiện được thao tác.'); }
+    try { setIsSubmitting(true); await onSubmit(p); onClose(); } catch (e) { setErr(e instanceof Error ? e.message : 'Không thực hiện được thao tác.'); } finally { setIsSubmitting(false); }
   }
   return (
     <Modal title={titles[type]} onClose={onClose}>
@@ -165,11 +177,11 @@ export function ActionModal({ type, commission, onClose, onSubmit }: { type: 'ap
       {type === 'paid' && commission.payout_policy?.can_mark_paid_sales_commission === false && <div className="form-error">{commission.payout_policy.mark_paid_block_reason}</div>}
       <div className="commission-modal-form">
         {err && <div className="form-error full-span">{err}</div>}
-        {(type === 'approve' || type === 'paid') && <label className="full-span">{type === 'approve' ? 'Số tiền duyệt' : 'Số tiền đã chi trả'}<input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>}
-        {(type === 'hold' || type === 'cancel') && <label className="full-span">{type === 'hold' ? 'Lý do tạm giữ' : 'Lý do hủy'}<textarea value={reason} onChange={(e) => setReason(e.target.value)} /></label>}
+        {(type === 'approve' || type === 'paid') && <label className="full-span">{type === 'approve' ? 'Số tiền duyệt' : 'Số tiền đã chi trả'} <RequiredMark /><input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>}
+        {(type === 'hold' || type === 'cancel') && <label className="full-span">{type === 'hold' ? 'Lý do tạm giữ' : 'Lý do hủy'} <RequiredMark /><textarea value={reason} onChange={(e) => setReason(e.target.value)} /></label>}
         <label className="full-span">Ghi chú<textarea value={note} onChange={(e) => setNote(e.target.value)} /></label>
       </div>
-      <footer className="modal-actions commission-modal-footer"><button type="button" className="secondary-button" onClick={onClose}>Đóng</button><button type="button" disabled={(type === 'approve' && commission.payout_policy?.can_approve_sales_commission === false) || (type === 'paid' && commission.payout_policy?.can_mark_paid_sales_commission === false)} onClick={submit}>Xác nhận</button></footer>
+      <footer className="modal-actions commission-modal-footer"><button type="button" className="secondary-button" onClick={onClose}>Đóng</button><button type="button" disabled={isSubmitting || (type === 'approve' && commission.payout_policy?.can_approve_sales_commission === false) || (type === 'paid' && commission.payout_policy?.can_mark_paid_sales_commission === false)} onClick={submit}>{isSubmitting ? 'Đang xử lý...' : 'Xác nhận'}</button></footer>
     </Modal>
   );
 }

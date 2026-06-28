@@ -19,6 +19,7 @@ const money = (value: unknown) => new Intl.NumberFormat('vi-VN', { style: 'curre
 const CONTRACT_STATUS_LABELS: Record<string, string> = { draft: 'Bản nháp', pending_signature: 'Chờ ký', signed: 'Đã ký', active: 'Có hiệu lực', completed: 'Hoàn tất', cancelled: 'Đã hủy' };
 const contractStatusLabel = (status?: string) => status ? (CONTRACT_STATUS_LABELS[status] || status) : 'Chưa cập nhật';
 const readable = (value?: string | null) => value || 'Chưa cập nhật';
+const RequiredMark = () => <span className="required-mark">*</span>;
 
 function Context({ item }: { item: CompanyCommission }) {
   return (
@@ -82,11 +83,15 @@ export function CreateCompanyCommissionModal({ onClose, onSaved }: { onClose: ()
   const [date, setDate] = useState('');
   const [note, setNote] = useState('');
   const [errors, setErrors] = useState<string[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   function search(term = keyword) {
+    setIsSearching(true);
     eligibleCompanyCommissionContracts({ keyword: term, limit: 20 })
       .then((response) => setItems(response.data.items || []))
-      .catch((error) => setErrors(formatApiError(error)));
+      .catch((error) => setErrors(formatApiError(error)))
+      .finally(() => setIsSearching(false));
   }
 
   useEffect(() => {
@@ -98,22 +103,26 @@ export function CreateCompanyCommissionModal({ onClose, onSaved }: { onClose: ()
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (isSubmitting) return;
     if (!selected?.is_eligible_for_company_commission) return;
     try {
+      setIsSubmitting(true);
       await generateCompanyCommission({ contract_id: selected.contract_id, commission_rate_percent: Number(rate), expected_receive_date: date || null, note });
       onSaved();
     } catch (error) {
       setErrors(formatApiError(error));
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
   return (
     <Modal title="Tạo hoa hồng công ty từ hợp đồng" onClose={onClose}>
       <form className="admin-form company-commission-create-form" onSubmit={submit}>
-        <label className="company-commission-search-label">Tìm hợp đồng
+        <label className="company-commission-search-label">Tìm hợp đồng <RequiredMark />
           <div className="commission-search-row">
             <input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Mã HĐ / khách hàng" />
-            <button type="button" onClick={() => search()}>Tìm</button>
+            <button type="button" disabled={isSearching} onClick={() => search()}>{isSearching ? 'Đang tìm...' : 'Tìm'}</button>
           </div>
         </label>
 
@@ -151,14 +160,14 @@ export function CreateCompanyCommissionModal({ onClose, onSaved }: { onClose: ()
         {selected && <div className="form-success">Đã chọn {selected.contract_code} — hoa hồng dự kiến được tính theo giá trị hợp đồng và tỷ lệ nhập bên dưới.</div>}
 
         <div className="company-commission-create-fields">
-          <label>Tỷ lệ hoa hồng công ty (%)<input type="number" min="0.01" step="0.01" value={rate} onChange={(event) => setRate(event.target.value)} /></label>
+          <label>Tỷ lệ hoa hồng công ty (%) <RequiredMark /><input type="number" min="0.01" step="0.01" value={rate} onChange={(event) => setRate(event.target.value)} /></label>
           <label>Hoa hồng dự kiến tự tính<input readOnly value={money(expected)} /></label>
           <label>Ngày dự kiến nhận<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
           <label className="full-span">Ghi chú<textarea value={note} onChange={(event) => setNote(event.target.value)} /></label>
         </div>
 
         <FormError messages={errors} />
-        <footer className="modal-actions company-commission-create-footer"><button type="button" className="secondary-button" onClick={onClose}>Hủy</button><button disabled={!selected?.is_eligible_for_company_commission || Number(rate) <= 0}>Tạo hoa hồng công ty</button></footer>
+        <footer className="modal-actions company-commission-create-footer"><button type="button" className="secondary-button" onClick={onClose}>Hủy</button><button disabled={isSubmitting || !selected?.is_eligible_for_company_commission || Number(rate) <= 0}>{isSubmitting ? 'Đang tạo...' : 'Tạo hoa hồng công ty'}</button></footer>
       </form>
     </Modal>
   );
@@ -170,9 +179,11 @@ export function ActionModal({ item, type, onClose, onSaved }: { item: CompanyCom
   const [date, setDate] = useState('');
   const [note, setNote] = useState('');
   const [errors, setErrors] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (isSubmitting) return;
     setErrors([]);
     const trimmedReason = reason.trim();
     if (type === 'hold' && !trimmedReason) {
@@ -184,6 +195,7 @@ export function ActionModal({ item, type, onClose, onSaved }: { item: CompanyCom
       return;
     }
     try {
+      setIsSubmitting(true);
       if (type === 'approve') await approveCompanyCommission(item.id, { confirmed_receivable_amount: Number(amount), note });
       if (type === 'receive') await receiveCompanyCommission(item.id, { amount_received_now: Number(amount), received_date: date || null, note });
       if (type === 'hold') await holdCompanyCommission(item.id, { hold_reason: trimmedReason, note });
@@ -191,6 +203,8 @@ export function ActionModal({ item, type, onClose, onSaved }: { item: CompanyCom
       onSaved();
     } catch (error) {
       setErrors(formatApiError(error));
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -201,13 +215,13 @@ export function ActionModal({ item, type, onClose, onSaved }: { item: CompanyCom
         <Context item={item} />
         {type === 'hold' && <div className="form-warning">Lý do tạm giữ là bắt buộc để đối chiếu.</div>}
         {type === 'cancel' && <div className="form-warning">Hủy hoa hồng cần lý do để đối chiếu. Khoản hoa hồng công ty đã nhận tiền không được hủy.</div>}
-        {type === 'approve' && <label>Hoa hồng xác nhận<input type="number" min="1" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>}
-        {type === 'receive' && <><label>Số tiền nhận lần này<input type="number" min="1" value={amount} onChange={(event) => setAmount(event.target.value)} /></label><label>Ngày nhận<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label></>}
-        {type === 'hold' && <label>Lý do tạm giữ *<input required value={reason} onChange={(event) => { setReason(event.target.value); setErrors([]); }} /></label>}
-        {type === 'cancel' && <label>Lý do hủy *<input required value={reason} onChange={(event) => { setReason(event.target.value); setErrors([]); }} /></label>}
+        {type === 'approve' && <label>Hoa hồng xác nhận <RequiredMark /><input type="number" min="1" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>}
+        {type === 'receive' && <><label>Số tiền nhận lần này <RequiredMark /><input type="number" min="1" value={amount} onChange={(event) => setAmount(event.target.value)} /></label><label>Ngày nhận<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label></>}
+        {type === 'hold' && <label>Lý do tạm giữ <RequiredMark /><input required aria-label={type === 'hold' ? 'Lý do tạm giữ *' : 'Lý do hủy *'} value={reason} onChange={(event) => { setReason(event.target.value); setErrors([]); }} /></label>}
+        {type === 'cancel' && <label>Lý do hủy <RequiredMark /><input required aria-label={type === 'hold' ? 'Lý do tạm giữ *' : 'Lý do hủy *'} value={reason} onChange={(event) => { setReason(event.target.value); setErrors([]); }} /></label>}
         <label>Ghi chú<textarea value={note} onChange={(event) => setNote(event.target.value)} /></label>
         <FormError messages={errors} />
-        <footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Đóng</button><button>{title}</button></footer>
+        <footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Đóng</button><button disabled={isSubmitting}>{isSubmitting ? 'Đang xử lý...' : title}</button></footer>
       </form>
     </Modal>
   );

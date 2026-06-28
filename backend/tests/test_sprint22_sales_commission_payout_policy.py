@@ -50,4 +50,20 @@ class Sprint22SalesCommissionPayoutPolicySourceTest(unittest.TestCase):
         self.assertNotIn('<small className="muted-text">{policyReason', page)
         self.assertNotIn('className="form-warning">Chưa có HH công ty', page)
 
+
+    def test_required_marks_and_loading_states_for_commission_modals(self):
+        sale_modals=self.read('frontend/src/features/commissions/CommissionModals.tsx')
+        sale_page=self.read('frontend/src/features/commissions/CommissionsPage.tsx')
+        company_modals=self.read('frontend/src/features/companyCommissions/CompanyCommissionModals.tsx')
+        company_page=self.read('frontend/src/features/companyCommissions/CompanyCommissionsPage.tsx')
+        styles=self.read('frontend/src/styles.css')
+        for text in ['RequiredMark', 'required-mark', 'Tỷ lệ hoa hồng (%) <RequiredMark />', 'Số tiền duyệt', 'Số tiền đã chi trả', 'Lý do tạm giữ', 'Lý do hủy']:
+            self.assertIn(text, sale_modals + styles)
+        for text in ['Tìm hợp đồng <RequiredMark />', 'Tỷ lệ hoa hồng công ty (%) <RequiredMark />', 'Hoa hồng xác nhận <RequiredMark />', 'Số tiền nhận lần này <RequiredMark />', 'Lý do tạm giữ <RequiredMark />', 'Lý do hủy <RequiredMark />']:
+            self.assertIn(text, company_modals)
+        for text in ['isSubmitting', 'Đang tạo...', 'Đang xử lý...', 'disabled={isSubmitting', 'isSearching', 'Đang tìm...']:
+            self.assertIn(text, sale_modals + company_modals)
+        for text in ['isFiltering', 'isClearingFilters', 'Đang lọc...', 'Đang xóa...', 'Promise.all']:
+            self.assertIn(text, sale_page + company_page)
+
 if __name__=='__main__': unittest.main()
