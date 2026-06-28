@@ -62,19 +62,21 @@ class Sprint22SalesCommissionPayoutPolicySourceTest(unittest.TestCase):
         company_modals=self.read('frontend/src/features/companyCommissions/CompanyCommissionModals.tsx')
         company_page=self.read('frontend/src/features/companyCommissions/CompanyCommissionsPage.tsx')
         styles=self.read('frontend/src/styles.css')
-        for text in ['RequiredMark', 'required-mark', 'Số tiền duyệt *', 'Số tiền đã chi trả *', 'Lý do tạm giữ *', 'Lý do hủy *']:
+        for text in ['required-mark', 'Số tiền duyệt *', 'Số tiền đã chi trả *', 'Lý do tạm giữ *', 'Lý do hủy *']:
             self.assertIn(text, sale_modals + styles)
         self.assertNotIn('Tìm hợp đồng <RequiredMark />', sale_modals)
         self.assertNotIn('Tỷ lệ hoa hồng (%) <RequiredMark />', sale_modals)
+        self.assertNotIn('RequiredMark', sale_modals)
         required_block = styles.split('.required-mark', 1)[1].split('}', 1)[0]
-        self.assertIn('color: currentColor', required_block)
+        self.assertIn('color: inherit', required_block)
         self.assertIn('display: inline', required_block)
         self.assertNotIn('display: block', required_block)
         self.assertNotIn('#d92d20', required_block)
-        for text in ['Hoa hồng xác nhận *', 'Số tiền nhận lần này *', 'Lý do tạm giữ *', 'Lý do hủy *', 'Hoa hồng xác nhận <RequiredMark />', 'Số tiền nhận lần này <RequiredMark />', 'Lý do tạm giữ <RequiredMark />', 'Lý do hủy <RequiredMark />']:
+        for text in ['Hoa hồng xác nhận *', 'Số tiền nhận lần này *', 'Lý do tạm giữ *', 'Lý do hủy *']:
             self.assertIn(text, company_modals)
         self.assertNotIn('Tìm hợp đồng <RequiredMark />', company_modals)
         self.assertNotIn('Tỷ lệ hoa hồng công ty (%) <RequiredMark />', company_modals)
+        self.assertNotIn('RequiredMark', company_modals)
         for text in ['isSubmitting', 'Đang tạo...', 'Đang xử lý...', 'disabled={isSubmitting', 'isSearching', 'Đang tìm...']:
             self.assertIn(text, sale_modals + company_modals)
         for text in ['isFiltering', 'isClearingFilters', 'Đang lọc...', 'Đang xóa...', 'Promise.all']:

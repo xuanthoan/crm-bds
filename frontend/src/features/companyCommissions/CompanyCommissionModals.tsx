@@ -19,7 +19,6 @@ const money = (value: unknown) => new Intl.NumberFormat('vi-VN', { style: 'curre
 const CONTRACT_STATUS_LABELS: Record<string, string> = { draft: 'Bản nháp', pending_signature: 'Chờ ký', signed: 'Đã ký', active: 'Có hiệu lực', completed: 'Hoàn tất', cancelled: 'Đã hủy' };
 const contractStatusLabel = (status?: string) => status ? (CONTRACT_STATUS_LABELS[status] || status) : 'Chưa cập nhật';
 const readable = (value?: string | null) => value || 'Chưa cập nhật';
-const RequiredMark = () => <span className="required-mark">*</span>;
 
 function Context({ item }: { item: CompanyCommission }) {
   return (
@@ -215,10 +214,10 @@ export function ActionModal({ item, type, onClose, onSaved }: { item: CompanyCom
         <Context item={item} />
         {type === 'hold' && <div className="form-warning">Lý do tạm giữ là bắt buộc để đối chiếu.</div>}
         {type === 'cancel' && <div className="form-warning">Hủy hoa hồng cần lý do để đối chiếu. Khoản hoa hồng công ty đã nhận tiền không được hủy.</div>}
-        {type === 'approve' && <label>Hoa hồng xác nhận <RequiredMark /><input type="number" min="1" aria-label="Hoa hồng xác nhận *" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>}
-        {type === 'receive' && <><label>Số tiền nhận lần này <RequiredMark /><input type="number" min="1" aria-label="Số tiền nhận lần này *" value={amount} onChange={(event) => setAmount(event.target.value)} /></label><label>Ngày nhận<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label></>}
-        {type === 'hold' && <label>Lý do tạm giữ <RequiredMark /><input required aria-label={type === 'hold' ? 'Lý do tạm giữ *' : 'Lý do hủy *'} value={reason} onChange={(event) => { setReason(event.target.value); setErrors([]); }} /></label>}
-        {type === 'cancel' && <label>Lý do hủy <RequiredMark /><input required aria-label={type === 'hold' ? 'Lý do tạm giữ *' : 'Lý do hủy *'} value={reason} onChange={(event) => { setReason(event.target.value); setErrors([]); }} /></label>}
+        {type === 'approve' && <label>Hoa hồng xác nhận *<input type="number" min="1" aria-label="Hoa hồng xác nhận *" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>}
+        {type === 'receive' && <><label>Số tiền nhận lần này *<input type="number" min="1" aria-label="Số tiền nhận lần này *" value={amount} onChange={(event) => setAmount(event.target.value)} /></label><label>Ngày nhận<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label></>}
+        {type === 'hold' && <label>Lý do tạm giữ *<input required aria-label={type === 'hold' ? 'Lý do tạm giữ *' : 'Lý do hủy *'} value={reason} onChange={(event) => { setReason(event.target.value); setErrors([]); }} /></label>}
+        {type === 'cancel' && <label>Lý do hủy *<input required aria-label={type === 'hold' ? 'Lý do tạm giữ *' : 'Lý do hủy *'} value={reason} onChange={(event) => { setReason(event.target.value); setErrors([]); }} /></label>}
         <label>Ghi chú<textarea value={note} onChange={(event) => setNote(event.target.value)} /></label>
         <FormError messages={errors} />
         <footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Đóng</button><button disabled={isSubmitting}>{isSubmitting ? 'Đang xử lý...' : title}</button></footer>

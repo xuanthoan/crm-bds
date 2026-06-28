@@ -1496,7 +1496,7 @@ th {
 }
 
 .required-mark {
-  color: currentColor;
+  color: inherit;
   display: inline;
   font-weight: inherit;
   margin-left: 0.2rem;

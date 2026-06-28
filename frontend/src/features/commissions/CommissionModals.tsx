@@ -5,7 +5,6 @@ import { searchEligibleContracts, type Commission, type EligibleContract } from 
 const money = (v: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(v || 0);
 const CONTRACT_STATUS_LABELS: Record<string, string> = { draft: 'Bản nháp', pending_signature: 'Chờ ký', signed: 'Đã ký', active: 'Có hiệu lực', completed: 'Hoàn tất', cancelled: 'Đã hủy' };
 const contractStatusLabel = (status?: string) => status ? (CONTRACT_STATUS_LABELS[status] || status) : 'Chưa cập nhật';
-const RequiredMark = () => <span className="required-mark">*</span>;
 
 export function GuideModal({ onClose }: { onClose: () => void }) {
   return (
@@ -177,8 +176,8 @@ export function ActionModal({ type, commission, onClose, onSubmit }: { type: 'ap
       {type === 'paid' && commission.payout_policy?.can_mark_paid_sales_commission === false && <div className="form-error">{commission.payout_policy.mark_paid_block_reason}</div>}
       <div className="commission-modal-form">
         {err && <div className="form-error full-span">{err}</div>}
-        {(type === 'approve' || type === 'paid') && <label className="full-span">{type === 'approve' ? 'Số tiền duyệt' : 'Số tiền đã chi trả'} <RequiredMark /><input type="number" aria-label={type === 'approve' ? 'Số tiền duyệt *' : 'Số tiền đã chi trả *'} value={amount} onChange={(e) => setAmount(e.target.value)} /></label>}
-        {(type === 'hold' || type === 'cancel') && <label className="full-span">{type === 'hold' ? 'Lý do tạm giữ' : 'Lý do hủy'} <RequiredMark /><textarea aria-label={type === 'hold' ? 'Lý do tạm giữ *' : 'Lý do hủy *'} value={reason} onChange={(e) => setReason(e.target.value)} /></label>}
+        {(type === 'approve' || type === 'paid') && <label className="full-span">{type === 'approve' ? 'Số tiền duyệt *' : 'Số tiền đã chi trả *'}<input type="number" aria-label={type === 'approve' ? 'Số tiền duyệt *' : 'Số tiền đã chi trả *'} value={amount} onChange={(e) => setAmount(e.target.value)} /></label>}
+        {(type === 'hold' || type === 'cancel') && <label className="full-span">{type === 'hold' ? 'Lý do tạm giữ *' : 'Lý do hủy *'}<textarea aria-label={type === 'hold' ? 'Lý do tạm giữ *' : 'Lý do hủy *'} value={reason} onChange={(e) => setReason(e.target.value)} /></label>}
         <label className="full-span">Ghi chú<textarea value={note} onChange={(e) => setNote(e.target.value)} /></label>
       </div>
       <footer className="modal-actions commission-modal-footer"><button type="button" className="secondary-button" onClick={onClose}>Đóng</button><button type="button" disabled={isSubmitting || (type === 'approve' && commission.payout_policy?.can_approve_sales_commission === false) || (type === 'paid' && commission.payout_policy?.can_mark_paid_sales_commission === false)} onClick={submit}>{isSubmitting ? 'Đang xử lý...' : 'Xác nhận'}</button></footer>
