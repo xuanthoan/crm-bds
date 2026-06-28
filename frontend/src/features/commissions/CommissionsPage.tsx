@@ -8,6 +8,7 @@ const money = (v: number) => new Intl.NumberFormat('vi-VN', { style: 'currency',
 const date = (v: string | null) => v ? new Date(v).toLocaleDateString('vi-VN') : '-';
 const policyReason = (c: Commission, kind: 'approve' | 'paid') => kind === 'approve' ? c.approve_block_reason : c.mark_paid_block_reason;
 const canByPolicy = (c: Commission, kind: 'approve' | 'paid') => kind === 'approve' ? c.can_approve_by_company_commission_policy !== false : c.can_mark_paid_by_company_commission_policy !== false;
+const companyCommissionStatusClass = (status?: string | null) => `commission-company-status-badge status-${status || 'missing'}`;
 
 type ActionState = { type: 'approve' | 'hold' | 'cancel' | 'paid'; c: Commission };
 
@@ -45,6 +46,12 @@ export function CommissionsPage() {
     window.location.href = `/api/v1/commissions/export?${new URLSearchParams(filters).toString()}`;
   }
 
+  function renderCompanyCommissionCell(c: Commission) {
+    const reason = c.approve_block_reason || c.mark_paid_block_reason || 'Hợp đồng chưa có khoản hoa hồng công ty.';
+    if (!c.company_commission_code) return <span className="commission-company-missing-badge" title={reason}>Chưa có HH công ty</span>;
+    return <div className="commission-company-cell"><strong className="commission-company-code">{c.company_commission_code}</strong><span className={companyCommissionStatusClass(c.company_commission_status)}>{c.company_commission_status_label || c.company_commission_status}</span><small>Đã nhận: {money(c.company_commission_received_amount || 0)}</small><small>Còn phải thu: {money(c.company_commission_remaining_amount || 0)}</small></div>;
+  }
+
   function renderRowActions(c: Commission) {
     const isFinal = c.status === 'paid' || c.status === 'cancelled';
     const canApproveAction = can('commissions.approve') && ['eligible', 'on_hold'].includes(c.status);
@@ -53,7 +60,8 @@ export function CommissionsPage() {
     const canMarkPaidAction = can('commissions.mark_paid') && c.status === 'approved';
     const paidPolicyOk = canByPolicy(c, 'paid');
     const canCancelAction = can('commissions.cancel') && ['eligible', 'approved', 'on_hold'].includes(c.status);
-    return <div className="table-actions commission-row-actions"><button onClick={() => navigateTo(`/commissions/${c.id}`)}>Xem</button>{!isFinal && canApproveAction && <button disabled={!approvePolicyOk} title={policyReason(c, 'approve') || undefined} onClick={() => approvePolicyOk && setAction({ type: 'approve', c })}>Duyệt</button>}{!isFinal && canHoldAction && <button onClick={() => setAction({ type: 'hold', c })}>Tạm giữ</button>}{!isFinal && canMarkPaidAction && <button disabled={!paidPolicyOk} title={policyReason(c, 'paid') || undefined} onClick={() => paidPolicyOk && setAction({ type: 'paid', c })}>Đã chi trả</button>}{!isFinal && canCancelAction && <button onClick={() => setAction({ type: 'cancel', c })}>Hủy</button>}{(policyReason(c, 'approve') || policyReason(c, 'paid')) && <small className="muted-text">{policyReason(c, c.status === 'approved' ? 'paid' : 'approve')}</small>}</div>;
+    const blockedReason = policyReason(c, c.status === 'approved' ? 'paid' : 'approve');
+    return <div className="table-actions commission-row-actions"><button onClick={() => navigateTo(`/commissions/${c.id}`)}>Xem</button>{!isFinal && canApproveAction && <button disabled={!approvePolicyOk} title={policyReason(c, 'approve') || undefined} onClick={() => approvePolicyOk && setAction({ type: 'approve', c })}>Duyệt</button>}{!isFinal && canHoldAction && <button onClick={() => setAction({ type: 'hold', c })}>Tạm giữ</button>}{!isFinal && canMarkPaidAction && <button disabled={!paidPolicyOk} title={policyReason(c, 'paid') || undefined} onClick={() => paidPolicyOk && setAction({ type: 'paid', c })}>Đã chi trả</button>}{!isFinal && canCancelAction && <button onClick={() => setAction({ type: 'cancel', c })}>Hủy</button>}{blockedReason && <span className="commission-policy-blocked-caption" title={blockedReason}>Bị chặn</span>}</div>;
   }
 
   const cards = [
@@ -94,7 +102,7 @@ export function CommissionsPage() {
       </section>
       <section className="table-card commission-table-card">
         <div className="section-header commission-table-header"><div><h2>Danh sách hoa hồng</h2><p>{items.length ? `Có ${items.length} hoa hồng đang hiển thị.` : 'Chưa có hoa hồng nào.'}</p></div></div>
-        <p className="muted-text">Hoa hồng sale chỉ được chi trong phạm vi hoa hồng công ty đã nhận.</p><div className="responsive-table-wrap"><table><thead><tr><th>Mã HH</th><th>Mã HĐ</th><th>Sale</th><th>Khách hàng</th><th>HH công ty</th><th>Giá trị HĐ</th><th>Đã thu</th><th>Tỷ lệ HH</th><th>HH đủ điều kiện</th><th>HH đã duyệt</th><th>Đã chi trả</th><th>Trạng thái</th><th>Ngày duyệt</th><th>Ngày chi trả</th><th>Hành động</th></tr></thead><tbody>{items.map((c) => <tr key={c.id}><td>{c.commission_code}</td><td>{c.contract_code}</td><td>{c.sale_name}</td><td>{c.customer_name}</td><td>{c.company_commission_code ? <div><b>{c.company_commission_code}</b><br/><span>{c.company_commission_status_label || c.company_commission_status}</span><br/><small>Đã nhận: {money(c.company_commission_received_amount || 0)}</small><br/><small>Còn phải thu: {money(c.company_commission_remaining_amount || 0)}</small></div> : <span className="form-warning">Chưa có HH công ty</span>}</td><td>{money(c.contract_value)}</td><td>{money(c.total_collected_with_deposit)}</td><td>{c.commission_rate_percent}%</td><td>{money(c.eligible_commission)}</td><td>{money(c.approved_commission)}</td><td>{money(c.paid_amount)}</td><td>{c.status_label}</td><td>{date(c.approved_at)}</td><td>{date(c.paid_at)}</td><td>{renderRowActions(c)}</td></tr>)}</tbody></table></div>
+        <p className="muted-text commission-policy-note">Hoa hồng sale chỉ được chi trong phạm vi hoa hồng công ty đã nhận.</p><div className="responsive-table-wrap commission-table-scroll"><table className="commission-policy-table"><colgroup><col className="commission-col-code"/><col className="commission-col-contract"/><col className="commission-col-sale"/><col className="commission-col-customer"/><col className="commission-col-company"/><col className="commission-col-money"/><col className="commission-col-money"/><col className="commission-col-rate"/><col className="commission-col-money"/><col className="commission-col-money"/><col className="commission-col-money"/><col className="commission-col-status"/><col className="commission-col-date"/><col className="commission-col-date"/><col className="commission-col-actions"/></colgroup><thead><tr><th>Mã HH</th><th>Mã HĐ</th><th>Sale</th><th>Khách hàng</th><th>HH công ty</th><th>Giá trị HĐ</th><th>Đã thu</th><th>Tỷ lệ HH</th><th>HH đủ điều kiện</th><th>HH đã duyệt</th><th>Đã chi trả</th><th>Trạng thái</th><th>Ngày duyệt</th><th>Ngày chi trả</th><th>Hành động</th></tr></thead><tbody>{items.map((c) => <tr key={c.id}><td>{c.commission_code}</td><td>{c.contract_code}</td><td>{c.sale_name}</td><td>{c.customer_name}</td><td className="commission-company-column">{renderCompanyCommissionCell(c)}</td><td className="commission-money-cell">{money(c.contract_value)}</td><td className="commission-money-cell">{money(c.total_collected_with_deposit)}</td><td className="commission-nowrap-cell">{c.commission_rate_percent}%</td><td className="commission-money-cell">{money(c.eligible_commission)}</td><td className="commission-money-cell">{money(c.approved_commission)}</td><td className="commission-money-cell">{money(c.paid_amount)}</td><td className="commission-nowrap-cell">{c.status_label}</td><td className="commission-nowrap-cell">{date(c.approved_at)}</td><td className="commission-nowrap-cell">{date(c.paid_at)}</td><td className="commission-actions-column">{renderRowActions(c)}</td></tr>)}</tbody></table></div>
         {!items.length && <p className="empty-state">Chưa có hoa hồng nào.</p>}
       </section>
       {guide && <GuideModal onClose={() => setGuide(false)} />}

@@ -1374,3 +1374,123 @@ th {
     min-width: 11rem;
   }
 }
+
+/* Sprint 22 UI fix - keep /commissions policy table readable with horizontal scroll */
+.commission-table-card .commission-table-scroll {
+  border-top: 1px solid #edf1f7;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  width: 100%;
+}
+
+.commission-policy-table {
+  min-width: 104rem;
+  table-layout: fixed;
+}
+
+.commission-policy-table th,
+.commission-policy-table td {
+  vertical-align: middle;
+  word-break: normal;
+}
+
+.commission-col-code { width: 7.5rem; }
+.commission-col-contract { width: 8rem; }
+.commission-col-sale { width: 10rem; }
+.commission-col-customer { width: 11rem; }
+.commission-col-company { width: 12rem; }
+.commission-col-money { width: 9.5rem; }
+.commission-col-rate { width: 6rem; }
+.commission-col-status { width: 7.5rem; }
+.commission-col-date { width: 7.5rem; }
+.commission-col-actions { width: 14rem; }
+
+.commission-company-column {
+  min-width: 11rem;
+}
+
+.commission-company-cell {
+  align-items: flex-start;
+  display: grid;
+  gap: 0.28rem;
+  line-height: 1.25;
+  min-width: 10.5rem;
+  white-space: normal;
+}
+
+.commission-company-code {
+  color: #172033;
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+
+.commission-company-cell small {
+  color: #475467;
+  display: block;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.commission-company-status-badge,
+.commission-company-missing-badge,
+.commission-policy-blocked-caption {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.15;
+  max-width: max-content;
+  padding: 0.28rem 0.52rem;
+  white-space: nowrap;
+}
+
+.commission-company-status-badge.status-received,
+.commission-company-status-badge.status-partially_received {
+  background: #ecfdf3;
+  color: #027a48;
+}
+
+.commission-company-status-badge.status-approved,
+.commission-company-status-badge.status-pending {
+  background: #eff8ff;
+  color: #175cd3;
+}
+
+.commission-company-status-badge.status-on_hold {
+  background: #fff6ed;
+  color: #b54708;
+}
+
+.commission-company-status-badge.status-cancelled,
+.commission-company-missing-badge,
+.commission-policy-blocked-caption {
+  background: #fff1f0;
+  color: #b42318;
+}
+
+.commission-actions-column {
+  min-width: 13rem;
+}
+
+.commission-table-card .commission-row-actions {
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 12.5rem;
+}
+
+.commission-table-card .commission-row-actions button {
+  white-space: nowrap;
+}
+
+.commission-policy-blocked-caption {
+  padding-inline: 0.45rem;
+}
+
+.commission-money-cell,
+.commission-nowrap-cell {
+  white-space: nowrap;
+}
+
+.commission-policy-note {
+  padding: 0 1.25rem 0.75rem;
+}

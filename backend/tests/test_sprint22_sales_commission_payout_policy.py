@@ -36,4 +36,18 @@ class Sprint22SalesCommissionPayoutPolicySourceTest(unittest.TestCase):
         self.assertIn("disabled={!approvePolicyOk}", combined)
         self.assertIn("disabled={!paidPolicyOk}", combined)
 
+
+    def test_commissions_table_layout_regression_for_policy_columns(self):
+        page=self.read('frontend/src/features/commissions/CommissionsPage.tsx')
+        styles=self.read('frontend/src/styles.css')
+        for text in ['commission-table-scroll', 'commission-policy-table', 'commission-company-column', 'commission-company-cell', 'commission-company-missing-badge', 'commission-policy-blocked-caption']:
+            self.assertIn(text, page + styles)
+        self.assertIn('min-width: 104rem', styles)
+        self.assertIn('overflow-x: auto', styles)
+        self.assertIn('title={blockedReason}', page)
+        self.assertIn("title={policyReason(c, 'approve') || undefined}", page)
+        self.assertIn("title={policyReason(c, 'paid') || undefined}", page)
+        self.assertNotIn('<small className="muted-text">{policyReason', page)
+        self.assertNotIn('className="form-warning">Chưa có HH công ty', page)
+
 if __name__=='__main__': unittest.main()
