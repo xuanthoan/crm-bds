@@ -1,0 +1,11 @@
+import { apiRequest } from '../../services/apiClient';
+export const listCompanyCommissions = (params:any) => apiRequest<any>(`/api/v1/company-commissions?${new URLSearchParams(params)}`);
+export const companyCommissionSummary = (params:any) => apiRequest<any>(`/api/v1/company-commissions/summary?${new URLSearchParams(params)}`);
+export const eligibleCompanyCommissionContracts = (params:any) => apiRequest<any>(`/api/v1/company-commissions/eligible-contracts?${new URLSearchParams(params)}`);
+export const generateCompanyCommission = (payload:any) => apiRequest('/api/v1/company-commissions/generate',{method:'POST',body:JSON.stringify(payload)});
+export const getCompanyCommission = (id:string) => apiRequest<any>(`/api/v1/company-commissions/${id}`);
+export const approveCompanyCommission = (id:string,payload:any) => apiRequest(`/api/v1/company-commissions/${id}/approve`,{method:'POST',body:JSON.stringify(payload)});
+export const receiveCompanyCommission = (id:string,payload:any) => apiRequest(`/api/v1/company-commissions/${id}/receive`,{method:'POST',body:JSON.stringify(payload)});
+export const holdCompanyCommission = (id:string,payload:any) => apiRequest(`/api/v1/company-commissions/${id}/hold`,{method:'POST',body:JSON.stringify(payload)});
+export const cancelCompanyCommission = (id:string,payload:any) => apiRequest(`/api/v1/company-commissions/${id}/cancel`,{method:'POST',body:JSON.stringify(payload)});
+export const exportCompanyCommissionsUrl = '/api/v1/company-commissions/export';

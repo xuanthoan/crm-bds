@@ -10,7 +10,7 @@ def positive(value: Decimal | None, message: str):
     if value <= 0: raise ValueError(message)
     return value
 class ContractCreate(BaseModel):
-    deal_id: UUID; contract_value: Decimal; contract_type:str="deposit_contract"; status:str="draft"; contract_number:str|None=None; signed_date:datetime|None=None; effective_date:datetime|None=None; handover_date:datetime|None=None; deposit_value:Decimal|None=None; buyer_name:str|None=None; buyer_phone:str|None=None; buyer_email:str|None=None; buyer_id_number:str|None=None; buyer_address:str|None=None; seller_name:str|None=None; seller_phone:str|None=None; seller_email:str|None=None; seller_representative:str|None=None; note:str|None=None
+    deal_id: UUID; contract_value: Decimal; contract_type:str="deposit_contract"; status:str="draft"; contract_number:str|None=None; signed_date:datetime|None=None; effective_date:datetime|None=None; handover_date:datetime|None=None; deposit_value:Decimal|None=None; buyer_name:str|None=None; buyer_phone:str|None=None; buyer_email:str|None=None; buyer_id_number:str|None=None; buyer_address:str|None=None; seller_name:str|None=None; seller_phone:str|None=None; seller_email:str|None=None; seller_representative:str|None=None; note:str|None=None; company_role:str="broker"; actual_seller_type:str|None=None; actual_seller_name:str|None=None; commission_payer_type:str|None=None; commission_payer_name:str|None=None; brokerage_contract_code:str|None=None; brokerage_policy_note:str|None=None
     _value=field_validator("contract_value")(lambda v: positive(v,"Giá trị hợp đồng phải lớn hơn 0"))
     @model_validator(mode="after")
     def valid(self):
@@ -18,7 +18,7 @@ class ContractCreate(BaseModel):
         if self.contract_type not in CONTRACT_TYPE_LABELS: raise ValueError("Loại hợp đồng không hợp lệ")
         return self
 class ContractUpdate(BaseModel):
-    contract_value:Decimal|None=None; contract_type:str|None=None; status:str|None=None; contract_number:str|None=None; signed_date:datetime|None=None; effective_date:datetime|None=None; handover_date:datetime|None=None; deposit_value:Decimal|None=None; buyer_name:str|None=None; buyer_phone:str|None=None; buyer_email:str|None=None; buyer_id_number:str|None=None; buyer_address:str|None=None; seller_name:str|None=None; seller_phone:str|None=None; seller_email:str|None=None; seller_representative:str|None=None; note:str|None=None
+    contract_value:Decimal|None=None; contract_type:str|None=None; status:str|None=None; contract_number:str|None=None; signed_date:datetime|None=None; effective_date:datetime|None=None; handover_date:datetime|None=None; deposit_value:Decimal|None=None; buyer_name:str|None=None; buyer_phone:str|None=None; buyer_email:str|None=None; buyer_id_number:str|None=None; buyer_address:str|None=None; seller_name:str|None=None; seller_phone:str|None=None; seller_email:str|None=None; seller_representative:str|None=None; note:str|None=None; company_role:str="broker"; actual_seller_type:str|None=None; actual_seller_name:str|None=None; commission_payer_type:str|None=None; commission_payer_name:str|None=None; brokerage_contract_code:str|None=None; brokerage_policy_note:str|None=None
     @field_validator("contract_value")
     @classmethod
     def value(cls,v): return positive(v,"Giá trị hợp đồng phải lớn hơn 0") if v is not None else v
