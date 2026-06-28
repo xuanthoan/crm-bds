@@ -1507,3 +1507,15 @@ button:disabled {
   cursor: not-allowed;
   opacity: 0.65;
 }
+
+.commission-table-top-scroll {
+  border-top: 1px solid #edf1f7;
+  overflow-x: auto;
+  overflow-y: hidden;
+  width: 100%;
+}
+
+.commission-table-scroll-spacer {
+  height: 1px;
+  min-width: 100%;
+}

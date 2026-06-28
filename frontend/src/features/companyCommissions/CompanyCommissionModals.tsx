@@ -119,7 +119,7 @@ export function CreateCompanyCommissionModal({ onClose, onSaved }: { onClose: ()
   return (
     <Modal title="Tạo hoa hồng công ty từ hợp đồng" onClose={onClose}>
       <form className="admin-form company-commission-create-form" onSubmit={submit}>
-        <label className="company-commission-search-label">Tìm hợp đồng <RequiredMark />
+        <label className="company-commission-search-label">Tìm hợp đồng
           <div className="commission-search-row">
             <input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Mã HĐ / khách hàng" />
             <button type="button" disabled={isSearching} onClick={() => search()}>{isSearching ? 'Đang tìm...' : 'Tìm'}</button>
@@ -160,7 +160,7 @@ export function CreateCompanyCommissionModal({ onClose, onSaved }: { onClose: ()
         {selected && <div className="form-success">Đã chọn {selected.contract_code} — hoa hồng dự kiến được tính theo giá trị hợp đồng và tỷ lệ nhập bên dưới.</div>}
 
         <div className="company-commission-create-fields">
-          <label>Tỷ lệ hoa hồng công ty (%) <RequiredMark /><input type="number" min="0.01" step="0.01" value={rate} onChange={(event) => setRate(event.target.value)} /></label>
+          <label>Tỷ lệ hoa hồng công ty (%)<input type="number" min="0.01" step="0.01" value={rate} onChange={(event) => setRate(event.target.value)} /></label>
           <label>Hoa hồng dự kiến tự tính<input readOnly value={money(expected)} /></label>
           <label>Ngày dự kiến nhận<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
           <label className="full-span">Ghi chú<textarea value={note} onChange={(event) => setNote(event.target.value)} /></label>
@@ -215,8 +215,8 @@ export function ActionModal({ item, type, onClose, onSaved }: { item: CompanyCom
         <Context item={item} />
         {type === 'hold' && <div className="form-warning">Lý do tạm giữ là bắt buộc để đối chiếu.</div>}
         {type === 'cancel' && <div className="form-warning">Hủy hoa hồng cần lý do để đối chiếu. Khoản hoa hồng công ty đã nhận tiền không được hủy.</div>}
-        {type === 'approve' && <label>Hoa hồng xác nhận <RequiredMark /><input type="number" min="1" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>}
-        {type === 'receive' && <><label>Số tiền nhận lần này <RequiredMark /><input type="number" min="1" value={amount} onChange={(event) => setAmount(event.target.value)} /></label><label>Ngày nhận<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label></>}
+        {type === 'approve' && <label>Hoa hồng xác nhận <RequiredMark /><input type="number" min="1" aria-label="Hoa hồng xác nhận *" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>}
+        {type === 'receive' && <><label>Số tiền nhận lần này <RequiredMark /><input type="number" min="1" aria-label="Số tiền nhận lần này *" value={amount} onChange={(event) => setAmount(event.target.value)} /></label><label>Ngày nhận<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label></>}
         {type === 'hold' && <label>Lý do tạm giữ <RequiredMark /><input required aria-label={type === 'hold' ? 'Lý do tạm giữ *' : 'Lý do hủy *'} value={reason} onChange={(event) => { setReason(event.target.value); setErrors([]); }} /></label>}
         {type === 'cancel' && <label>Lý do hủy <RequiredMark /><input required aria-label={type === 'hold' ? 'Lý do tạm giữ *' : 'Lý do hủy *'} value={reason} onChange={(event) => { setReason(event.target.value); setErrors([]); }} /></label>}
         <label>Ghi chú<textarea value={note} onChange={(event) => setNote(event.target.value)} /></label>

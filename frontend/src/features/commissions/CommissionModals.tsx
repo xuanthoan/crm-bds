@@ -110,7 +110,7 @@ export function GenerateModal({ onClose, onSubmit }: { onClose: () => void; onSu
     <Modal title="Tạo hoa hồng từ hợp đồng" onClose={onClose}>
       <div className="commission-modal-form">
         {err && <div className="form-error">{err}</div>}
-        <label className="full-span">Tìm hợp đồng <RequiredMark />
+        <label className="full-span">Tìm hợp đồng
           <div className="commission-search-row">
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nhập mã hợp đồng, tên khách hàng hoặc số điện thoại" />
             <button type="button" disabled={isSearching} onClick={() => void doSearch()}>{isSearching ? 'Đang tìm...' : 'Tìm'}</button>
@@ -132,7 +132,7 @@ export function GenerateModal({ onClose, onSubmit }: { onClose: () => void; onSu
           )) : <p className="empty-state">Nhập từ khóa để tìm hợp đồng.</p>}
         </div>
         {selected && <div className="form-success full-span">Đã chọn {selected.contract_code} — hệ thống sẽ dùng UUID nội bộ khi tạo hoa hồng.</div>}
-        <label>Tỷ lệ hoa hồng (%) <RequiredMark /><input type="number" min="0" max="100" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} /></label>
+        <label>Tỷ lệ hoa hồng (%)<input type="number" min="0" max="100" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} /></label>
         <label className="full-span">Ghi chú<textarea value={note} onChange={(e) => setNote(e.target.value)} /></label>
       </div>
       <footer className="modal-actions commission-modal-footer"><button type="button" className="secondary-button" onClick={onClose}>Hủy</button><button type="button" disabled={isSubmitting} onClick={submit}>{isSubmitting ? 'Đang tạo...' : 'Tạo hoa hồng'}</button></footer>
@@ -177,8 +177,8 @@ export function ActionModal({ type, commission, onClose, onSubmit }: { type: 'ap
       {type === 'paid' && commission.payout_policy?.can_mark_paid_sales_commission === false && <div className="form-error">{commission.payout_policy.mark_paid_block_reason}</div>}
       <div className="commission-modal-form">
         {err && <div className="form-error full-span">{err}</div>}
-        {(type === 'approve' || type === 'paid') && <label className="full-span">{type === 'approve' ? 'Số tiền duyệt' : 'Số tiền đã chi trả'} <RequiredMark /><input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>}
-        {(type === 'hold' || type === 'cancel') && <label className="full-span">{type === 'hold' ? 'Lý do tạm giữ' : 'Lý do hủy'} <RequiredMark /><textarea value={reason} onChange={(e) => setReason(e.target.value)} /></label>}
+        {(type === 'approve' || type === 'paid') && <label className="full-span">{type === 'approve' ? 'Số tiền duyệt' : 'Số tiền đã chi trả'} <RequiredMark /><input type="number" aria-label={type === 'approve' ? 'Số tiền duyệt *' : 'Số tiền đã chi trả *'} value={amount} onChange={(e) => setAmount(e.target.value)} /></label>}
+        {(type === 'hold' || type === 'cancel') && <label className="full-span">{type === 'hold' ? 'Lý do tạm giữ' : 'Lý do hủy'} <RequiredMark /><textarea aria-label={type === 'hold' ? 'Lý do tạm giữ *' : 'Lý do hủy *'} value={reason} onChange={(e) => setReason(e.target.value)} /></label>}
         <label className="full-span">Ghi chú<textarea value={note} onChange={(e) => setNote(e.target.value)} /></label>
       </div>
       <footer className="modal-actions commission-modal-footer"><button type="button" className="secondary-button" onClick={onClose}>Đóng</button><button type="button" disabled={isSubmitting || (type === 'approve' && commission.payout_policy?.can_approve_sales_commission === false) || (type === 'paid' && commission.payout_policy?.can_mark_paid_sales_commission === false)} onClick={submit}>{isSubmitting ? 'Đang xử lý...' : 'Xác nhận'}</button></footer>

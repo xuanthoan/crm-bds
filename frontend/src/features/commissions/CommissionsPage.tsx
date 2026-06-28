@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { can } from '../auth/authStore';
 import { navigateTo } from '../../routes/AppRoutes';
 import { approveCommission, cancelCommission, commissionSummary, generateCommission, holdCommission, listCommissions, markPaidCommission, type Commission } from './api';
@@ -22,6 +22,9 @@ export function CommissionsPage() {
   const [notice, setNotice] = useState('');
   const [isFiltering, setIsFiltering] = useState(false);
   const [isClearingFilters, setIsClearingFilters] = useState(false);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const topScrollRef = useRef<HTMLDivElement | null>(null);
+  const [tableScrollWidth, setTableScrollWidth] = useState(0);
 
   async function load(nextFilters = filters) {
     setNotice('');
@@ -31,6 +34,14 @@ export function CommissionsPage() {
   }
 
   useEffect(() => { void load(); }, []);
+
+  useEffect(() => {
+    const updateTableScrollWidth = () => setTableScrollWidth(tableScrollRef.current?.scrollWidth || 0);
+    updateTableScrollWidth();
+    const frame = window.requestAnimationFrame(updateTableScrollWidth);
+    window.addEventListener('resize', updateTableScrollWidth);
+    return () => { window.cancelAnimationFrame(frame); window.removeEventListener('resize', updateTableScrollWidth); };
+  }, [items.length]);
 
   const set = (k: string, v: string) => setFilters((current) => ({ ...current, [k]: v }));
   const clearFilters = async () => { setIsClearingFilters(true); setFilters({}); try { await load({}); } finally { setIsClearingFilters(false); } };
@@ -43,6 +54,14 @@ export function CommissionsPage() {
     if (action.type === 'cancel') await cancelCommission(action.c.id, p);
     if (action.type === 'paid') await markPaidCommission(action.c.id, p);
     await load();
+  }
+
+  function syncTableScroll(source: 'top' | 'bottom') {
+    const top = topScrollRef.current;
+    const bottom = tableScrollRef.current;
+    if (!top || !bottom) return;
+    if (source === 'top' && bottom.scrollLeft !== top.scrollLeft) bottom.scrollLeft = top.scrollLeft;
+    if (source === 'bottom' && top.scrollLeft !== bottom.scrollLeft) top.scrollLeft = bottom.scrollLeft;
   }
 
   function exportCsv() {
@@ -105,7 +124,7 @@ export function CommissionsPage() {
       </section>
       <section className="table-card commission-table-card">
         <div className="section-header commission-table-header"><div><h2>Danh sách hoa hồng</h2><p>{items.length ? `Có ${items.length} hoa hồng đang hiển thị.` : 'Chưa có hoa hồng nào.'}</p></div></div>
-        <p className="muted-text commission-policy-note">Hoa hồng sale chỉ được chi trong phạm vi hoa hồng công ty đã nhận.</p><div className="responsive-table-wrap commission-table-scroll"><table className="commission-policy-table"><colgroup><col className="commission-col-code"/><col className="commission-col-contract"/><col className="commission-col-sale"/><col className="commission-col-customer"/><col className="commission-col-company"/><col className="commission-col-money"/><col className="commission-col-money"/><col className="commission-col-rate"/><col className="commission-col-money"/><col className="commission-col-money"/><col className="commission-col-money"/><col className="commission-col-status"/><col className="commission-col-date"/><col className="commission-col-date"/><col className="commission-col-actions"/></colgroup><thead><tr><th>Mã HH</th><th>Mã HĐ</th><th>Sale</th><th>Khách hàng</th><th>HH công ty</th><th>Giá trị HĐ</th><th>Đã thu</th><th>Tỷ lệ HH</th><th>HH đủ điều kiện</th><th>HH đã duyệt</th><th>Đã chi trả</th><th>Trạng thái</th><th>Ngày duyệt</th><th>Ngày chi trả</th><th>Hành động</th></tr></thead><tbody>{items.map((c) => <tr key={c.id}><td>{c.commission_code}</td><td>{c.contract_code}</td><td>{c.sale_name}</td><td>{c.customer_name}</td><td className="commission-company-column">{renderCompanyCommissionCell(c)}</td><td className="commission-money-cell">{money(c.contract_value)}</td><td className="commission-money-cell">{money(c.total_collected_with_deposit)}</td><td className="commission-nowrap-cell">{c.commission_rate_percent}%</td><td className="commission-money-cell">{money(c.eligible_commission)}</td><td className="commission-money-cell">{money(c.approved_commission)}</td><td className="commission-money-cell">{money(c.paid_amount)}</td><td className="commission-nowrap-cell">{c.status_label}</td><td className="commission-nowrap-cell">{date(c.approved_at)}</td><td className="commission-nowrap-cell">{date(c.paid_at)}</td><td className="commission-actions-column">{renderRowActions(c)}</td></tr>)}</tbody></table></div>
+        <p className="muted-text commission-policy-note">Hoa hồng sale chỉ được chi trong phạm vi hoa hồng công ty đã nhận.</p><div className="commission-table-top-scroll" ref={topScrollRef} onScroll={() => syncTableScroll('top')}><div className="commission-table-scroll-spacer" style={{ width: tableScrollWidth }} /></div><div className="responsive-table-wrap commission-table-scroll" ref={tableScrollRef} onScroll={() => syncTableScroll('bottom')}><table className="commission-policy-table"><colgroup><col className="commission-col-code"/><col className="commission-col-contract"/><col className="commission-col-sale"/><col className="commission-col-customer"/><col className="commission-col-company"/><col className="commission-col-money"/><col className="commission-col-money"/><col className="commission-col-rate"/><col className="commission-col-money"/><col className="commission-col-money"/><col className="commission-col-money"/><col className="commission-col-status"/><col className="commission-col-date"/><col className="commission-col-date"/><col className="commission-col-actions"/></colgroup><thead><tr><th>Mã HH</th><th>Mã HĐ</th><th>Sale</th><th>Khách hàng</th><th>HH công ty</th><th>Giá trị HĐ</th><th>Đã thu</th><th>Tỷ lệ HH</th><th>HH đủ điều kiện</th><th>HH đã duyệt</th><th>Đã chi trả</th><th>Trạng thái</th><th>Ngày duyệt</th><th>Ngày chi trả</th><th>Hành động</th></tr></thead><tbody>{items.map((c) => <tr key={c.id}><td>{c.commission_code}</td><td>{c.contract_code}</td><td>{c.sale_name}</td><td>{c.customer_name}</td><td className="commission-company-column">{renderCompanyCommissionCell(c)}</td><td className="commission-money-cell">{money(c.contract_value)}</td><td className="commission-money-cell">{money(c.total_collected_with_deposit)}</td><td className="commission-nowrap-cell">{c.commission_rate_percent}%</td><td className="commission-money-cell">{money(c.eligible_commission)}</td><td className="commission-money-cell">{money(c.approved_commission)}</td><td className="commission-money-cell">{money(c.paid_amount)}</td><td className="commission-nowrap-cell">{c.status_label}</td><td className="commission-nowrap-cell">{date(c.approved_at)}</td><td className="commission-nowrap-cell">{date(c.paid_at)}</td><td className="commission-actions-column">{renderRowActions(c)}</td></tr>)}</tbody></table></div>
         {!items.length && <p className="empty-state">Chưa có hoa hồng nào.</p>}
       </section>
       {guide && <GuideModal onClose={() => setGuide(false)} />}
