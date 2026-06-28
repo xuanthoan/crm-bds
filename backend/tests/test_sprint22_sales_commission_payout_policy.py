@@ -27,6 +27,11 @@ class Sprint22SalesCommissionPayoutPolicySourceTest(unittest.TestCase):
         service=self.read('backend/app/services/commission_service.py')
         for text in ['company_commission_code','company_commission_status','company_commission_received_amount','company_commission_remaining_amount','can_approve_by_company_commission_policy','approve_block_reason','can_mark_paid_by_company_commission_policy','mark_paid_block_reason','payout_policy','company_commission']:
             self.assertIn(text, service)
+        self.assertIn('get_company_commissions_by_contract_ids', service + self.read('backend/app/services/company_commission_service.py'))
+        list_block = service.split('def list_commissions', 1)[1].split('def summary', 1)[0]
+        self.assertIn('ccr_by_contract=get_company_commissions_by_contract_ids', list_block)
+        self.assertIn('paid_totals=dict', list_block)
+        self.assertNotIn('items":[row(c) for c in items]', list_block)
         for text in ['missing_company_commission_count','blocked_mark_paid_count','total_company_commission_received_linked']:
             self.assertIn(text, service)
     def test_frontend_policy_ui_labels_and_gating(self):
@@ -59,6 +64,10 @@ class Sprint22SalesCommissionPayoutPolicySourceTest(unittest.TestCase):
         styles=self.read('frontend/src/styles.css')
         for text in ['RequiredMark', 'required-mark', 'Tỷ lệ hoa hồng (%) <RequiredMark />', 'Số tiền duyệt', 'Số tiền đã chi trả', 'Lý do tạm giữ', 'Lý do hủy']:
             self.assertIn(text, sale_modals + styles)
+        required_block = styles.split('.required-mark', 1)[1].split('}', 1)[0]
+        self.assertIn('color: currentColor', required_block)
+        self.assertIn('display: inline', required_block)
+        self.assertNotIn('#d92d20', required_block)
         for text in ['Tìm hợp đồng <RequiredMark />', 'Tỷ lệ hoa hồng công ty (%) <RequiredMark />', 'Hoa hồng xác nhận <RequiredMark />', 'Số tiền nhận lần này <RequiredMark />', 'Lý do tạm giữ <RequiredMark />', 'Lý do hủy <RequiredMark />']:
             self.assertIn(text, company_modals)
         for text in ['isSubmitting', 'Đang tạo...', 'Đang xử lý...', 'disabled={isSubmitting', 'isSearching', 'Đang tìm...']:

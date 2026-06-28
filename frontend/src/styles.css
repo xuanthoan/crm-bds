@@ -1496,9 +1496,11 @@ th {
 }
 
 .required-mark {
-  color: #d92d20;
-  font-weight: 800;
+  color: currentColor;
+  display: inline;
+  font-weight: inherit;
   margin-left: 0.2rem;
+  white-space: nowrap;
 }
 
 button:disabled {

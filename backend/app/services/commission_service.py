@@ -12,7 +12,7 @@ from app.models.customer import Customer
 from app.models.payment_receipt import PaymentReceipt
 from app.models.sales_commission import SalesCommission, SalesCommissionEvent
 from app.models.user import User
-from app.services.company_commission_service import get_company_commission_for_contract, STATUS_LABELS as CCR_STATUS_LABELS
+from app.services.company_commission_service import get_company_commission_for_contract, get_company_commissions_by_contract_ids, STATUS_LABELS as CCR_STATUS_LABELS
 
 STATUSES={"draft":"Tạm tính","eligible":"Đủ điều kiện","approved":"Đã duyệt","paid":"Đã chi trả","on_hold":"Tạm giữ","cancelled":"Đã hủy"}
 COMMISSION_LEGAL_CONTRACT_STATUSES = {'signed', 'active', 'completed'}
@@ -59,9 +59,10 @@ def _paid_for_contract(db, contract_id, exclude_id=None):
         q=q.filter(SalesCommission.id!=exclude_id)
     return dec(q.scalar())
 
-def get_sales_commission_payout_policy_context(db, c):
-    ccr=get_company_commission_for_contract(db, c.contract_id)
-    paid_other=_paid_for_contract(db, c.contract_id, c.id)
+def get_sales_commission_payout_policy_context(db, c, ccr=None, paid_for_contract_total=None):
+    if ccr is None:
+        ccr=get_company_commission_for_contract(db, c.contract_id)
+    paid_other=(dec(paid_for_contract_total)-dec(c.paid_amount)) if paid_for_contract_total is not None else _paid_for_contract(db, c.contract_id, c.id)
     current_paid=dec(c.paid_amount)
     received=dec(getattr(ccr,'received_amount',0) if ccr else 0)
     approved=dec(c.approved_commission)
@@ -108,11 +109,15 @@ def get_sales_commission_payout_policy_context(db, c):
         'warning_message': warning,
     }
 
-def row(c):
+def row(c, policy=None, company_commission=None):
     contract=c.contract; customer=getattr(contract,'customer',None); sale=c.sale
-    policy=get_sales_commission_payout_policy_context(object_session(c), c) if object_session(c) else {}
+    db=object_session(c)
+    if policy is None:
+        policy=get_sales_commission_payout_policy_context(db, c, company_commission) if db else {}
+    if company_commission is None and db:
+        company_commission=get_company_commission_for_contract(db, c.contract_id)
     data={"id":str(c.id),"commission_code":c.commission_code,"contract_id":str(c.contract_id),"contract_code":getattr(contract,'contract_code',None),"sale_id":str(c.sale_id) if c.sale_id else None,"sale_name":getattr(sale,'full_name',None) or getattr(sale,'email',None) or 'Chưa gán sale',"customer_name":getattr(customer,'full_name',None) or getattr(contract,'buyer_name',None),"customer_phone":getattr(customer,'primary_phone',None) or getattr(contract,'buyer_phone',None),"contract_value":float(c.contract_value),"total_collected_with_deposit":float(c.total_collected_with_deposit),"remaining_amount":float(c.remaining_amount),"commission_rate_percent":float(c.commission_rate_percent),"eligible_commission":float(c.eligible_commission),"approved_commission":float(c.approved_commission or 0),"paid_amount":float(c.paid_amount or 0),"status":c.status,"status_label":STATUSES.get(c.status,c.status),"approved_at":c.approved_at.isoformat() if c.approved_at else None,"paid_at":c.paid_at.isoformat() if c.paid_at else None,"created_at":c.created_at.isoformat() if c.created_at else None,"hold_reason":c.hold_reason,"cancel_reason":c.cancel_reason,"note":c.note}
-    data.update({"company_commission_code":policy.get("company_commission_code"),"company_commission_status":policy.get("company_commission_status"),"company_commission_status_label":policy.get("company_commission_status_label"),"company_commission_received_amount":policy.get("company_commission_received_amount",0),"company_commission_remaining_amount":policy.get("company_commission_remaining_amount",0),"can_approve_by_company_commission_policy":policy.get("can_approve_sales_commission",False),"approve_block_reason":policy.get("approve_block_reason"),"can_mark_paid_by_company_commission_policy":policy.get("can_mark_paid_sales_commission",False),"mark_paid_block_reason":policy.get("mark_paid_block_reason"),"remaining_payable_capacity":policy.get("remaining_payable_capacity",0),"payout_policy":policy,"company_commission":_company_commission_summary(get_company_commission_for_contract(object_session(c), c.contract_id)) if object_session(c) else None})
+    data.update({"company_commission_code":policy.get("company_commission_code"),"company_commission_status":policy.get("company_commission_status"),"company_commission_status_label":policy.get("company_commission_status_label"),"company_commission_received_amount":policy.get("company_commission_received_amount",0),"company_commission_remaining_amount":policy.get("company_commission_remaining_amount",0),"can_approve_by_company_commission_policy":policy.get("can_approve_sales_commission",False),"approve_block_reason":policy.get("approve_block_reason"),"can_mark_paid_by_company_commission_policy":policy.get("can_mark_paid_sales_commission",False),"mark_paid_block_reason":policy.get("mark_paid_block_reason"),"remaining_payable_capacity":policy.get("remaining_payable_capacity",0),"payout_policy":policy,"company_commission":_company_commission_summary(company_commission)})
     return data
 
 def detail(c):
@@ -132,7 +137,14 @@ def list_commissions(db, page=1, page_size=20, **f):
     for key,col,op in [('date_from',SalesCommission.created_at,lambda c,v:c>=v),('date_to',SalesCommission.created_at,lambda c,v:c<=v),('approved_from',SalesCommission.approved_at,lambda c,v:c>=v),('approved_to',SalesCommission.approved_at,lambda c,v:c<=v),('paid_from',SalesCommission.paid_at,lambda c,v:c>=v),('paid_to',SalesCommission.paid_at,lambda c,v:c<=v)]:
         if f.get(key): q=q.filter(op(col, f[key]))
     total=q.count(); items=q.order_by(SalesCommission.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
-    return {"items":[row(c) for c in items],"total":total}
+    ccr_by_contract=get_company_commissions_by_contract_ids(db, [c.contract_id for c in items])
+    paid_totals=dict(db.query(SalesCommission.contract_id, func.coalesce(func.sum(SalesCommission.paid_amount),0)).filter(SalesCommission.contract_id.in_([c.contract_id for c in items]), SalesCommission.paid_amount>0).group_by(SalesCommission.contract_id).all()) if items else {}
+    rows=[]
+    for c in items:
+        ccr=ccr_by_contract.get(c.contract_id)
+        policy=get_sales_commission_payout_policy_context(db, c, ccr, paid_totals.get(c.contract_id, 0))
+        rows.append(row(c, policy, ccr))
+    return {"items":rows,"total":total}
 
 def summary(db, **f):
     summary_filters = dict(f)

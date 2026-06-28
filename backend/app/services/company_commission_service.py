@@ -48,6 +48,14 @@ def _query(db, **f):
 def get_company_commission_for_contract(db, contract_id):
     return _base(db).filter(CCR.contract_id==contract_id).first()
 
+
+def get_company_commissions_by_contract_ids(db, contract_ids):
+    ids=list({cid for cid in contract_ids if cid})
+    if not ids:
+        return {}
+    receivables=_base(db).filter(CCR.contract_id.in_(ids)).all()
+    return {r.contract_id: r for r in receivables}
+
 def list_receivables(db,page=1,page_size=20,**f):
     q=_query(db,**f); total=q.count(); items=q.order_by(CCR.created_at.desc()).offset((page-1)*page_size).limit(page_size).all(); return {'items':[row(i) for i in items],'total':total}
 def summary(db,**f):
