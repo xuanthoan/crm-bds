@@ -1221,3 +1221,269 @@ th {
 .commission-row-actions {
   align-items: center;
 }
+
+.company-commission-filter-bar {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.company-commission-filter-bar > input,
+.company-commission-filter-bar > select {
+  min-width: 10rem;
+}
+
+.company-commission-keyword-filter {
+  flex: 1 1 26rem;
+  min-width: min(100%, 22rem) !important;
+}
+
+.modal-card:has(.company-commission-create-form) {
+  max-width: min(900px, calc(100vw - 2rem));
+  width: 860px;
+}
+
+.company-commission-create-form {
+  display: grid;
+  gap: 1rem;
+  max-height: min(78vh, 46rem);
+}
+
+.company-commission-search-label,
+.company-commission-create-form .form-error,
+.company-commission-create-form .form-success,
+.company-commission-create-footer {
+  margin: 0;
+}
+
+.company-commission-contract-results {
+  border: 1px solid #dfe5f2;
+  border-radius: 0.85rem;
+  display: grid;
+  gap: 0.65rem;
+  max-height: min(34vh, 20rem);
+  overflow: auto;
+  padding: 0.8rem;
+  scrollbar-gutter: stable;
+}
+
+.company-commission-contract-option {
+  background: #ffffff;
+  border: 1px solid #dfe5f2;
+  border-radius: 0.85rem;
+  color: #172033;
+  cursor: pointer;
+  display: grid;
+  gap: 0.45rem;
+  line-height: 1.45;
+  padding: 0.9rem 1rem;
+  text-align: left;
+  width: 100%;
+}
+
+.company-commission-contract-option:hover:not(:disabled),
+.company-commission-contract-option.selected {
+  border-color: #3563e9;
+  box-shadow: 0 0 0 3px rgb(53 99 233 / 12%);
+}
+
+.company-commission-contract-option:disabled {
+  background: #f8fafc;
+  border-color: #e4e7ec;
+  color: #667085;
+  cursor: not-allowed;
+  opacity: 0.92;
+}
+
+.company-commission-contract-option em {
+  color: #b42318;
+  display: block;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.company-commission-contract-line {
+  align-items: center;
+  color: inherit;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.8rem;
+}
+
+.company-commission-contract-main {
+  color: #101828;
+}
+
+.company-commission-contract-line > span:not(:last-child)::after,
+.company-commission-contract-main > b::after {
+  color: #98a2b3;
+  content: "—";
+  margin-left: 0.8rem;
+}
+
+.company-commission-create-fields {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.company-commission-create-fields .full-span {
+  grid-column: 1 / -1;
+}
+
+.company-commission-create-fields textarea {
+  min-height: 5rem;
+}
+
+.company-commission-create-footer {
+  background: #ffffff;
+  border-top: 1px solid #edf1f7;
+  bottom: 0;
+  padding-top: 1rem;
+  position: sticky;
+}
+
+@media (max-width: 768px) {
+  .company-commission-create-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .company-commission-keyword-filter {
+    flex-basis: 100%;
+  }
+}
+
+
+.company-commission-action-cell {
+  min-width: 14rem;
+  vertical-align: middle;
+}
+
+.company-commission-row-actions {
+  align-items: center;
+  min-width: 13rem;
+}
+
+@media (max-width: 900px) {
+  .company-commission-action-cell {
+    min-width: 12rem;
+  }
+
+  .company-commission-row-actions {
+    min-width: 11rem;
+  }
+}
+
+.page-title-with-help {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.page-title-with-help h1 {
+  margin-bottom: 0;
+}
+
+.commission-glossary-help-button {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #d0d5dd;
+  border-radius: 999px;
+  color: #344054;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.82rem;
+  font-weight: 800;
+  gap: 0.35rem;
+  line-height: 1;
+  padding: 0.42rem 0.7rem;
+}
+
+.commission-glossary-help-button:hover,
+.commission-glossary-help-button:focus-visible {
+  background: #eef2ff;
+  border-color: #a4bcfd;
+  color: #2d4ed8;
+  outline: none;
+}
+
+.commission-glossary-help-icon {
+  align-items: center;
+  background: #3563e9;
+  border-radius: 999px;
+  color: #ffffff;
+  display: inline-flex;
+  font-size: 0.75rem;
+  height: 1.25rem;
+  justify-content: center;
+  width: 1.25rem;
+}
+
+.commission-glossary-body {
+  display: grid;
+  gap: 1rem;
+  max-height: min(66vh, 44rem);
+  overflow: auto;
+  padding-right: 0.25rem;
+}
+
+.commission-glossary-card,
+.commission-glossary-memory {
+  background: #f8fafc;
+  border: 1px solid #edf1f7;
+  border-radius: 0.85rem;
+  padding: 1rem;
+}
+
+.commission-glossary-card h3,
+.commission-glossary-memory h3 {
+  margin: 0 0 0.55rem;
+}
+
+.commission-glossary-card p,
+.commission-glossary-card ul,
+.commission-glossary-memory p {
+  color: #475467;
+  margin-bottom: 0;
+}
+
+.commission-glossary-memory {
+  background: #eef4ff;
+  border-color: #c7d7fe;
+}
+
+.commission-glossary-table-wrap {
+  overflow-x: auto;
+}
+
+.commission-glossary-table {
+  border-collapse: collapse;
+  min-width: 42rem;
+  width: 100%;
+}
+
+.commission-glossary-table th,
+.commission-glossary-table td {
+  border-bottom: 1px solid #e4e7ec;
+  padding: 0.65rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.commission-glossary-table th {
+  color: #344054;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 640px) {
+  .commission-glossary-help-button {
+    border-radius: 999px;
+    padding: 0.35rem;
+  }
+
+  .commission-glossary-help-text {
+    display: none;
+  }
+}

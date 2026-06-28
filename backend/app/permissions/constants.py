@@ -16,6 +16,7 @@ PERMISSION_CODES_BY_MODULE = {'activities': ['activities.view.own',
                 'activities.update.team',
                 'activities.delete'],
  'audit_logs': ['audit_logs.view', 'audit_logs.export'],
+ 'company_commissions': ['company_commissions.view', 'company_commissions.create', 'company_commissions.approve', 'company_commissions.receive', 'company_commissions.hold', 'company_commissions.cancel', 'company_commissions.export'],
  'commissions': ['commissions.view',
                  'commissions.create',
                  'commissions.hold',
@@ -640,3 +641,20 @@ ROLE_PERMISSION_MAP["admin"] = list(ALL_PERMISSION_CODES)
 for _role in ("director", "sales_manager", "leader"):
     ROLE_PERMISSION_MAP[_role] += [p for p in SPRINT19_REPORT_PERMISSIONS if p not in ROLE_PERMISSION_MAP[_role]]
 ROLE_PERMISSION_MAP["accountant"] += [p for p in SPRINT19_REPORT_PERMISSIONS if p not in ROLE_PERMISSION_MAP["accountant"]]
+
+# Sprint 21: Company commission receivable permissions.
+COMPANY_COMMISSION_PERMISSIONS = [
+    "company_commissions.view",
+    "company_commissions.create",
+    "company_commissions.approve",
+    "company_commissions.receive",
+    "company_commissions.hold",
+    "company_commissions.cancel",
+    "company_commissions.export",
+]
+PERMISSION_CODES_BY_MODULE["company_commissions"] = COMPANY_COMMISSION_PERMISSIONS
+ALL_PERMISSION_CODES = sorted({code for codes in PERMISSION_CODES_BY_MODULE.values() for code in codes})
+ROLE_PERMISSION_MAP["admin"] = list(ALL_PERMISSION_CODES)
+for _role in ("director", "sales_manager", "accountant"):
+    ROLE_PERMISSION_MAP[_role] += [p for p in COMPANY_COMMISSION_PERMISSIONS if p not in ROLE_PERMISSION_MAP[_role]]
+ROLE_PERMISSION_MAP["leader"] += ["company_commissions.view", "company_commissions.create"]

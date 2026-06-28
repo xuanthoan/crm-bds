@@ -3,6 +3,7 @@ import { can } from '../auth/authStore';
 import { navigateTo } from '../../routes/AppRoutes';
 import { approveCommission, cancelCommission, commissionSummary, generateCommission, holdCommission, listCommissions, markPaidCommission, type Commission } from './api';
 import { ActionModal, GenerateModal, GuideModal } from './CommissionModals';
+import { CommissionGlossaryHelpButton } from './CommissionGlossaryHelp';
 
 const money = (v: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(v || 0);
 const date = (v: string | null) => v ? new Date(v).toLocaleDateString('vi-VN') : '-';
@@ -66,7 +67,7 @@ export function CommissionsPage() {
   return (
     <div className="admin-page commissions-page">
       <header className="page-header">
-        <div><h1>Quản lý hoa hồng</h1><p>Quản lý hoa hồng đủ điều kiện, duyệt hoa hồng và theo dõi chi trả.</p></div>
+        <div><div className="page-title-with-help"><h1>Quản lý hoa hồng</h1><CommissionGlossaryHelpButton /></div><p>Quản lý hoa hồng đủ điều kiện, duyệt hoa hồng và theo dõi chi trả.</p></div>
         <div className="header-actions">
           <button type="button" className="secondary-button" onClick={() => setGuide(true)}>Hướng dẫn sử dụng</button>
         </div>
