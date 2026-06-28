@@ -30,15 +30,13 @@ export function CompanyCommissionsPage() {
 
   // Action gating source: i.status==='pending'||i.status==='on_hold'; i.status==='approved'||i.status==='partially_received'; i.status==='pending'||i.status==='approved'; i.status==='pending'||i.status==='approved'||i.status==='on_hold'
   function actions(i: CompanyCommission) {
-    const workflowButtons = [];
-    if ((i.status === 'pending' || i.status === 'on_hold') && can('company_commissions.approve')) workflowButtons.push(<button className="company-commission-action-button" key="approve" onClick={() => setAction({ type: 'approve', item: i })}>Duyệt</button>);
-    if ((i.status === 'approved' || i.status === 'partially_received') && can('company_commissions.receive')) workflowButtons.push(<button className="company-commission-action-button" key="receive" onClick={() => setAction({ type: 'receive', item: i })}>Ghi nhận đã nhận</button>);
-    if ((i.status === 'pending' || i.status === 'approved') && can('company_commissions.hold')) workflowButtons.push(<button className="company-commission-action-button company-commission-action-button--secondary" key="hold" onClick={() => setAction({ type: 'hold', item: i })}>Tạm giữ</button>);
-    if ((i.status === 'pending' || i.status === 'approved' || i.status === 'on_hold') && can('company_commissions.cancel')) workflowButtons.push(<button className="company-commission-action-button company-commission-action-button--danger" key="cancel" onClick={() => setAction({ type: 'cancel', item: i })}>Hủy</button>);
     return (
-      <div className="company-commission-actions">
-        <button className="company-commission-action-button company-commission-action-button--view" onClick={() => navigateTo(`/company-commissions/${i.id}`)}>Xem</button>
-        {workflowButtons.length > 0 && <div className="company-commission-action-group">{workflowButtons}</div>}
+      <div className="table-actions commission-row-actions company-commission-row-actions">
+        <button onClick={() => navigateTo(`/company-commissions/${i.id}`)}>Xem</button>
+        {(i.status === 'pending' || i.status === 'on_hold') && can('company_commissions.approve') && <button onClick={() => setAction({ type: 'approve', item: i })}>Duyệt</button>}
+        {(i.status === 'approved' || i.status === 'partially_received') && can('company_commissions.receive') && <button onClick={() => setAction({ type: 'receive', item: i })}>Ghi nhận đã nhận</button>}
+        {(i.status === 'pending' || i.status === 'approved') && can('company_commissions.hold') && <button onClick={() => setAction({ type: 'hold', item: i })}>Tạm giữ</button>}
+        {(i.status === 'pending' || i.status === 'approved' || i.status === 'on_hold') && can('company_commissions.cancel') && <button onClick={() => setAction({ type: 'cancel', item: i })}>Hủy</button>}
       </div>
     );
   }

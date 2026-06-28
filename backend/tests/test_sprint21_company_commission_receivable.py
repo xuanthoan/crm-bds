@@ -41,8 +41,8 @@ class Sprint21CompanyCommissionReceivableSourceTest(unittest.TestCase):
             self.assertIn(text, service)
         for text in ["const trimmedReason = reason.trim()", "setErrors(['Vui lòng nhập lý do tạm giữ.'])", "setErrors(['Vui lòng nhập lý do hủy.'])", "hold_reason: trimmedReason", "cancel_reason: trimmedReason"]:
             self.assertIn(text, modals)
-        for text in ["company-commission-actions", "company-commission-action-group", "company-commission-action-button", "company-commission-action-cell"]:
-            self.assertIn(text, page + styles)
+        for text in ["table-actions commission-row-actions company-commission-row-actions", "company-commission-action-cell", "Lý do tạm giữ *", "Lý do hủy *", "Lý do tạm giữ là bắt buộc để đối chiếu.", "Hủy hoa hồng cần lý do để đối chiếu."]:
+            self.assertIn(text, page + styles + modals)
 
     def test_export_csv_vietnamese_headers(self):
         service=self.read('backend/app/services/company_commission_service.py')

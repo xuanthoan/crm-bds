@@ -199,11 +199,12 @@ export function ActionModal({ item, type, onClose, onSaved }: { item: CompanyCom
     <Modal title={title} onClose={onClose}>
       <form className="admin-form" onSubmit={submit}>
         <Context item={item} />
-        {type === 'cancel' && <p className="error-text">Khoản hoa hồng công ty đã nhận tiền không được hủy.</p>}
+        {type === 'hold' && <div className="form-warning">Lý do tạm giữ là bắt buộc để đối chiếu.</div>}
+        {type === 'cancel' && <div className="form-warning">Hủy hoa hồng cần lý do để đối chiếu. Khoản hoa hồng công ty đã nhận tiền không được hủy.</div>}
         {type === 'approve' && <label>Hoa hồng xác nhận<input type="number" min="1" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>}
         {type === 'receive' && <><label>Số tiền nhận lần này<input type="number" min="1" value={amount} onChange={(event) => setAmount(event.target.value)} /></label><label>Ngày nhận<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label></>}
-        {type === 'hold' && <label>Lý do tạm giữ<input required value={reason} onChange={(event) => { setReason(event.target.value); setErrors([]); }} /></label>}
-        {type === 'cancel' && <label>Lý do hủy<input required value={reason} onChange={(event) => { setReason(event.target.value); setErrors([]); }} /></label>}
+        {type === 'hold' && <label>Lý do tạm giữ *<input required value={reason} onChange={(event) => { setReason(event.target.value); setErrors([]); }} /></label>}
+        {type === 'cancel' && <label>Lý do hủy *<input required value={reason} onChange={(event) => { setReason(event.target.value); setErrors([]); }} /></label>}
         <label>Ghi chú<textarea value={note} onChange={(event) => setNote(event.target.value)} /></label>
         <FormError messages={errors} />
         <footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Đóng</button><button>{title}</button></footer>
