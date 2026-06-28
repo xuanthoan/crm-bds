@@ -50,7 +50,7 @@ export function GuideModal({ onClose }: { onClose: () => void }) {
             <li>Đây chưa phải bảng lương.</li>
             <li>Chưa có phiếu chi kế toán trong Sprint 20.</li>
             <li>Không chia hoa hồng nhiều người trong Sprint 20.</li>
-            <li>Hoa hồng đã chi trả không được hủy.</li>
+            <li>Hoa hồng đã chi trả không được hủy.</li><li>Hoa hồng sale chỉ được chi trong phạm vi hoa hồng công ty đã nhận.</li>
             <li>Nếu dữ liệu phiếu thu thay đổi sau khi đã duyệt, Sprint 20 chưa tự tạo điều chỉnh.</li>
           </ul>
         </section>
@@ -138,8 +138,8 @@ export function ActionModal({ type, commission, onClose, onSubmit }: { type: 'ap
   const [err, setErr] = useState('');
   async function submit() {
     const p: Record<string, unknown> = { note };
-    if (type === 'approve') { const v = Number(amount); if (v < 0 || v > commission.eligible_commission) return setErr(`Số tiền duyệt phải từ 0 đến ${money(commission.eligible_commission)}.`); p.approved_commission = v; }
-    if (type === 'paid') { const v = Number(amount); if (v < 0 || v > commission.approved_commission) return setErr(`Số tiền chi trả phải từ 0 đến ${money(commission.approved_commission)}.`); p.paid_amount = v; }
+    if (type === 'approve') { if (commission.payout_policy?.can_approve_sales_commission === false) return setErr(commission.payout_policy.approve_block_reason || 'Chưa đủ điều kiện duyệt hoa hồng sale.'); const v = Number(amount); if (v < 0 || v > commission.eligible_commission) return setErr(`Số tiền duyệt phải từ 0 đến ${money(commission.eligible_commission)}.`); p.approved_commission = v; }
+    if (type === 'paid') { if (commission.payout_policy?.can_mark_paid_sales_commission === false) return setErr(commission.payout_policy.mark_paid_block_reason || 'Chưa đủ điều kiện chi hoa hồng sale.'); const v = Number(amount); const cap = commission.payout_policy?.remaining_payable_capacity ?? commission.remaining_payable_capacity ?? commission.approved_commission; if (v < 0 || v > commission.approved_commission) return setErr(`Số tiền chi trả phải từ 0 đến ${money(commission.approved_commission)}.`); if (v > cap) return setErr('Số tiền chi hoa hồng sale không được vượt số hoa hồng công ty đã nhận.'); p.paid_amount = v; }
     if (type === 'hold') { if (!reason.trim()) return setErr('Vui lòng nhập lý do tạm giữ.'); p.hold_reason = reason.trim(); }
     if (type === 'cancel') { if (!reason.trim()) return setErr('Vui lòng nhập lý do hủy.'); p.cancel_reason = reason.trim(); }
     try { await onSubmit(p); onClose(); } catch (e) { setErr(e instanceof Error ? e.message : 'Không thực hiện được thao tác.'); }
@@ -159,13 +159,17 @@ export function ActionModal({ type, commission, onClose, onSubmit }: { type: 'ap
         </dl>
       </div>
       {type === 'cancel' && <div className="form-warning">Hủy hoa hồng cần lý do để đối chiếu. Hoa hồng đã chi trả không được hủy.</div>}
+      {(type === 'approve' || type === 'paid') && commission.payout_policy?.warning_message && <div className="form-warning">{commission.payout_policy.warning_message}</div>}
+      {type === 'approve' && commission.payout_policy?.can_approve_sales_commission === false && <div className="form-error">{commission.payout_policy.approve_block_reason}</div>}
+      {type === 'paid' && <div className="form-warning">Hoa hồng công ty đã nhận: {money(commission.payout_policy?.company_commission_received_amount || commission.company_commission_received_amount || 0)} · Còn phải thu: {money(commission.payout_policy?.company_commission_remaining_amount || commission.company_commission_remaining_amount || 0)} · Tối đa có thể chi: {money(commission.payout_policy?.remaining_payable_capacity || commission.remaining_payable_capacity || 0)}</div>}
+      {type === 'paid' && commission.payout_policy?.can_mark_paid_sales_commission === false && <div className="form-error">{commission.payout_policy.mark_paid_block_reason}</div>}
       <div className="commission-modal-form">
         {err && <div className="form-error full-span">{err}</div>}
         {(type === 'approve' || type === 'paid') && <label className="full-span">{type === 'approve' ? 'Số tiền duyệt' : 'Số tiền đã chi trả'}<input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>}
         {(type === 'hold' || type === 'cancel') && <label className="full-span">{type === 'hold' ? 'Lý do tạm giữ' : 'Lý do hủy'}<textarea value={reason} onChange={(e) => setReason(e.target.value)} /></label>}
         <label className="full-span">Ghi chú<textarea value={note} onChange={(e) => setNote(e.target.value)} /></label>
       </div>
-      <footer className="modal-actions commission-modal-footer"><button type="button" className="secondary-button" onClick={onClose}>Đóng</button><button type="button" onClick={submit}>Xác nhận</button></footer>
+      <footer className="modal-actions commission-modal-footer"><button type="button" className="secondary-button" onClick={onClose}>Đóng</button><button type="button" disabled={(type === 'approve' && commission.payout_policy?.can_approve_sales_commission === false) || (type === 'paid' && commission.payout_policy?.can_mark_paid_sales_commission === false)} onClick={submit}>Xác nhận</button></footer>
     </Modal>
   );
 }

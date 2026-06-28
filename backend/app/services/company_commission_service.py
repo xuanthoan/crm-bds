@@ -44,6 +44,10 @@ def _query(db, **f):
     kw=(f.get('keyword') or '').strip()
     if kw: q=q.filter(or_(CCR.receivable_code.ilike(f'%{kw}%'),Contract.contract_code.ilike(f'%{kw}%'),Customer.full_name.ilike(f'%{kw}%'),Customer.primary_phone.ilike(f'%{kw}%'),CCR.actual_seller_name.ilike(f'%{kw}%'),CCR.commission_payer_name.ilike(f'%{kw}%'),CCR.brokerage_contract_code.ilike(f'%{kw}%')))
     return q
+
+def get_company_commission_for_contract(db, contract_id):
+    return _base(db).filter(CCR.contract_id==contract_id).first()
+
 def list_receivables(db,page=1,page_size=20,**f):
     q=_query(db,**f); total=q.count(); items=q.order_by(CCR.created_at.desc()).offset((page-1)*page_size).limit(page_size).all(); return {'items':[row(i) for i in items],'total':total}
 def summary(db,**f):

@@ -1697,3 +1697,7 @@ Sprint 21 bổ sung tầng **Hoa hồng công ty** để quản lý khoản côn
 Các hợp đồng có thêm thông tin vai trò công ty, bên bán thực tế, bên trả hoa hồng, mã hợp đồng/chính sách môi giới và ghi chú căn cứ hoa hồng. Module `/company-commissions` có API list, summary, eligible-contracts, generate, detail, approve, receive, hold, cancel và export CSV. Quyền mới gồm `company_commissions.view`, `company_commissions.create`, `company_commissions.approve`, `company_commissions.receive`, `company_commissions.hold`, `company_commissions.cancel`, `company_commissions.export`.
 
 Sprint 21 chưa thay đổi công thức hoa hồng sale của Sprint 20 và chưa bắt buộc chi hoa hồng sale phải phụ thuộc trạng thái đã nhận hoa hồng công ty. Backlog sprint sau: tính hoa hồng sale từ hoa hồng công ty, chặn/kiểm soát chi hoa hồng sale khi hoa hồng công ty chưa nhận, bổ sung báo cáo hoa hồng công ty theo bên trả hoa hồng, báo cáo công nợ hoa hồng công ty và báo cáo chênh lệch công ty nhận so với sale được chi.
+
+## Sprint 22 — Sales commission payout policy
+
+Đã triển khai cầu nối Sprint 20/Sprint 21: sales commission có thể tạo trước CCR, nhưng duyệt cần CCR hợp lệ và chi trả cần CCR đã nhận tiền. Không tạo migration và không thêm permission mới. Backlog: dynamic policy, boss override, advance payout, và tính hoa hồng sale từ CCR nếu nghiệp vụ yêu cầu.
