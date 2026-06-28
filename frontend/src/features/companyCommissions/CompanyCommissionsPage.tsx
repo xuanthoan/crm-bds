@@ -30,12 +30,17 @@ export function CompanyCommissionsPage() {
 
   // Action gating source: i.status==='pending'||i.status==='on_hold'; i.status==='approved'||i.status==='partially_received'; i.status==='pending'||i.status==='approved'; i.status==='pending'||i.status==='approved'||i.status==='on_hold'
   function actions(i: CompanyCommission) {
-    const buttons = [<button key="view" onClick={() => navigateTo(`/company-commissions/${i.id}`)}>Xem</button>];
-    if ((i.status === 'pending' || i.status === 'on_hold') && can('company_commissions.approve')) buttons.push(<button key="approve" onClick={() => setAction({ type: 'approve', item: i })}>Duyệt</button>);
-    if ((i.status === 'approved' || i.status === 'partially_received') && can('company_commissions.receive')) buttons.push(<button key="receive" onClick={() => setAction({ type: 'receive', item: i })}>Ghi nhận đã nhận</button>);
-    if ((i.status === 'pending' || i.status === 'approved') && can('company_commissions.hold')) buttons.push(<button key="hold" onClick={() => setAction({ type: 'hold', item: i })}>Tạm giữ</button>);
-    if ((i.status === 'pending' || i.status === 'approved' || i.status === 'on_hold') && can('company_commissions.cancel')) buttons.push(<button key="cancel" onClick={() => setAction({ type: 'cancel', item: i })}>Hủy</button>);
-    return buttons;
+    const workflowButtons = [];
+    if ((i.status === 'pending' || i.status === 'on_hold') && can('company_commissions.approve')) workflowButtons.push(<button className="company-commission-action-button" key="approve" onClick={() => setAction({ type: 'approve', item: i })}>Duyệt</button>);
+    if ((i.status === 'approved' || i.status === 'partially_received') && can('company_commissions.receive')) workflowButtons.push(<button className="company-commission-action-button" key="receive" onClick={() => setAction({ type: 'receive', item: i })}>Ghi nhận đã nhận</button>);
+    if ((i.status === 'pending' || i.status === 'approved') && can('company_commissions.hold')) workflowButtons.push(<button className="company-commission-action-button company-commission-action-button--secondary" key="hold" onClick={() => setAction({ type: 'hold', item: i })}>Tạm giữ</button>);
+    if ((i.status === 'pending' || i.status === 'approved' || i.status === 'on_hold') && can('company_commissions.cancel')) workflowButtons.push(<button className="company-commission-action-button company-commission-action-button--danger" key="cancel" onClick={() => setAction({ type: 'cancel', item: i })}>Hủy</button>);
+    return (
+      <div className="company-commission-actions">
+        <button className="company-commission-action-button company-commission-action-button--view" onClick={() => navigateTo(`/company-commissions/${i.id}`)}>Xem</button>
+        {workflowButtons.length > 0 && <div className="company-commission-action-group">{workflowButtons}</div>}
+      </div>
+    );
   }
 
   return (
@@ -65,7 +70,7 @@ export function CompanyCommissionsPage() {
 
       <table className="data-table">
         <thead><tr>{['Mã HH công ty', 'Mã HĐ', 'Khách hàng', 'Sale', 'Vai trò', 'Bên trả HH', 'Giá trị HĐ', 'Tỷ lệ HH', 'HH dự kiến', 'HH xác nhận', 'Đã nhận', 'Còn phải thu', 'Trạng thái', 'Ngày dự kiến', 'Ngày nhận đủ', 'Hành động'].map((heading) => <th key={heading}>{heading}</th>)}</tr></thead>
-        <tbody>{items.map((item) => <tr key={item.id}><td>{item.receivable_code}</td><td>{item.contract_code}</td><td>{item.customer_name}</td><td>{item.sale_name}</td><td>{COMPANY_ROLE_LABELS[item.company_role] || item.company_role}</td><td>{item.commission_payer_name || item.commission_payer_type}</td><td>{money(item.contract_value)}</td><td>{item.commission_rate_percent}%</td><td>{money(item.expected_commission_amount)}</td><td>{money(item.confirmed_receivable_amount)}</td><td>{money(item.received_amount)}</td><td>{money(item.remaining_amount)}</td><td>{COMPANY_COMMISSION_STATUS_LABELS[item.status] || item.status}</td><td>{date(item.expected_receive_date)}</td><td>{date(item.received_date)}</td><td className="row-actions">{actions(item)}</td></tr>)}</tbody>
+        <tbody>{items.map((item) => <tr key={item.id}><td>{item.receivable_code}</td><td>{item.contract_code}</td><td>{item.customer_name}</td><td>{item.sale_name}</td><td>{COMPANY_ROLE_LABELS[item.company_role] || item.company_role}</td><td>{item.commission_payer_name || item.commission_payer_type}</td><td>{money(item.contract_value)}</td><td>{item.commission_rate_percent}%</td><td>{money(item.expected_commission_amount)}</td><td>{money(item.confirmed_receivable_amount)}</td><td>{money(item.received_amount)}</td><td>{money(item.remaining_amount)}</td><td>{COMPANY_COMMISSION_STATUS_LABELS[item.status] || item.status}</td><td>{date(item.expected_receive_date)}</td><td>{date(item.received_date)}</td><td className="row-actions company-commission-action-cell">{actions(item)}</td></tr>)}</tbody>
       </table>
 
       {guide && <CompanyCommissionGuideModal onClose={() => setGuide(false)} />}

@@ -1353,3 +1353,67 @@ th {
     flex-basis: 100%;
   }
 }
+
+.company-commission-action-header {
+  min-width: 15rem;
+}
+
+.company-commission-action-cell {
+  min-width: 15rem;
+  vertical-align: middle;
+}
+
+.company-commission-actions {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-width: 13.5rem;
+}
+
+.company-commission-action-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.company-commission-action-button {
+  align-items: center;
+  border-radius: 0.55rem;
+  display: inline-flex;
+  font-size: 0.82rem;
+  font-weight: 700;
+  justify-content: center;
+  line-height: 1;
+  min-height: 2rem;
+  padding: 0.45rem 0.65rem;
+  white-space: nowrap;
+}
+
+.company-commission-action-button--view {
+  background: #ffffff;
+  border: 1px solid #cfd7ea;
+  color: #172033;
+}
+
+.company-commission-action-button--secondary {
+  background: #f8fafc;
+  border: 1px solid #d0d5dd;
+  color: #344054;
+}
+
+.company-commission-action-button--danger {
+  background: #fff5f5;
+  border: 1px solid #fecdca;
+  color: #b42318;
+}
+
+@media (max-width: 900px) {
+  .company-commission-action-cell {
+    min-width: 12rem;
+  }
+
+  .company-commission-actions {
+    min-width: 11rem;
+  }
+}

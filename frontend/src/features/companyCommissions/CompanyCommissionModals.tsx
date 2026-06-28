@@ -173,11 +173,21 @@ export function ActionModal({ item, type, onClose, onSaved }: { item: CompanyCom
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    setErrors([]);
+    const trimmedReason = reason.trim();
+    if (type === 'hold' && !trimmedReason) {
+      setErrors(['Vui lòng nhập lý do tạm giữ.']);
+      return;
+    }
+    if (type === 'cancel' && !trimmedReason) {
+      setErrors(['Vui lòng nhập lý do hủy.']);
+      return;
+    }
     try {
       if (type === 'approve') await approveCompanyCommission(item.id, { confirmed_receivable_amount: Number(amount), note });
       if (type === 'receive') await receiveCompanyCommission(item.id, { amount_received_now: Number(amount), received_date: date || null, note });
-      if (type === 'hold') await holdCompanyCommission(item.id, { hold_reason: reason, note });
-      if (type === 'cancel') await cancelCompanyCommission(item.id, { cancel_reason: reason, note });
+      if (type === 'hold') await holdCompanyCommission(item.id, { hold_reason: trimmedReason, note });
+      if (type === 'cancel') await cancelCompanyCommission(item.id, { cancel_reason: trimmedReason, note });
       onSaved();
     } catch (error) {
       setErrors(formatApiError(error));
@@ -192,8 +202,8 @@ export function ActionModal({ item, type, onClose, onSaved }: { item: CompanyCom
         {type === 'cancel' && <p className="error-text">Khoản hoa hồng công ty đã nhận tiền không được hủy.</p>}
         {type === 'approve' && <label>Hoa hồng xác nhận<input type="number" min="1" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>}
         {type === 'receive' && <><label>Số tiền nhận lần này<input type="number" min="1" value={amount} onChange={(event) => setAmount(event.target.value)} /></label><label>Ngày nhận<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label></>}
-        {type === 'hold' && <label>Lý do tạm giữ<input required value={reason} onChange={(event) => setReason(event.target.value)} /></label>}
-        {type === 'cancel' && <label>Lý do hủy<input required value={reason} onChange={(event) => setReason(event.target.value)} /></label>}
+        {type === 'hold' && <label>Lý do tạm giữ<input required value={reason} onChange={(event) => { setReason(event.target.value); setErrors([]); }} /></label>}
+        {type === 'cancel' && <label>Lý do hủy<input required value={reason} onChange={(event) => { setReason(event.target.value); setErrors([]); }} /></label>}
         <label>Ghi chú<textarea value={note} onChange={(event) => setNote(event.target.value)} /></label>
         <FormError messages={errors} />
         <footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Đóng</button><button>{title}</button></footer>

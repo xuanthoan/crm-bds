@@ -15,7 +15,7 @@ class Sprint21CompanyCommissionReceivableSourceTest(unittest.TestCase):
             self.assertIn(perm, api+perms)
     def test_business_rules_and_vietnamese_errors(self):
         service=self.read('backend/app/services/company_commission_service.py')
-        for text in ["LEGAL={'signed','active','completed'}","Hợp đồng chưa đủ trạng thái pháp lý để tạo hoa hồng công ty.","Hợp đồng đã hủy, không thể tạo hoa hồng công ty.","Hợp đồng này đã có khoản hoa hồng công ty.","exp=dec(expected) if expected is not None else (dec(c.contract_value)*rate/D('100')).quantize(D('0.01'))","Hoa hồng xác nhận không được vượt quá hoa hồng dự kiến.","Số tiền nhận lần này phải lớn hơn 0.","Khoản hoa hồng công ty đã nhận tiền, không thể hủy.","Vui lòng nhập lý do tạm giữ.","Vui lòng nhập lý do hủy.","r.status='received' if r.remaining_amount==0 else 'partially_received'"]:
+        for text in ["LEGAL={'signed','active','completed'}","Hợp đồng chưa đủ trạng thái pháp lý để tạo hoa hồng công ty.","Hợp đồng đã hủy, không thể tạo hoa hồng công ty.","Hợp đồng này đã có khoản hoa hồng công ty.","exp=dec(expected) if expected is not None else (dec(c.contract_value)*rate/D('100')).quantize(D('0.01'))","Hoa hồng xác nhận không được vượt quá hoa hồng dự kiến.","Số tiền nhận lần này phải lớn hơn 0.","Khoản hoa hồng công ty đã nhận tiền, không thể hủy.","Lý do tạm giữ là bắt buộc.","Lý do hủy là bắt buộc.","r.status='received' if r.remaining_amount==0 else 'partially_received'"]:
             self.assertIn(text, service)
     def test_contract_fields_and_frontend_route_menu_modals(self):
         contract=self.read('backend/app/models/contract.py')+self.read('backend/app/schemas/contract.py')+self.read('backend/app/services/contract_service.py')
@@ -31,6 +31,19 @@ class Sprint21CompanyCommissionReceivableSourceTest(unittest.TestCase):
         self.assertIn("i.status==='pending'||i.status==='approved'", page)
         self.assertIn("i.status==='pending'||i.status==='approved'||i.status==='on_hold'", page)
         self.assertNotIn("window.confirm", page)
+
+    def test_hold_cancel_reason_required_frontend_and_backend(self):
+        service=self.read('backend/app/services/company_commission_service.py')
+        modals=self.read('frontend/src/features/companyCommissions/CompanyCommissionModals.tsx')
+        page=self.read('frontend/src/features/companyCommissions/CompanyCommissionsPage.tsx')
+        styles=self.read('frontend/src/styles.css')
+        for text in ["reason=(reason or '').strip()", "Lý do tạm giữ là bắt buộc.", "Lý do hủy là bắt buộc."]:
+            self.assertIn(text, service)
+        for text in ["const trimmedReason = reason.trim()", "setErrors(['Vui lòng nhập lý do tạm giữ.'])", "setErrors(['Vui lòng nhập lý do hủy.'])", "hold_reason: trimmedReason", "cancel_reason: trimmedReason"]:
+            self.assertIn(text, modals)
+        for text in ["company-commission-actions", "company-commission-action-group", "company-commission-action-button", "company-commission-action-cell"]:
+            self.assertIn(text, page + styles)
+
     def test_export_csv_vietnamese_headers(self):
         service=self.read('backend/app/services/company_commission_service.py')
         for header in ['Mã hoa hồng công ty','Mã hợp đồng','Khách hàng','Sale','Vai trò công ty','Bên bán thực tế','Bên trả hoa hồng','HH dự kiến','HH xác nhận','Đã nhận','Còn phải thu','Trạng thái','Ngày dự kiến nhận','Ngày nhận đủ','Ghi chú']:

@@ -93,13 +93,13 @@ def receive(db,id,amount,received_date,note,actor):
 def hold(db,id,reason,note,actor):
     r=_get(db,id); reason=(reason or '').strip()
     if r.status not in ('pending','approved'): raise HTTPException(400,'Chỉ khoản hoa hồng công ty chờ duyệt hoặc đã duyệt mới được tạm giữ.')
-    if not reason: raise HTTPException(400,'Vui lòng nhập lý do tạm giữ.')
+    if not reason: raise HTTPException(400,'Lý do tạm giữ là bắt buộc.')
     old=r.status; r.status='on_hold'; r.hold_reason=reason; r.note=note or r.note; _event(db,r,'held',old,r.status,note=note,reason=reason,actor=actor); db.commit(); return detail(_get(db,id))
 def cancel(db,id,reason,note,actor):
     r=_get(db,id); reason=(reason or '').strip()
     if r.status in ('partially_received','received') or dec(r.received_amount)>0: raise HTTPException(400,'Khoản hoa hồng công ty đã nhận tiền, không thể hủy.')
     if r.status not in ('pending','approved','on_hold'): raise HTTPException(400,'Trạng thái hiện tại không cho phép hủy hoa hồng công ty.')
-    if not reason: raise HTTPException(400,'Vui lòng nhập lý do hủy.')
+    if not reason: raise HTTPException(400,'Lý do hủy là bắt buộc.')
     old=r.status; r.status='cancelled'; r.cancel_reason=reason; r.cancelled_by_id=actor.id; r.cancelled_at=now(); r.note=note or r.note; _event(db,r,'cancelled',old,r.status,note=note,reason=reason,actor=actor); db.commit(); return detail(_get(db,id))
 def export_csv(db,**f):
     out=io.StringIO(); w=csv.writer(out); items=[row(i) for i in _query(db,**f).all()]
