@@ -1,6 +1,6 @@
 from __future__ import annotations
 from datetime import date, datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
 import csv, io
 from fastapi import HTTPException
@@ -21,6 +21,7 @@ D=Decimal
 
 def now(): return datetime.now(timezone.utc)
 def dec(v): return D(str(v or 0))
+def money_limit(v): return dec(v).quantize(D('1'), rounding=ROUND_HALF_UP)
 
 def _event(db,c,t,title,desc,actor):
     db.add(SalesCommissionEvent(commission_id=c.id,event_type=t,title=title,description=desc,actor_id=getattr(actor,'id',None),created_at=now()))
@@ -241,8 +242,9 @@ def approve(db,id,amount,note,actor):
     if c.status not in ('eligible','on_hold'): raise HTTPException(400,'Chỉ hoa hồng đủ điều kiện hoặc tạm giữ mới được duyệt.')
     policy=get_sales_commission_payout_policy_context(db,c)
     if not policy['can_approve_sales_commission']: raise HTTPException(400, policy['approve_block_reason'])
-    amt=dec(amount) if amount is not None else dec(c.eligible_commission)
-    if amt<0 or amt>dec(c.eligible_commission): raise HTTPException(400,'Số tiền duyệt không hợp lệ hoặc vượt hoa hồng đủ điều kiện.')
+    max_approve=money_limit(c.eligible_commission)
+    amt=dec(amount) if amount is not None else max_approve
+    if amt<=0 or amt>max_approve: raise HTTPException(400,'Số tiền duyệt không hợp lệ hoặc vượt hoa hồng đủ điều kiện.')
     c.status='approved'; c.approved_commission=amt; c.approved_by_id=actor.id; c.approved_at=now(); c.note=note or c.note; _event(db,c,'approved','Duyệt hoa hồng',note,actor); db.commit(); return detail(get_commission(db,id))
 
 def mark_paid(db,id,amount,note,actor):

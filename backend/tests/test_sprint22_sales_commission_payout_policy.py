@@ -145,4 +145,25 @@ class Sprint22SalesCommissionPayoutPolicySourceTest(unittest.TestCase):
         self.assertIn("label(CONTRACT_STATUS_LABELS,c.contract_status)", commission_detail)
         self.assertIn("e.title || label(COMMISSION_STATUS_LABELS,e.event_type)", commission_detail)
 
+    def test_approve_amount_defaults_and_boundary_validation_are_safe(self):
+        sale_modal=self.read('frontend/src/features/commissions/CommissionModals.tsx')
+        company_modal=self.read('frontend/src/features/companyCommissions/CompanyCommissionModals.tsx')
+        sale_service=self.read('backend/app/services/commission_service.py')
+        company_service=self.read('backend/app/services/company_commission_service.py')
+        for text in ['moneyInputValue', 'Math.round(Number(value || 0))', 'approveMaxAmount', "type === 'approve' ? moneyInputValue(approveMaxAmount)"]:
+            self.assertIn(text, sale_modal + company_modal)
+        self.assertIn('if (v <= 0) return setErr(\'Số tiền duyệt phải lớn hơn 0.\')', sale_modal)
+        self.assertIn('if (v > approveMaxAmount)', sale_modal)
+        self.assertIn('if (v > remainingSalePayout)', sale_modal)
+        self.assertIn('if (v > cap)', sale_modal)
+        self.assertIn("numericAmount <= 0", company_modal)
+        self.assertIn('numericAmount > approveMaxAmount', company_modal)
+        self.assertIn('numericAmount > receiveMaxAmount', company_modal)
+        for forbidden in ['- 0.01', '-0.01', '- 0.04', '-0.04', '< approveMaxAmount', '< receiveMaxAmount']:
+            self.assertNotIn(forbidden, sale_modal + company_modal)
+        for text in ['ROUND_HALF_UP', 'def money_limit(v):', 'max_approve=money_limit', 'if amt<=0 or amt>max_approve']:
+            self.assertIn(text, sale_service)
+        for text in ['ROUND_HALF_UP', 'def money_limit(v):', 'max_approve=money_limit', 'if amt>max_approve']:
+            self.assertIn(text, company_service)
+
 if __name__=='__main__': unittest.main()

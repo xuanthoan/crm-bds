@@ -1,6 +1,6 @@
 from __future__ import annotations
 from datetime import date, datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
 import csv, io
 from fastapi import HTTPException
@@ -18,6 +18,7 @@ PAYER_LABELS={'investor':'Chủ đầu tư','landowner':'Chủ đất','homeowne
 SELLER_LABELS={'investor':'Chủ đầu tư','landowner':'Chủ đất','homeowner':'Chủ nhà','our_company':'Công ty tôi','other':'Khác'}
 def now(): return datetime.now(timezone.utc)
 def dec(v): return D(str(v or 0))
+def money_limit(v): return dec(v).quantize(D('1'), rounding=ROUND_HALF_UP)
 def _code(db): return f"CCR-{(db.query(func.count(CCR.id)).scalar() or 0)+1:06d}"
 def _sale(c): return getattr(getattr(c,'deal',None),'owner',None) or getattr(getattr(c,'deal',None),'owner_id',None)
 def _event(db,r,t,old,new,amount=None,note=None,reason=None,actor=None): db.add(CompanyCommissionEvent(receivable_id=r.id,event_type=t,from_status=old,to_status=new,amount=amount,note=note,reason=reason,created_by_id=getattr(actor,'id',None),created_at=now()))
@@ -89,9 +90,10 @@ def generate(db,contract_id,rate,expected,expected_date,note,actor):
 def approve(db,id,amount,note,actor):
     r=_get(db,id)
     if r.status not in ('pending','on_hold'): raise HTTPException(400,'Chỉ khoản hoa hồng công ty chờ duyệt hoặc tạm giữ mới được duyệt.')
-    amt=dec(amount)
+    max_approve=money_limit(r.expected_commission_amount)
+    amt=dec(amount) if amount is not None else max_approve
     if amt<=0: raise HTTPException(400,'Hoa hồng xác nhận phải lớn hơn 0.')
-    if amt>dec(r.expected_commission_amount): raise HTTPException(400,'Hoa hồng xác nhận không được vượt quá hoa hồng dự kiến.')
+    if amt>max_approve: raise HTTPException(400,'Hoa hồng xác nhận không được vượt quá hoa hồng dự kiến.')
     old=r.status; r.status='approved'; r.confirmed_receivable_amount=amt; r.remaining_amount=amt-dec(r.received_amount); r.approved_by_id=actor.id; r.approved_at=now(); r.note=note or r.note; _event(db,r,'approved',old,r.status,amt,note,actor=actor); db.commit(); return detail(_get(db,id))
 def receive(db,id,amount,received_date,note,actor):
     r=_get(db,id)

@@ -3,6 +3,8 @@ import { Modal } from '../../components/Modal';
 import { searchEligibleContracts, type Commission, type EligibleContract } from './api';
 
 const money = (v: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(v || 0);
+const moneyInputValue = (value: number | undefined | null) => String(Math.round(Number(value || 0)));
+const moneyLimit = (value: number | undefined | null) => Math.round(Number(value || 0));
 const CONTRACT_STATUS_LABELS: Record<string, string> = { draft: 'Bản nháp', pending_signature: 'Chờ ký', signed: 'Đã ký', active: 'Có hiệu lực', completed: 'Hoàn tất', cancelled: 'Đã hủy' };
 const contractStatusLabel = (status?: string) => status ? (CONTRACT_STATUS_LABELS[status] || status) : 'Chưa cập nhật';
 
@@ -142,9 +144,10 @@ export function GenerateModal({ onClose, onSubmit }: { onClose: () => void; onSu
 
 export function ActionModal({ type, commission, onClose, onSubmit }: { type: 'approve' | 'hold' | 'cancel' | 'paid'; commission: Commission; onClose: () => void; onSubmit: (p: Record<string, unknown>) => Promise<void> }) {
   const titles = { approve: 'Duyệt hoa hồng', hold: 'Tạm giữ hoa hồng', cancel: 'Hủy hoa hồng', paid: 'Đánh dấu đã chi trả' };
-  const remainingSalePayout = Math.max((commission.approved_commission || 0) - (commission.paid_amount || 0), 0);
-  const markPaidDefaultAmount = Math.min(remainingSalePayout, commission.payout_policy?.remaining_payable_capacity ?? commission.remaining_payable_capacity ?? remainingSalePayout);
-  const [amount, setAmount] = useState(String(type === 'approve' ? commission.eligible_commission : markPaidDefaultAmount));
+  const approveMaxAmount = moneyLimit(commission.eligible_commission);
+  const remainingSalePayout = Math.max(moneyLimit(commission.approved_commission) - moneyLimit(commission.paid_amount), 0);
+  const markPaidDefaultAmount = Math.min(remainingSalePayout, moneyLimit(commission.payout_policy?.remaining_payable_capacity ?? commission.remaining_payable_capacity ?? remainingSalePayout));
+  const [amount, setAmount] = useState(type === 'approve' ? moneyInputValue(approveMaxAmount) : moneyInputValue(markPaidDefaultAmount));
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
   const [err, setErr] = useState('');
@@ -152,8 +155,8 @@ export function ActionModal({ type, commission, onClose, onSubmit }: { type: 'ap
   async function submit() {
     if (isSubmitting) return;
     const p: Record<string, unknown> = { note };
-    if (type === 'approve') { if (commission.payout_policy?.can_approve_sales_commission === false) return setErr(commission.payout_policy.approve_block_reason || 'Chưa đủ điều kiện duyệt hoa hồng sale.'); const v = Number(amount); if (v < 0 || v > commission.eligible_commission) return setErr(`Số tiền duyệt phải từ 0 đến ${money(commission.eligible_commission)}.`); p.approved_commission = v; }
-    if (type === 'paid') { if (commission.payout_policy?.can_mark_paid_sales_commission === false) return setErr(commission.payout_policy.mark_paid_block_reason || 'Chưa đủ điều kiện chi hoa hồng sale.'); const v = Number(amount); const cap = commission.payout_policy?.remaining_payable_capacity ?? commission.remaining_payable_capacity ?? remainingSalePayout; if (v <= 0 || v > remainingSalePayout) return setErr(`Số tiền chi trả phải lớn hơn 0 và không vượt ${money(remainingSalePayout)} còn lại.`); if (v > cap) return setErr('Số tiền chi hoa hồng sale không được vượt số hoa hồng công ty đã nhận.'); p.paid_amount = v; }
+    if (type === 'approve') { if (commission.payout_policy?.can_approve_sales_commission === false) return setErr(commission.payout_policy.approve_block_reason || 'Chưa đủ điều kiện duyệt hoa hồng sale.'); const v = Number(amount); if (v <= 0) return setErr('Số tiền duyệt phải lớn hơn 0.'); if (v > approveMaxAmount) return setErr(`Số tiền duyệt không được vượt ${money(approveMaxAmount)}.`); p.approved_commission = v; }
+    if (type === 'paid') { if (commission.payout_policy?.can_mark_paid_sales_commission === false) return setErr(commission.payout_policy.mark_paid_block_reason || 'Chưa đủ điều kiện chi hoa hồng sale.'); const v = Number(amount); const cap = moneyLimit(commission.payout_policy?.remaining_payable_capacity ?? commission.remaining_payable_capacity ?? remainingSalePayout); if (v <= 0) return setErr('Số tiền chi trả phải lớn hơn 0.'); if (v > remainingSalePayout) return setErr(`Số tiền chi trả không được vượt ${money(remainingSalePayout)} còn lại.`); if (v > cap) return setErr('Số tiền chi hoa hồng sale không được vượt số hoa hồng công ty đã nhận.'); p.paid_amount = v; }
     if (type === 'hold') { if (!reason.trim()) return setErr('Vui lòng nhập lý do tạm giữ.'); p.hold_reason = reason.trim(); }
     if (type === 'cancel') { if (!reason.trim()) return setErr('Vui lòng nhập lý do hủy.'); p.cancel_reason = reason.trim(); }
     try { setIsSubmitting(true); await onSubmit(p); onClose(); } catch (e) { setErr(e instanceof Error ? e.message : 'Không thực hiện được thao tác.'); } finally { setIsSubmitting(false); }

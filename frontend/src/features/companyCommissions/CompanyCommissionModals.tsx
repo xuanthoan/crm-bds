@@ -173,7 +173,9 @@ export function CreateCompanyCommissionModal({ onClose, onSaved }: { onClose: ()
 }
 
 export function ActionModal({ item, type, onClose, onSaved }: { item: CompanyCommission; type: 'approve' | 'receive' | 'hold' | 'cancel'; onClose: () => void; onSaved: () => void }) {
-  const [amount, setAmount] = useState(String(type === 'approve' ? item.expected_commission_amount : ''));
+  const approveMaxAmount = moneyLimit(item.expected_commission_amount);
+  const receiveMaxAmount = moneyLimit(item.remaining_amount);
+  const [amount, setAmount] = useState(type === 'approve' ? moneyInputValue(approveMaxAmount) : '');
   const [reason, setReason] = useState('');
   const [date, setDate] = useState('');
   const [note, setNote] = useState('');
@@ -195,8 +197,12 @@ export function ActionModal({ item, type, onClose, onSaved }: { item: CompanyCom
     }
     try {
       setIsSubmitting(true);
-      if (type === 'approve') await approveCompanyCommission(item.id, { confirmed_receivable_amount: Number(amount), note });
-      if (type === 'receive') await receiveCompanyCommission(item.id, { amount_received_now: Number(amount), received_date: date || null, note });
+      const numericAmount = Number(amount);
+      if ((type === 'approve' || type === 'receive') && numericAmount <= 0) { setErrors(['Số tiền phải lớn hơn 0.']); setIsSubmitting(false); return; }
+      if (type === 'approve' && numericAmount > approveMaxAmount) { setErrors([`Hoa hồng xác nhận không được vượt ${money(approveMaxAmount)}.`]); setIsSubmitting(false); return; }
+      if (type === 'receive' && numericAmount > receiveMaxAmount) { setErrors([`Số tiền nhận lần này không được vượt ${money(receiveMaxAmount)}.`]); setIsSubmitting(false); return; }
+      if (type === 'approve') await approveCompanyCommission(item.id, { confirmed_receivable_amount: numericAmount, note });
+      if (type === 'receive') await receiveCompanyCommission(item.id, { amount_received_now: numericAmount, received_date: date || null, note });
       if (type === 'hold') await holdCompanyCommission(item.id, { hold_reason: trimmedReason, note });
       if (type === 'cancel') await cancelCompanyCommission(item.id, { cancel_reason: trimmedReason, note });
       onSaved();
