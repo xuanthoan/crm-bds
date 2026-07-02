@@ -10,12 +10,15 @@ import type { Contract } from './types';
 export function ContractsPage() {
   const [items, setItems] = useState<Contract[]>([]);
   const [filters, setFilters] = useState<Record<string, string>>({});
+  const [page, setPage] = useState(1);
+  const [meta, setMeta] = useState<Record<string, number>>({});
   const [showCreate, setShowCreate] = useState(false);
 
   const load = useCallback(async () => {
-    const response = await listContracts(filters);
+    const response = await listContracts({ ...filters, page: String(page), page_size: '20' });
     setItems(response.data);
-  }, [filters]);
+    setMeta(response.meta as Record<string, number>);
+  }, [filters, page]);
 
   useEffect(() => {
     void load();
@@ -30,8 +33,15 @@ export function ContractsPage() {
         </div>
         {can('contracts.create') && <button onClick={() => setShowCreate(true)}>Tạo hợp đồng</button>}
       </header>
-      <ContractFilters filters={filters} onChange={setFilters} />
+      <ContractFilters filters={filters} onChange={(next) => { setPage(1); setFilters(next); }} />
       <ContractTable items={items} />
+      <div className="pagination-row">
+        <span>Trang {Number(meta.page || page)} / {Number(meta.total_pages || 1)} · Tổng {Number(meta.total || items.length)} hợp đồng</span>
+        <div>
+          <button className="secondary-button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(current - 1, 1))}>Trang trước</button>
+          <button className="secondary-button" disabled={page >= Number(meta.total_pages || 1)} onClick={() => setPage((current) => current + 1)}>Trang sau</button>
+        </div>
+      </div>
       {showCreate && (
         <ContractFormModal
           onClose={() => setShowCreate(false)}

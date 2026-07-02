@@ -200,11 +200,6 @@ def list_all_receipts(db,actor,page=1,page_size=20,q=None,status=None):
     items=list(db.scalars(select(PaymentReceipt).where(*cond).order_by(PaymentReceipt.created_at.desc()).offset((page-1)*page_size).limit(page_size)).unique())
     return items,{'page':page,'page_size':page_size,'total':total,'total_pages':ceil(total/page_size) if total else 0}
 def get_receipt(db,id,actor): return _receipt(db,id)
-def create_invoice(db,schedule_id,payload:InvoiceCreate,actor):
-    p=_schedule(db,schedule_id); amount=payload.amount or _total_due(p)
-    inv=PaymentInvoice(invoice_code=_next(db,PaymentInvoice.invoice_code,'INV'),contract_id=p.contract_id,payment_schedule_id=p.id,customer_id=p.customer_id,amount=amount,issued_date=payload.issued_date,status=payload.status,note=payload.note,created_by_id=actor.id)
-    db.add(inv); db.flush(); add_contract_activity(db,p.contract,actor,'payment_invoice_created',content=f"Tạo hóa đơn nháp {inv.invoice_code} cho {p.title}, số tiền {_format_money(inv.amount)}."); db.commit(); db.refresh(inv); return inv
-
 def _invoice(db,id):
     inv=db.scalar(select(PaymentInvoice).where(PaymentInvoice.id==id,PaymentInvoice.deleted_at.is_(None)))
     if not inv: raise HTTPException(404,'Hóa đơn không tồn tại')
@@ -216,6 +211,8 @@ def serialize_invoice(i):
 
 def create_invoice(db,schedule_id,payload:InvoiceCreate,actor):
     p=_schedule(db,schedule_id)
+    existing_invoice=db.scalar(select(PaymentInvoice.id).where(PaymentInvoice.payment_schedule_id==p.id, PaymentInvoice.deleted_at.is_(None), PaymentInvoice.status!='cancelled').limit(1))
+    if existing_invoice: raise HTTPException(409,'Đợt thanh toán này đã có hóa đơn, không thể tạo thêm hóa đơn nháp.')
     if p.contract.status in {'cancelled','completed'}: raise HTTPException(409,'Không thể tạo hóa đơn cho hợp đồng đã hủy hoặc đã hoàn tất.')
     receipt=None
     if payload.receipt_id:

@@ -112,4 +112,37 @@ class Sprint22SalesCommissionPayoutPolicySourceTest(unittest.TestCase):
         for text in ['isFiltering', 'isClearingFilters', 'Đang lọc...', 'Đang xóa...', 'Promise.all']:
             self.assertIn(text, sale_page + company_page)
 
+    def test_contracts_page_has_pagination_for_seeded_contracts(self):
+        page=self.read('frontend/src/features/contracts/ContractsPage.tsx')
+        api=self.read('backend/app/api/v1/contracts.py') + self.read('backend/app/services/contract_service.py')
+        for text in ["page:int=Query(1,ge=1)", "page_size:int=Query(20,ge=1,le=100)", "order_by(Contract.created_at.desc())", "\"total_pages\":ceil(total/page_size)"]:
+            self.assertIn(text, api)
+        for text in ["const [page, setPage]", "setMeta(response.meta", "page_size: '20'", "Trang trước", "Trang sau", "Tổng {Number(meta.total || items.length)} hợp đồng", "className=\"pagination-row\""]:
+            self.assertIn(text, page)
+
+    def test_payment_invoice_duplicate_guard_and_frontend_button_state(self):
+        service=self.read('backend/app/services/payment_service.py')
+        detail=self.read('frontend/src/features/payments/PaymentDetailPage.tsx')
+        forms=self.read('frontend/src/features/payments/PaymentForms.tsx')
+        for text in ["existing_invoice=db.scalar", "PaymentInvoice.payment_schedule_id==p.id", "PaymentInvoice.status!='cancelled'", "Đợt thanh toán này đã có hóa đơn, không thể tạo thêm hóa đơn nháp."]:
+            self.assertIn(text, service)
+        self.assertIn("hasActiveInvoice = (item.invoices || []).some((invoice) => invoice.status !== 'cancelled')", detail)
+        self.assertIn("disabled={hasActiveInvoice}", detail)
+        self.assertIn("disabledMessage={hasActiveInvoice ? invoiceDuplicateMessage : undefined}", detail)
+        self.assertIn("disabled?: boolean", forms)
+        self.assertIn("return setErrors([disabledMessage || 'Đợt thanh toán này đã có hóa đơn, không thể tạo thêm hóa đơn nháp.'])", forms)
+
+    def test_frontend_localizes_commission_contract_payment_enums_and_timelines(self):
+        company_constants=self.read('frontend/src/features/companyCommissions/constants.ts')
+        company_detail=self.read('frontend/src/features/companyCommissions/CompanyCommissionDetailPage.tsx')
+        company_page=self.read('frontend/src/features/companyCommissions/CompanyCommissionsPage.tsx')
+        commission_detail=self.read('frontend/src/features/commissions/CommissionDetailPage.tsx')
+        for text in ["our_company:'Công ty của tôi'", "developer:'Chủ đầu tư'", "landlord:'Chủ nhà / chủ đất'", "partner:'Đối tác'", "customer:'Khách hàng'", "investor:'Chủ đầu tư / Nhà đầu tư'", "seller:'Bên bán'", "buyer_representative:'Đại diện bên mua'", "created:'Tạo mới'", "received:'Ghi nhận đã nhận tiền'", "partially_received:'Ghi nhận nhận một phần'", "held:'Tạm giữ'", "marked_paid:'Đánh dấu đã chi trả'"]:
+            self.assertIn(text, company_constants)
+        for text in ["label(CONTRACT_STATUS_LABELS, item.contract?.status)", "label(COMMISSION_PARTY_LABELS, item.actual_seller_type)", "label(COMMISSION_PARTY_LABELS, item.commission_payer_type)", "label(COMPANY_COMMISSION_EVENT_LABELS, event.event_type)", "dateTime(event.created_at)"]:
+            self.assertIn(text, company_detail)
+        self.assertIn("COMMISSION_PARTY_LABELS[item.commission_payer_type || '']", company_page)
+        self.assertIn("label(CONTRACT_STATUS_LABELS,c.contract_status)", commission_detail)
+        self.assertIn("e.title || label(COMMISSION_STATUS_LABELS,e.event_type)", commission_detail)
+
 if __name__=='__main__': unittest.main()

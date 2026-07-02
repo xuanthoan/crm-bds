@@ -4,7 +4,7 @@ import { can } from '../auth/authStore';
 import { navigateTo } from '../../routes/AppRoutes';
 import { companyCommissionSummary, exportCompanyCommissionsUrl, listCompanyCommissions } from './api';
 import { ActionModal, CompanyCommissionGuideModal, CreateCompanyCommissionModal } from './CompanyCommissionModals';
-import { COMPANY_COMMISSION_STATUS_LABELS, COMPANY_ROLE_LABELS } from './constants';
+import { COMPANY_COMMISSION_STATUS_LABELS, COMPANY_ROLE_LABELS, COMMISSION_PARTY_LABELS } from './constants';
 import type { CompanyCommission } from './types';
 
 const money = (value: unknown) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -72,7 +72,7 @@ export function CompanyCommissionsPage() {
 
       <table className="data-table">
         <thead><tr>{['Mã HH công ty', 'Mã HĐ', 'Khách hàng', 'Sale', 'Vai trò', 'Bên trả HH', 'Giá trị HĐ', 'Tỷ lệ HH', 'HH dự kiến', 'HH xác nhận', 'Đã nhận', 'Còn phải thu', 'Trạng thái', 'Ngày dự kiến', 'Ngày nhận đủ', 'Hành động'].map((heading) => <th key={heading}>{heading}</th>)}</tr></thead>
-        <tbody>{items.map((item) => <tr key={item.id}><td>{item.receivable_code}</td><td>{item.contract_code}</td><td>{item.customer_name}</td><td>{item.sale_name}</td><td>{COMPANY_ROLE_LABELS[item.company_role] || item.company_role}</td><td>{item.commission_payer_name || item.commission_payer_type}</td><td>{money(item.contract_value)}</td><td>{item.commission_rate_percent}%</td><td>{money(item.expected_commission_amount)}</td><td>{money(item.confirmed_receivable_amount)}</td><td>{money(item.received_amount)}</td><td>{money(item.remaining_amount)}</td><td>{COMPANY_COMMISSION_STATUS_LABELS[item.status] || item.status}</td><td>{date(item.expected_receive_date)}</td><td>{date(item.received_date)}</td><td className="row-actions company-commission-action-cell">{actions(item)}</td></tr>)}</tbody>
+        <tbody>{items.map((item) => <tr key={item.id}><td>{item.receivable_code}</td><td>{item.contract_code}</td><td>{item.customer_name}</td><td>{item.sale_name}</td><td>{COMPANY_ROLE_LABELS[item.company_role] || item.company_role}</td><td>{item.commission_payer_name || COMMISSION_PARTY_LABELS[item.commission_payer_type || ''] || item.commission_payer_type}</td><td>{money(item.contract_value)}</td><td>{item.commission_rate_percent}%</td><td>{money(item.expected_commission_amount)}</td><td>{money(item.confirmed_receivable_amount)}</td><td>{money(item.received_amount)}</td><td>{money(item.remaining_amount)}</td><td>{COMPANY_COMMISSION_STATUS_LABELS[item.status] || item.status}</td><td>{date(item.expected_receive_date)}</td><td>{date(item.received_date)}</td><td className="row-actions company-commission-action-cell">{actions(item)}</td></tr>)}</tbody>
       </table>
 
       {guide && <CompanyCommissionGuideModal onClose={() => setGuide(false)} />}

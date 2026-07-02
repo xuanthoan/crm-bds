@@ -440,3 +440,9 @@ Sprint 21 chưa thay đổi công thức hoa hồng sale của Sprint 20 và ch�
 - CCR `partially_received`/`received` cho mark paid trong phạm vi `received_amount` còn lại và không vượt approved amount.
 - CCR `on_hold`/`cancelled` chặn approve và mark paid COM.
 - `/commissions` list và detail hiển thị HH công ty, số đã nhận, số còn phải thu, khả năng duyệt/chi và reason bị chặn.
+
+### Sprint 22 regression quick checks
+- `/contracts`: verify pagination shows total contracts and Trang trước/Trang sau so older HD records can be opened after seeded data pushes them past page 1.
+- `/payments/:id`: verify a payment with any non-cancelled invoice cannot create another draft invoice; backend message: “Đợt thanh toán này đã có hóa đơn, không thể tạo thêm hóa đơn nháp.”
+- `/company-commissions/:id` and `/commissions/:id`: verify statuses, payer types, contract status, and timeline events show Vietnamese labels instead of raw enum values.
+- Partial COM payout: pay part of approved COM, receive more CCR, confirm COM stays “Đã chi một phần” until user explicitly marks the remaining sale payout as paid.
