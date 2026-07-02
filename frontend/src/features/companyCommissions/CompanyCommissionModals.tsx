@@ -16,6 +16,8 @@ import type { CompanyCommission, EligibleContract } from './types';
 
 const LEGAL_STATUS_REASON = 'Hợp đồng chưa đủ trạng thái pháp lý để tạo hoa hồng công ty.';
 const money = (value: unknown) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(value || 0));
+const moneyInputValue = (value: unknown) => String(Math.round(Number(value || 0)));
+const moneyLimit = (value: unknown) => Math.round(Number(value || 0));
 const CONTRACT_STATUS_LABELS: Record<string, string> = { draft: 'Bản nháp', pending_signature: 'Chờ ký', signed: 'Đã ký', active: 'Có hiệu lực', completed: 'Hoàn tất', cancelled: 'Đã hủy' };
 const contractStatusLabel = (status?: string) => status ? (CONTRACT_STATUS_LABELS[status] || status) : 'Chưa cập nhật';
 const readable = (value?: string | null) => value || 'Chưa cập nhật';

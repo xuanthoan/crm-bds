@@ -152,6 +152,8 @@ class Sprint22SalesCommissionPayoutPolicySourceTest(unittest.TestCase):
         company_service=self.read('backend/app/services/company_commission_service.py')
         for text in ['moneyInputValue', 'Math.round(Number(value || 0))', 'approveMaxAmount', "type === 'approve' ? moneyInputValue(approveMaxAmount)"]:
             self.assertIn(text, sale_modal + company_modal)
+        self.assertIn('const moneyInputValue = (value: unknown)', company_modal)
+        self.assertIn('const moneyLimit = (value: unknown)', company_modal)
         self.assertIn('if (v <= 0) return setErr(\'Số tiền duyệt phải lớn hơn 0.\')', sale_modal)
         self.assertIn('if (v > approveMaxAmount)', sale_modal)
         self.assertIn('if (v > remainingSalePayout)', sale_modal)
