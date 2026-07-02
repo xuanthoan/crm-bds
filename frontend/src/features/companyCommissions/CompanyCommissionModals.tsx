@@ -11,7 +11,7 @@ import {
   holdCompanyCommission,
   receiveCompanyCommission,
 } from './api';
-import { COMPANY_ROLE_LABELS } from './constants';
+import { COMPANY_COMMISSION_STATUS_LABELS, COMPANY_ROLE_LABELS, COMMISSION_PARTY_LABELS } from './constants';
 import type { CompanyCommission, EligibleContract } from './types';
 
 const LEGAL_STATUS_REASON = 'Hợp đồng chưa đủ trạng thái pháp lý để tạo hoa hồng công ty.';
@@ -21,13 +21,14 @@ const moneyLimit = (value: unknown) => Math.round(Number(value || 0));
 const CONTRACT_STATUS_LABELS: Record<string, string> = { draft: 'Bản nháp', pending_signature: 'Chờ ký', signed: 'Đã ký', active: 'Có hiệu lực', completed: 'Hoàn tất', cancelled: 'Đã hủy' };
 const contractStatusLabel = (status?: string) => status ? (CONTRACT_STATUS_LABELS[status] || status) : 'Chưa cập nhật';
 const readable = (value?: string | null) => value || 'Chưa cập nhật';
+const label = (map: Record<string, string>, value?: string | null) => value ? (map[value] || value) : 'Chưa cập nhật';
 
 function Context({ item }: { item: CompanyCommission }) {
   return (
     <section className="context-card">
       <strong>Bạn đang thao tác hoa hồng công ty:</strong>
-      <p>{item.receivable_code} • HĐ {item.contract_code} • Bên trả hoa hồng {item.commission_payer_name || 'Chưa cập nhật'} • Khách hàng {item.customer_name || 'Chưa cập nhật'}</p>
-      <p>HH dự kiến {money(item.expected_commission_amount)} • HH xác nhận {money(item.confirmed_receivable_amount)} • Đã nhận {money(item.received_amount)} • Còn phải thu {money(item.remaining_amount)} • Trạng thái {item.status}</p>
+      <p>{item.receivable_code} • HĐ {item.contract_code} • Bên trả hoa hồng {item.commission_payer_name || label(COMMISSION_PARTY_LABELS, item.commission_payer_type)} • Khách hàng {item.customer_name || 'Chưa cập nhật'}</p>
+      <p>HH dự kiến {money(item.expected_commission_amount)} • HH xác nhận {money(item.confirmed_receivable_amount)} • Đã nhận {money(item.received_amount)} • Còn phải thu {money(item.remaining_amount)} • Trạng thái {label(COMPANY_COMMISSION_STATUS_LABELS, item.status)}</p>
     </section>
   );
 }
@@ -148,8 +149,8 @@ export function CreateCompanyCommissionModal({ onClose, onSaved }: { onClose: ()
                 <span className="company-commission-contract-line">
                   <span>Sale: {readable(contract.sale_name)}</span>
                   <span>Vai trò công ty: {COMPANY_ROLE_LABELS[contract.company_role] || readable(contract.company_role)}</span>
-                  <span>Bên bán: {readable(contract.actual_seller_name || contract.actual_seller_type)}</span>
-                  <span>Bên trả HH: {readable(contract.commission_payer_name || contract.commission_payer_type)}</span>
+                  <span>Bên bán: {contract.actual_seller_name || label(COMMISSION_PARTY_LABELS, contract.actual_seller_type)}</span>
+                  <span>Bên trả HH: {contract.commission_payer_name || label(COMMISSION_PARTY_LABELS, contract.commission_payer_type)}</span>
                 </span>
                 <span className="company-commission-contract-line">Mã hợp đồng/chính sách môi giới: {readable(contract.brokerage_contract_code)}</span>
                 {!eligible && <em>Lý do: {contract.reason || LEGAL_STATUS_REASON}</em>}
