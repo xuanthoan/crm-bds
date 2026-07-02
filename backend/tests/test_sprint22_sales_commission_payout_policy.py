@@ -34,6 +34,36 @@ class Sprint22SalesCommissionPayoutPolicySourceTest(unittest.TestCase):
         self.assertNotIn('items":[row(c) for c in items]', list_block)
         for text in ['missing_company_commission_count','blocked_mark_paid_count','total_company_commission_received_linked']:
             self.assertIn(text, service)
+
+    def test_partial_sales_commission_payout_regression(self):
+        service=self.read('backend/app/services/commission_service.py')
+        page=self.read('frontend/src/features/commissions/CommissionsPage.tsx')
+        modal=self.read('frontend/src/features/commissions/CommissionModals.tsx')
+        api=self.read('frontend/src/features/commissions/api.ts')
+        constants=self.read('frontend/src/features/commissions/constants.ts')
+        for text in [
+            '"partially_paid":"Đã chi một phần"',
+            'def _sync_payout_status(c):',
+            "elif approved > 0 and paid > 0:",
+            "c.status='partially_paid'",
+            "if c.status not in ('approved','partially_paid')",
+            "c.paid_amount=dec(c.paid_amount)+amt",
+            "remaining_sales=max(dec(c.approved_commission)-dec(c.paid_amount), D('0'))",
+            "'sales_commission_remaining_amount': float(remaining_sales)",
+        ]:
+            self.assertIn(text, service)
+        self.assertNotIn("c.status='paid'; c.paid_amount=amt", service)
+        self.assertIn("max_payable=min(remaining_sales, capacity)", service)
+        self.assertIn("['approved', 'partially_paid'].includes(c.status)", page)
+        self.assertIn('<option value="partially_paid">Đã chi một phần</option>', page)
+        self.assertIn("['Đã chi một phần', summary.partially_paid_count || 0]", page)
+        self.assertIn("markPaidDefaultAmount", modal)
+        self.assertIn("Math.min(remainingSalePayout", modal)
+        self.assertIn("Còn phải chi sale", modal)
+        self.assertIn("Tối đa có thể chi lần này", modal)
+        self.assertIn("sales_commission_remaining_amount", api)
+        self.assertIn("partially_paid: 'Đã chi một phần'", constants)
+
     def test_frontend_policy_ui_labels_and_gating(self):
         combined='\n'.join(Path(p).read_text() for p in Path('frontend/src/features/commissions').glob('*.tsx')) + self.read('frontend/src/features/commissions/api.ts')
         for text in ['HH công ty','Chưa có HH công ty','Chính sách chi hoa hồng sale','Hoa hồng công ty đã nhận','Tối đa có thể chi','Hoa hồng sale chỉ được chi trong phạm vi hoa hồng công ty đã nhận.','Đủ điều kiện duyệt','Chưa đủ điều kiện duyệt','Đủ điều kiện chi','Chưa đủ điều kiện chi','can_approve_by_company_commission_policy','can_mark_paid_by_company_commission_policy','remaining_payable_capacity']:

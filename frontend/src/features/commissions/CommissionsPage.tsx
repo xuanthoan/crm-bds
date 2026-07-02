@@ -79,10 +79,10 @@ export function CommissionsPage() {
     const canApproveAction = can('commissions.approve') && ['eligible', 'on_hold'].includes(c.status);
     const approvePolicyOk = canByPolicy(c, 'approve');
     const canHoldAction = can('commissions.hold') && ['eligible', 'approved'].includes(c.status);
-    const canMarkPaidAction = can('commissions.mark_paid') && c.status === 'approved';
+    const canMarkPaidAction = can('commissions.mark_paid') && ['approved', 'partially_paid'].includes(c.status);
     const paidPolicyOk = canByPolicy(c, 'paid');
     const canCancelAction = can('commissions.cancel') && ['eligible', 'approved', 'on_hold'].includes(c.status);
-    const blockedReason = policyReason(c, c.status === 'approved' ? 'paid' : 'approve');
+    const blockedReason = policyReason(c, ['approved', 'partially_paid'].includes(c.status) ? 'paid' : 'approve');
     return <div className="table-actions commission-row-actions"><button onClick={() => navigateTo(`/commissions/${c.id}`)}>Xem</button>{!isFinal && canApproveAction && <button disabled={!approvePolicyOk} title={policyReason(c, 'approve') || undefined} onClick={() => approvePolicyOk && setAction({ type: 'approve', c })}>Duyệt</button>}{!isFinal && canHoldAction && <button onClick={() => setAction({ type: 'hold', c })}>Tạm giữ</button>}{!isFinal && canMarkPaidAction && <button disabled={!paidPolicyOk} title={policyReason(c, 'paid') || undefined} onClick={() => paidPolicyOk && setAction({ type: 'paid', c })}>Đã chi trả</button>}{!isFinal && canCancelAction && <button onClick={() => setAction({ type: 'cancel', c })}>Hủy</button>}{blockedReason && <span className="commission-policy-blocked-caption" title={blockedReason}>Bị chặn</span>}</div>;
   }
 
@@ -94,6 +94,7 @@ export function CommissionsPage() {
     ['Bị chặn chi', summary.blocked_mark_paid_count || 0],
     ['Chờ duyệt', summary.pending_count || 0],
     ['Đã duyệt', summary.approved_count || 0],
+    ['Đã chi một phần', summary.partially_paid_count || 0],
     ['Đã chi trả', summary.paid_count || 0],
     ['Tạm giữ', summary.on_hold_count || 0],
     ['Đã hủy', summary.cancelled_count || 0],
@@ -115,7 +116,7 @@ export function CommissionsPage() {
       <div className="filter-bar filter-panel commission-filter-panel">
         <label>Từ ngày<input type="date" value={filters.date_from || ''} onChange={(e) => set('date_from', e.target.value)} /></label>
         <label>Đến ngày<input type="date" value={filters.date_to || ''} onChange={(e) => set('date_to', e.target.value)} /></label>
-        <label>Trạng thái<select value={filters.status || ''} onChange={(e) => set('status', e.target.value)}><option value="">Tất cả trạng thái</option><option value="eligible">Đủ điều kiện</option><option value="approved">Đã duyệt</option><option value="paid">Đã chi trả</option><option value="on_hold">Tạm giữ</option><option value="cancelled">Đã hủy</option></select></label>
+        <label>Trạng thái<select value={filters.status || ''} onChange={(e) => set('status', e.target.value)}><option value="">Tất cả trạng thái</option><option value="eligible">Đủ điều kiện</option><option value="approved">Đã duyệt</option><option value="partially_paid">Đã chi một phần</option><option value="paid">Đã chi trả</option><option value="on_hold">Tạm giữ</option><option value="cancelled">Đã hủy</option></select></label>
         <label>Từ khóa<input value={filters.keyword || ''} placeholder="Mã HĐ / mã HH / khách hàng" onChange={(e) => set('keyword', e.target.value)} /></label>
         <div className="filter-actions"><button disabled={isFiltering} onClick={() => void applyFilters()}>{isFiltering ? 'Đang lọc...' : 'Lọc'}</button><button className="secondary-button" disabled={isClearingFilters} onClick={() => void clearFilters()}>{isClearingFilters ? 'Đang xóa...' : 'Xóa lọc'}</button></div>
       </div>

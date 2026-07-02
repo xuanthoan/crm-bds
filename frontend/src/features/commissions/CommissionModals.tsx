@@ -30,7 +30,8 @@ export function GuideModal({ onClose }: { onClose: () => void }) {
             <li><b>Tạm tính:</b> bản ghi mới/tạm.</li>
             <li><b>Đủ điều kiện:</b> hợp đồng đủ điều kiện để duyệt hoa hồng.</li>
             <li><b>Đã duyệt:</b> quản lý/sếp đã duyệt số tiền hoa hồng.</li>
-            <li><b>Đã chi trả:</b> kế toán đã đánh dấu đã chi trả.</li>
+            <li><b>Đã chi một phần:</b> kế toán đã đánh dấu chi trả một phần hoa hồng.</li>
+            <li><b>Đã chi trả:</b> kế toán đã đánh dấu đã chi trả đủ.</li>
             <li><b>Tạm giữ:</b> hoa hồng đang bị giữ lại để kiểm tra.</li>
             <li><b>Đã hủy:</b> hoa hồng bị hủy, cần lý do.</li>
           </ul>
@@ -141,7 +142,9 @@ export function GenerateModal({ onClose, onSubmit }: { onClose: () => void; onSu
 
 export function ActionModal({ type, commission, onClose, onSubmit }: { type: 'approve' | 'hold' | 'cancel' | 'paid'; commission: Commission; onClose: () => void; onSubmit: (p: Record<string, unknown>) => Promise<void> }) {
   const titles = { approve: 'Duyệt hoa hồng', hold: 'Tạm giữ hoa hồng', cancel: 'Hủy hoa hồng', paid: 'Đánh dấu đã chi trả' };
-  const [amount, setAmount] = useState(String(type === 'approve' ? commission.eligible_commission : commission.approved_commission));
+  const remainingSalePayout = Math.max((commission.approved_commission || 0) - (commission.paid_amount || 0), 0);
+  const markPaidDefaultAmount = Math.min(remainingSalePayout, commission.payout_policy?.remaining_payable_capacity ?? commission.remaining_payable_capacity ?? remainingSalePayout);
+  const [amount, setAmount] = useState(String(type === 'approve' ? commission.eligible_commission : markPaidDefaultAmount));
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
   const [err, setErr] = useState('');
@@ -150,7 +153,7 @@ export function ActionModal({ type, commission, onClose, onSubmit }: { type: 'ap
     if (isSubmitting) return;
     const p: Record<string, unknown> = { note };
     if (type === 'approve') { if (commission.payout_policy?.can_approve_sales_commission === false) return setErr(commission.payout_policy.approve_block_reason || 'Chưa đủ điều kiện duyệt hoa hồng sale.'); const v = Number(amount); if (v < 0 || v > commission.eligible_commission) return setErr(`Số tiền duyệt phải từ 0 đến ${money(commission.eligible_commission)}.`); p.approved_commission = v; }
-    if (type === 'paid') { if (commission.payout_policy?.can_mark_paid_sales_commission === false) return setErr(commission.payout_policy.mark_paid_block_reason || 'Chưa đủ điều kiện chi hoa hồng sale.'); const v = Number(amount); const cap = commission.payout_policy?.remaining_payable_capacity ?? commission.remaining_payable_capacity ?? commission.approved_commission; if (v < 0 || v > commission.approved_commission) return setErr(`Số tiền chi trả phải từ 0 đến ${money(commission.approved_commission)}.`); if (v > cap) return setErr('Số tiền chi hoa hồng sale không được vượt số hoa hồng công ty đã nhận.'); p.paid_amount = v; }
+    if (type === 'paid') { if (commission.payout_policy?.can_mark_paid_sales_commission === false) return setErr(commission.payout_policy.mark_paid_block_reason || 'Chưa đủ điều kiện chi hoa hồng sale.'); const v = Number(amount); const cap = commission.payout_policy?.remaining_payable_capacity ?? commission.remaining_payable_capacity ?? remainingSalePayout; if (v <= 0 || v > remainingSalePayout) return setErr(`Số tiền chi trả phải lớn hơn 0 và không vượt ${money(remainingSalePayout)} còn lại.`); if (v > cap) return setErr('Số tiền chi hoa hồng sale không được vượt số hoa hồng công ty đã nhận.'); p.paid_amount = v; }
     if (type === 'hold') { if (!reason.trim()) return setErr('Vui lòng nhập lý do tạm giữ.'); p.hold_reason = reason.trim(); }
     if (type === 'cancel') { if (!reason.trim()) return setErr('Vui lòng nhập lý do hủy.'); p.cancel_reason = reason.trim(); }
     try { setIsSubmitting(true); await onSubmit(p); onClose(); } catch (e) { setErr(e instanceof Error ? e.message : 'Không thực hiện được thao tác.'); } finally { setIsSubmitting(false); }
@@ -166,13 +169,13 @@ export function ActionModal({ type, commission, onClose, onSubmit }: { type: 'ap
           <div><dt>Khách hàng</dt><dd>{commission.customer_name || 'Chưa cập nhật'}</dd></div>
           <div><dt>Hoa hồng đủ điều kiện</dt><dd>{money(commission.eligible_commission)}</dd></div>
           <div><dt>Trạng thái hiện tại</dt><dd>{commission.status_label}</dd></div>
-          {type === 'paid' && <><div><dt>Hoa hồng đã duyệt</dt><dd>{money(commission.approved_commission)}</dd></div><div><dt>Số đã chi trả hiện tại</dt><dd>{money(commission.paid_amount)}</dd></div></>}
+          {type === 'paid' && <><div><dt>Hoa hồng đã duyệt</dt><dd>{money(commission.approved_commission)}</dd></div><div><dt>Số đã chi trả hiện tại</dt><dd>{money(commission.paid_amount)}</dd></div><div><dt>Còn phải chi sale</dt><dd>{money(remainingSalePayout)}</dd></div></>}
         </dl>
       </div>
       {type === 'cancel' && <div className="form-warning">Hủy hoa hồng cần lý do để đối chiếu. Hoa hồng đã chi trả không được hủy.</div>}
       {(type === 'approve' || type === 'paid') && commission.payout_policy?.warning_message && <div className="form-warning">{commission.payout_policy.warning_message}</div>}
       {type === 'approve' && commission.payout_policy?.can_approve_sales_commission === false && <div className="form-error">{commission.payout_policy.approve_block_reason}</div>}
-      {type === 'paid' && <div className="form-warning">Hoa hồng công ty đã nhận: {money(commission.payout_policy?.company_commission_received_amount || commission.company_commission_received_amount || 0)} · Còn phải thu: {money(commission.payout_policy?.company_commission_remaining_amount || commission.company_commission_remaining_amount || 0)} · Tối đa có thể chi: {money(commission.payout_policy?.remaining_payable_capacity || commission.remaining_payable_capacity || 0)}</div>}
+      {type === 'paid' && <div className="form-warning">Hoa hồng công ty đã nhận: {money(commission.payout_policy?.company_commission_received_amount || commission.company_commission_received_amount || 0)} · Còn phải thu: {money(commission.payout_policy?.company_commission_remaining_amount || commission.company_commission_remaining_amount || 0)} · Tối đa có thể chi lần này: {money(markPaidDefaultAmount)}</div>}
       {type === 'paid' && commission.payout_policy?.can_mark_paid_sales_commission === false && <div className="form-error">{commission.payout_policy.mark_paid_block_reason}</div>}
       <div className="commission-modal-form">
         {err && <div className="form-error full-span">{err}</div>}

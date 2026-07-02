@@ -14,7 +14,7 @@ from app.models.sales_commission import SalesCommission, SalesCommissionEvent
 from app.models.user import User
 from app.services.company_commission_service import get_company_commission_for_contract, get_company_commissions_by_contract_ids, STATUS_LABELS as CCR_STATUS_LABELS
 
-STATUSES={"draft":"Tạm tính","eligible":"Đủ điều kiện","approved":"Đã duyệt","paid":"Đã chi trả","on_hold":"Tạm giữ","cancelled":"Đã hủy"}
+STATUSES={"draft":"Tạm tính","eligible":"Đủ điều kiện","approved":"Đã duyệt","partially_paid":"Đã chi một phần","paid":"Đã chi trả","on_hold":"Tạm giữ","cancelled":"Đã hủy"}
 COMMISSION_LEGAL_CONTRACT_STATUSES = {'signed', 'active', 'completed'}
 LEGAL_STATUS_ERROR = 'Hợp đồng chưa đủ trạng thái pháp lý để tạo hoa hồng.'
 D=Decimal
@@ -37,6 +37,19 @@ def _snapshot(db, contract, rate_percent):
     return dict(contract_value=cv,deposit_value=dep,confirmed_receipts_amount=receipts,total_collected_with_deposit=total,remaining_amount=remaining,estimated_commission=(cv*ratio).quantize(D('0.01')),collected_commission=(total*ratio).quantize(D('0.01')),eligible_commission=((cv*ratio).quantize(D('0.01')) if eligible else D('0')), eligible=eligible)
 
 def _sale_id(contract): return getattr(getattr(contract,'deal',None),'owner_id',None)
+
+def _sync_payout_status(c):
+    approved=dec(c.approved_commission)
+    paid=dec(c.paid_amount)
+    if approved > 0 and paid >= approved:
+        c.status='paid'
+        if c.paid_at is None:
+            c.paid_at=now()
+    elif approved > 0 and paid > 0:
+        c.status='partially_paid'
+    elif approved > 0 and c.status in ('partially_paid','paid'):
+        c.status='approved'
+    return c.status
 
 
 def _company_commission_summary(ccr):
@@ -66,8 +79,9 @@ def get_sales_commission_payout_policy_context(db, c, ccr=None, paid_for_contrac
     current_paid=dec(c.paid_amount)
     received=dec(getattr(ccr,'received_amount',0) if ccr else 0)
     approved=dec(c.approved_commission)
+    remaining_sales=max(approved-current_paid, D('0')) if approved > 0 else D('0')
     capacity=max(received-paid_other-current_paid, D('0')) if ccr else D('0')
-    max_payable=min(approved, capacity) if approved > 0 else D('0')
+    max_payable=min(remaining_sales, capacity) if approved > 0 else D('0')
     approve_reason=None; mark_reason=None; warning=None
     if not ccr:
         approve_reason='Hợp đồng chưa có khoản hoa hồng công ty, chưa thể duyệt hoa hồng sale.'
@@ -100,6 +114,7 @@ def get_sales_commission_payout_policy_context(db, c, ccr=None, paid_for_contrac
         'company_commission_remaining_amount': float(ccr.remaining_amount or 0) if ccr else 0,
         'sales_commission_approved_amount': float(approved),
         'sales_commission_paid_amount': float(current_paid),
+        'sales_commission_remaining_amount': float(remaining_sales),
         'max_payable_amount': float(max_payable),
         'remaining_payable_capacity': float(max_payable),
         'can_approve_sales_commission': approve_reason is None,
@@ -116,7 +131,7 @@ def row(c, policy=None, company_commission=None):
         policy=get_sales_commission_payout_policy_context(db, c, company_commission) if db else {}
     if company_commission is None and db:
         company_commission=get_company_commission_for_contract(db, c.contract_id)
-    data={"id":str(c.id),"commission_code":c.commission_code,"contract_id":str(c.contract_id),"contract_code":getattr(contract,'contract_code',None),"sale_id":str(c.sale_id) if c.sale_id else None,"sale_name":getattr(sale,'full_name',None) or getattr(sale,'email',None) or 'Chưa gán sale',"customer_name":getattr(customer,'full_name',None) or getattr(contract,'buyer_name',None),"customer_phone":getattr(customer,'primary_phone',None) or getattr(contract,'buyer_phone',None),"contract_value":float(c.contract_value),"total_collected_with_deposit":float(c.total_collected_with_deposit),"remaining_amount":float(c.remaining_amount),"commission_rate_percent":float(c.commission_rate_percent),"eligible_commission":float(c.eligible_commission),"approved_commission":float(c.approved_commission or 0),"paid_amount":float(c.paid_amount or 0),"status":c.status,"status_label":STATUSES.get(c.status,c.status),"approved_at":c.approved_at.isoformat() if c.approved_at else None,"paid_at":c.paid_at.isoformat() if c.paid_at else None,"created_at":c.created_at.isoformat() if c.created_at else None,"hold_reason":c.hold_reason,"cancel_reason":c.cancel_reason,"note":c.note}
+    data={"id":str(c.id),"commission_code":c.commission_code,"contract_id":str(c.contract_id),"contract_code":getattr(contract,'contract_code',None),"sale_id":str(c.sale_id) if c.sale_id else None,"sale_name":getattr(sale,'full_name',None) or getattr(sale,'email',None) or 'Chưa gán sale',"customer_name":getattr(customer,'full_name',None) or getattr(contract,'buyer_name',None),"customer_phone":getattr(customer,'primary_phone',None) or getattr(contract,'buyer_phone',None),"contract_value":float(c.contract_value),"total_collected_with_deposit":float(c.total_collected_with_deposit),"remaining_amount":float(c.remaining_amount),"commission_rate_percent":float(c.commission_rate_percent),"eligible_commission":float(c.eligible_commission),"approved_commission":float(c.approved_commission or 0),"paid_amount":float(c.paid_amount or 0),"status":_sync_payout_status(c),"status_label":STATUSES.get(c.status,c.status),"approved_at":c.approved_at.isoformat() if c.approved_at else None,"paid_at":c.paid_at.isoformat() if c.paid_at else None,"created_at":c.created_at.isoformat() if c.created_at else None,"hold_reason":c.hold_reason,"cancel_reason":c.cancel_reason,"note":c.note}
     data.update({"company_commission_code":policy.get("company_commission_code"),"company_commission_status":policy.get("company_commission_status"),"company_commission_status_label":policy.get("company_commission_status_label"),"company_commission_received_amount":policy.get("company_commission_received_amount",0),"company_commission_remaining_amount":policy.get("company_commission_remaining_amount",0),"can_approve_by_company_commission_policy":policy.get("can_approve_sales_commission",False),"approve_block_reason":policy.get("approve_block_reason"),"can_mark_paid_by_company_commission_policy":policy.get("can_mark_paid_sales_commission",False),"mark_paid_block_reason":policy.get("mark_paid_block_reason"),"remaining_payable_capacity":policy.get("remaining_payable_capacity",0),"payout_policy":policy,"company_commission":_company_commission_summary(company_commission)})
     return data
 
@@ -129,7 +144,10 @@ def base_query(db): return db.query(SalesCommission).options(joinedload(SalesCom
 
 def list_commissions(db, page=1, page_size=20, **f):
     q=base_query(db).join(Contract, SalesCommission.contract_id==Contract.id).outerjoin(Customer, Contract.customer_id==Customer.id).outerjoin(User, SalesCommission.sale_id==User.id)
-    if f.get('status'): q=q.filter(SalesCommission.status==f['status'])
+    if f.get('status') == 'partially_paid': q=q.filter(SalesCommission.approved_commission > 0, SalesCommission.paid_amount > 0, SalesCommission.paid_amount < SalesCommission.approved_commission)
+    elif f.get('status') == 'paid': q=q.filter(SalesCommission.approved_commission > 0, SalesCommission.paid_amount >= SalesCommission.approved_commission)
+    elif f.get('status') == 'approved': q=q.filter(SalesCommission.status=='approved', SalesCommission.approved_commission > 0, SalesCommission.paid_amount <= 0)
+    elif f.get('status'): q=q.filter(SalesCommission.status==f['status'])
     if f.get('sale_id'): q=q.filter(SalesCommission.sale_id==f['sale_id'])
     if f.get('contract_id'): q=q.filter(SalesCommission.contract_id==f['contract_id'])
     kw=f.get('keyword') or f.get('contract_code')
@@ -151,7 +169,7 @@ def summary(db, **f):
     summary_filters.pop('page', None)
     summary_filters.pop('page_size', None)
     items=list_commissions(db,page=1,page_size=10000,**summary_filters)['items']
-    return {"total_eligible_commission":sum(i['eligible_commission'] for i in items),"total_approved_commission":sum(i['approved_commission'] for i in items),"total_paid_amount":sum(i['paid_amount'] for i in items),"total_company_commission_received_linked":sum(i.get('company_commission_received_amount') or 0 for i in items),"missing_company_commission_count":sum(not i.get('company_commission_code') for i in items),"blocked_mark_paid_count":sum(i.get('status')=='approved' and not i.get('can_mark_paid_by_company_commission_policy') for i in items),"pending_count":sum(i['status']=='eligible' for i in items),"approved_count":sum(i['status']=='approved' for i in items),"paid_count":sum(i['status']=='paid' for i in items),"on_hold_count":sum(i['status']=='on_hold' for i in items),"cancelled_count":sum(i['status']=='cancelled' for i in items)}
+    return {"total_eligible_commission":sum(i['eligible_commission'] for i in items),"total_approved_commission":sum(i['approved_commission'] for i in items),"total_paid_amount":sum(i['paid_amount'] for i in items),"total_company_commission_received_linked":sum(i.get('company_commission_received_amount') or 0 for i in items),"missing_company_commission_count":sum(not i.get('company_commission_code') for i in items),"blocked_mark_paid_count":sum(i.get('status') in ('approved','partially_paid') and not i.get('can_mark_paid_by_company_commission_policy') for i in items),"pending_count":sum(i['status']=='eligible' for i in items),"approved_count":sum(i['status']=='approved' for i in items),"partially_paid_count":sum(i['status']=='partially_paid' for i in items),"paid_count":sum(i['status']=='paid' for i in items),"on_hold_count":sum(i['status']=='on_hold' for i in items),"cancelled_count":sum(i['status']=='cancelled' for i in items)}
 
 
 def search_eligible_contracts(db, keyword=None, page=1, page_size=10):
@@ -210,7 +228,7 @@ def generate(db, contract_id, rate, note, actor):
     if not snap.pop('eligible'): raise HTTPException(400,'Hợp đồng chưa đủ điều kiện tạo hoa hồng: chưa hoàn tất hoặc chưa thu đủ tiền.')
     c=db.query(SalesCommission).filter_by(contract_id=contract.id).first()
     if c and c.status=='cancelled': raise HTTPException(400,'Hoa hồng của hợp đồng này đã bị hủy. Vui lòng tạo lại thủ công sau khi xác nhận nghiệp vụ.')
-    if c and c.status in ('approved','paid'): raise HTTPException(400,'Hoa hồng đã duyệt hoặc đã chi trả, không thể cập nhật snapshot.')
+    if c and c.status in ('approved','partially_paid','paid'): raise HTTPException(400,'Hoa hồng đã duyệt hoặc đã chi trả, không thể cập nhật snapshot.')
     if not c:
         c=SalesCommission(commission_code=_code(db),contract_id=contract.id,created_by_id=actor.id,created_at=now(),updated_at=now()) ; db.add(c); ev='generated'; title='Tạo hoa hồng'
     else: ev='regenerated'; title='Cập nhật từ hợp đồng'
@@ -229,13 +247,15 @@ def approve(db,id,amount,note,actor):
 
 def mark_paid(db,id,amount,note,actor):
     c=get_commission(db,id)
-    if c.status!='approved': raise HTTPException(400,'Chỉ hoa hồng đã duyệt mới được đánh dấu đã chi trả.')
+    _sync_payout_status(c)
+    if c.status not in ('approved','partially_paid'): raise HTTPException(400,'Chỉ hoa hồng đã duyệt hoặc đã chi một phần mới được đánh dấu đã chi trả.')
     policy=get_sales_commission_payout_policy_context(db,c)
     if not policy['can_mark_paid_sales_commission']: raise HTTPException(400, policy['mark_paid_block_reason'])
-    amt=dec(amount) if amount is not None else dec(c.approved_commission)
-    if amt<0 or amt>dec(c.approved_commission): raise HTTPException(400,'Số tiền chi trả không hợp lệ hoặc vượt số tiền đã duyệt.')
+    amt=dec(amount) if amount is not None else dec(policy['remaining_payable_capacity'])
+    remaining_sales=max(dec(c.approved_commission)-dec(c.paid_amount), D('0'))
+    if amt<=0 or amt>remaining_sales: raise HTTPException(400,'Số tiền chi trả không hợp lệ hoặc vượt số tiền còn lại phải chi.')
     if amt>dec(policy['remaining_payable_capacity']): raise HTTPException(400,'Số tiền chi hoa hồng sale không được vượt số hoa hồng công ty đã nhận.')
-    c.status='paid'; c.paid_amount=amt; c.paid_by_id=actor.id; c.paid_at=now(); c.note=note or c.note; _event(db,c,'paid','Đánh dấu đã chi trả',note,actor); db.commit(); return detail(get_commission(db,id))
+    c.paid_amount=dec(c.paid_amount)+amt; c.paid_by_id=actor.id; c.paid_at=now(); c.note=note or c.note; _sync_payout_status(c); _event(db,c,'paid','Đánh dấu đã chi trả',note,actor); db.commit(); return detail(get_commission(db,id))
 
 def hold(db,id,reason,note,actor):
     c=get_commission(db,id); reason=(reason or '').strip()
@@ -245,7 +265,7 @@ def hold(db,id,reason,note,actor):
 
 def cancel(db,id,reason,note,actor):
     c=get_commission(db,id); reason=(reason or '').strip()
-    if c.status=='paid': raise HTTPException(400,'Hoa hồng đã chi trả, không thể hủy.')
+    if c.status in ('partially_paid','paid'): raise HTTPException(400,'Hoa hồng đã chi trả, không thể hủy.')
     if not reason: raise HTTPException(400,'Vui lòng nhập lý do hủy.')
     c.status='cancelled'; c.cancel_reason=reason; c.note=note or c.note; _event(db,c,'cancelled','Hủy hoa hồng',reason,actor); db.commit(); return detail(get_commission(db,id))
 
