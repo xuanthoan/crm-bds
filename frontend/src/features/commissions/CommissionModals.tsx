@@ -157,6 +157,10 @@ export function ActionModal({ type, commission, onClose, onSubmit }: { type: 'ap
   const [err, setErr] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedPolicy, setSelectedPolicy] = useState('');
+  const defaultPolicyLabel = commission.payout_policy?.payout_policy_label || commission.payout_policy_label || 'Chi theo hạn mức tiền hoa hồng công ty đã nhận';
+  const defaultPolicySourceLabel = commission.payout_policy?.payout_policy_source_label || commission.payout_policy_source_label || 'mặc định hệ thống';
+  const salePolicyNote = (commission.payout_policy?.project_sales_commission_policy_note || commission.project_sales_commission_policy_note || '').trim();
+  const companyPolicyNote = (commission.payout_policy?.project_company_commission_policy_note || commission.project_company_commission_policy_note || '').trim();
   async function submit() {
     if (isSubmitting) return;
     const p: Record<string, unknown> = { note };
@@ -182,7 +186,7 @@ export function ActionModal({ type, commission, onClose, onSubmit }: { type: 'ap
       </div>
       {type === 'cancel' && <div className="form-warning">Hủy hoa hồng cần lý do để đối chiếu. Hoa hồng đã chi trả không được hủy.</div>}
       {(type === 'approve' || type === 'paid') && commission.payout_policy?.warning_message && <div className="form-warning">{commission.payout_policy.warning_message}</div>}
-      {type === 'approve' && <div className="form-warning">Chính sách mặc định: {commission.payout_policy?.payout_policy_label || commission.payout_policy_label || 'Chi theo hạn mức tiền hoa hồng công ty đã nhận'} ({commission.payout_policy?.payout_policy_source_label || commission.payout_policy_source_label || 'mặc định hệ thống'}). {commission.payout_policy?.project_sales_commission_policy_note || commission.project_sales_commission_policy_note ? `Ghi chú chính sách sale: ${commission.payout_policy?.project_sales_commission_policy_note || commission.project_sales_commission_policy_note}` : ''} {commission.payout_policy?.project_company_commission_policy_note || commission.project_company_commission_policy_note ? `Ghi chú hoa hồng công ty: ${commission.payout_policy?.project_company_commission_policy_note || commission.project_company_commission_policy_note}` : ''}</div>}
+      {type === 'approve' && <div className="form-warning commission-policy-note-block"><div><strong>Chính sách mặc định:</strong><p>{defaultPolicyLabel} ({defaultPolicySourceLabel})</p></div>{salePolicyNote && <div><strong>Chính sách hoa hồng sale:</strong><p>{salePolicyNote}</p></div>}{companyPolicyNote && <div><strong>Chính sách hoa hồng công ty:</strong><p>{companyPolicyNote}</p></div>}</div>}
       {type === 'approve' && commission.payout_policy?.can_approve_sales_commission === false && <div className="form-error">{commission.payout_policy.approve_block_reason}</div>}
       {type === 'paid' && <div className="form-warning">Chính sách chi: {commission.payout_policy?.payout_policy_label || commission.payout_policy_label || 'Chi theo hạn mức tiền hoa hồng công ty đã nhận'} · HH sale đã duyệt: {money(commission.approved_commission)} · HH công ty xác nhận: {money(commission.payout_policy?.company_commission_confirmed_receivable_amount || commission.company_commission_confirmed_receivable_amount || 0)} · Hoa hồng công ty đã nhận: {money(commission.payout_policy?.company_commission_received_amount || commission.company_commission_received_amount || 0)}{(commission.payout_policy?.payout_policy_code || commission.payout_policy_code) === 'received_ratio' ? ` · Tỷ lệ đã thu: ${percent(commission.payout_policy?.company_commission_received_ratio ?? commission.company_commission_received_ratio)}` : ''} · Tối đa có thể chi lần này: {money(markPaidDefaultAmount)}</div>}
       {type === 'paid' && commission.payout_policy?.can_mark_paid_sales_commission === false && <div className="form-error">{commission.payout_policy.mark_paid_block_reason}</div>}
