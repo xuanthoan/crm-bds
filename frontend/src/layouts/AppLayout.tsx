@@ -53,6 +53,7 @@ export function AppLayout({ children, currentPath }: AppLayoutProps) {
   const canViewCommissions = COMMISSION_VIEW_PERMISSIONS.some(can);
   const canViewCompanyCommissions = COMPANY_COMMISSION_VIEW_PERMISSIONS.some(can);
   const canViewCommissionPaymentVouchers = can('commissions.payment_vouchers.view');
+  const canViewCommissionReconciliation = can('reports.commission_reconciliation.view');
 
   async function handleLogout() {
     const refreshToken = getRefreshToken();
@@ -70,7 +71,7 @@ export function AppLayout({ children, currentPath }: AppLayoutProps) {
     return (
       <a
         href={path}
-        className={currentPath === path || (path === '/customers' && /^\/customers\/[^/]+$/.test(currentPath)) || (path === '/leads' && /^\/leads\/[^/]+$/.test(currentPath)) || (path === '/deals' && /^\/deals\/[^/]+$/.test(currentPath)) || (path === '/projects' && /^\/projects\/[^/]+$/.test(currentPath)) || (path === '/properties' && /^\/properties\/[^/]+$/.test(currentPath)) || (path === '/bookings' && /^\/bookings\/[^/]+$/.test(currentPath)) || (path === '/contracts' && /^\/contracts\/[^/]+$/.test(currentPath)) || (path === '/reports/finance' && currentPath === '/reports/finance') || (path === '/reports/commissions' && currentPath === '/reports/commissions') || (path === '/company-commissions' && /^\/company-commissions(\/[^/]+)?$/.test(currentPath)) || (path === '/commissions' && /^\/commissions(\/[^/]+)?$/.test(currentPath)) || (path === '/commission-payment-vouchers' && /^\/commission-payment-vouchers(\/[^/]+)?$/.test(currentPath)) || ((path === '/payments' && /^\/payments\/[^/]+$/.test(currentPath)) || (path === '/receipts' && /^\/receipts\/[^/]+$/.test(currentPath)) || (path === '/invoices' && /^\/invoices\/[^/]+$/.test(currentPath))) ? 'active' : ''}
+        className={currentPath === path || (path === '/customers' && /^\/customers\/[^/]+$/.test(currentPath)) || (path === '/leads' && /^\/leads\/[^/]+$/.test(currentPath)) || (path === '/deals' && /^\/deals\/[^/]+$/.test(currentPath)) || (path === '/projects' && /^\/projects\/[^/]+$/.test(currentPath)) || (path === '/properties' && /^\/properties\/[^/]+$/.test(currentPath)) || (path === '/bookings' && /^\/bookings\/[^/]+$/.test(currentPath)) || (path === '/contracts' && /^\/contracts\/[^/]+$/.test(currentPath)) || (path === '/reports/finance' && currentPath === '/reports/finance') || (path === '/reports/commissions' && currentPath === '/reports/commissions') || (path === '/company-commissions' && /^\/company-commissions(\/[^/]+)?$/.test(currentPath)) || (path === '/commissions' && /^\/commissions(\/[^/]+)?$/.test(currentPath)) || (path === '/commission-payment-vouchers' && /^\/commission-payment-vouchers(\/[^/]+)?$/.test(currentPath)) || (path === '/commission-reconciliation-report' && currentPath === '/commission-reconciliation-report') || ((path === '/payments' && /^\/payments\/[^/]+$/.test(currentPath)) || (path === '/receipts' && /^\/receipts\/[^/]+$/.test(currentPath)) || (path === '/invoices' && /^\/invoices\/[^/]+$/.test(currentPath))) ? 'active' : ''}
         onClick={(event: any) => {
           event.preventDefault();
           navigateTo(path);
@@ -100,6 +101,7 @@ export function AppLayout({ children, currentPath }: AppLayoutProps) {
               {canViewCompanyCommissions && <div>{renderLink('Hoa hồng công ty', '/company-commissions')}</div>}
               {canViewCommissions && <div>{renderLink('Hoa hồng', '/commissions')}</div>}
               {canViewCommissionPaymentVouchers && <div>{renderLink('Phiếu chi hoa hồng', '/commission-payment-vouchers')}</div>}
+              {canViewCommissionReconciliation && <div>{renderLink('Đối soát hoa hồng', '/commission-reconciliation-report')}</div>}
               {canViewCommissionReports && <div>{renderLink('Báo cáo hoa hồng', '/reports/commissions')}</div>}
               {(can('tasks.view') || can('tasks.view_all')) && <><div>{renderLink('Công việc', '/tasks')}</div><div>{renderLink('Việc hôm nay', '/tasks/today')}</div><div>{renderLink('Việc quá hạn', '/tasks/overdue')}</div></>}
               {(can('lead_appointments.view.own') || can('lead_appointments.view.team') || can('lead_appointments.view.all')) && <><div>{renderLink('Lịch hẹn', '/appointments')}</div><div>{renderLink('Lịch hẹn hôm nay', '/appointments/today')}</div></>}
