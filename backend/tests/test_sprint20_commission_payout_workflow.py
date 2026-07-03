@@ -13,7 +13,7 @@ class Sprint20CommissionPayoutWorkflowSourceTest(unittest.TestCase):
             self.assertIn(route, api)
     def test_business_rules_are_explicit(self):
         service=self.read('backend/app/services/commission_service.py')
-        for text in ["PaymentReceipt.status=='confirmed'","contract.status=='cancelled'","contract.status in COMMISSION_LEGAL_CONTRACT_STATUSES", "contract.status == 'completed' or total >= cv","estimated_commission=(cv*ratio)","Hoa hồng đã chi trả, không thể hủy.","Vui lòng nhập lý do tạm giữ.","Vui lòng nhập lý do hủy.","c.status in ('approved','paid')"]:
+        for text in ["PaymentReceipt.status=='confirmed'","contract.status=='cancelled'","contract.status in COMMISSION_LEGAL_CONTRACT_STATUSES", "contract.status == 'completed' or total >= cv","estimated_commission=(cv*ratio)","Hoa hồng đã chi trả, không thể hủy.","Vui lòng nhập lý do tạm giữ.","Vui lòng nhập lý do hủy.","c.status in ('approved','partially_paid','paid')"]:
             self.assertIn(text, service)
     def test_permissions_and_frontend_routes(self):
         api=self.read('backend/app/api/v1/commissions.py'); constants=self.read('backend/app/permissions/constants.py'); routes=self.read('frontend/src/routes/AppRoutes.tsx'); layout=self.read('frontend/src/layouts/AppLayout.tsx')

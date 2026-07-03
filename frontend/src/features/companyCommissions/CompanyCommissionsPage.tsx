@@ -4,7 +4,7 @@ import { can } from '../auth/authStore';
 import { navigateTo } from '../../routes/AppRoutes';
 import { companyCommissionSummary, exportCompanyCommissionsUrl, listCompanyCommissions } from './api';
 import { ActionModal, CompanyCommissionGuideModal, CreateCompanyCommissionModal } from './CompanyCommissionModals';
-import { COMPANY_COMMISSION_STATUS_LABELS, COMPANY_ROLE_LABELS } from './constants';
+import { COMPANY_COMMISSION_STATUS_LABELS, COMPANY_ROLE_LABELS, COMMISSION_PARTY_LABELS } from './constants';
 import type { CompanyCommission } from './types';
 
 const money = (value: unknown) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -17,16 +17,20 @@ export function CompanyCommissionsPage() {
   const [guide, setGuide] = useState(false);
   const [create, setCreate] = useState(false);
   const [action, setAction] = useState<{ type: 'approve' | 'receive' | 'hold' | 'cancel'; item: CompanyCommission } | null>(null);
+  const [isFiltering, setIsFiltering] = useState(false);
+  const [isClearingFilters, setIsClearingFilters] = useState(false);
 
-  function load(nextFilters = filters) {
-    void listCompanyCommissions(nextFilters).then((response) => setItems(response.data.items || []));
-    void companyCommissionSummary(nextFilters).then((response) => setSummary(response.data || {}));
+  async function load(nextFilters = filters) {
+    const [listResponse, summaryResponse] = await Promise.all([listCompanyCommissions(nextFilters), companyCommissionSummary(nextFilters)]);
+    setItems(listResponse.data.items || []);
+    setSummary(summaryResponse.data || {});
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void load(); }, []);
 
   const set = (key: string, value: string) => setFilters((current) => ({ ...current, [key]: value }));
-  const clearFilters = () => { setFilters({}); load({}); };
+  const clearFilters = async () => { setIsClearingFilters(true); setFilters({}); try { await load({}); } finally { setIsClearingFilters(false); } };
+  const applyFilters = async () => { setIsFiltering(true); try { await load(); } finally { setIsFiltering(false); } };
 
   // Action gating source: i.status==='pending'||i.status==='on_hold'; i.status==='approved'||i.status==='partially_received'; i.status==='pending'||i.status==='approved'; i.status==='pending'||i.status==='approved'||i.status==='on_hold'
   function actions(i: CompanyCommission) {
@@ -58,7 +62,7 @@ export function CompanyCommissionsPage() {
         <select value={filters.status || ''} onChange={(event) => set('status', event.target.value)}><option value="">Trạng thái</option>{Object.entries(COMPANY_COMMISSION_STATUS_LABELS).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select>
         <select value={filters.company_role || ''} onChange={(event) => set('company_role', event.target.value)}><option value="">Vai trò công ty</option>{Object.entries(COMPANY_ROLE_LABELS).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select>
         <input className="company-commission-keyword-filter" value={filters.keyword || ''} placeholder="Mã HH công ty / mã HĐ / bên trả HH / khách hàng" onChange={(event) => set('keyword', event.target.value)} />
-        <div className="filter-actions"><button type="button" onClick={() => load()}>Lọc</button><button type="button" className="secondary-button" onClick={clearFilters}>Xóa lọc</button></div>
+        <div className="filter-actions"><button type="button" disabled={isFiltering} onClick={() => void applyFilters()}>{isFiltering ? 'Đang lọc...' : 'Lọc'}</button><button type="button" className="secondary-button" disabled={isClearingFilters} onClick={() => void clearFilters()}>{isClearingFilters ? 'Đang xóa...' : 'Xóa lọc'}</button></div>
       </div>
 
       <div className="summary-grid">
@@ -68,12 +72,12 @@ export function CompanyCommissionsPage() {
 
       <table className="data-table">
         <thead><tr>{['Mã HH công ty', 'Mã HĐ', 'Khách hàng', 'Sale', 'Vai trò', 'Bên trả HH', 'Giá trị HĐ', 'Tỷ lệ HH', 'HH dự kiến', 'HH xác nhận', 'Đã nhận', 'Còn phải thu', 'Trạng thái', 'Ngày dự kiến', 'Ngày nhận đủ', 'Hành động'].map((heading) => <th key={heading}>{heading}</th>)}</tr></thead>
-        <tbody>{items.map((item) => <tr key={item.id}><td>{item.receivable_code}</td><td>{item.contract_code}</td><td>{item.customer_name}</td><td>{item.sale_name}</td><td>{COMPANY_ROLE_LABELS[item.company_role] || item.company_role}</td><td>{item.commission_payer_name || item.commission_payer_type}</td><td>{money(item.contract_value)}</td><td>{item.commission_rate_percent}%</td><td>{money(item.expected_commission_amount)}</td><td>{money(item.confirmed_receivable_amount)}</td><td>{money(item.received_amount)}</td><td>{money(item.remaining_amount)}</td><td>{COMPANY_COMMISSION_STATUS_LABELS[item.status] || item.status}</td><td>{date(item.expected_receive_date)}</td><td>{date(item.received_date)}</td><td className="row-actions company-commission-action-cell">{actions(item)}</td></tr>)}</tbody>
+        <tbody>{items.map((item) => <tr key={item.id}><td>{item.receivable_code}</td><td>{item.contract_code}</td><td>{item.customer_name}</td><td>{item.sale_name}</td><td>{COMPANY_ROLE_LABELS[item.company_role] || item.company_role}</td><td>{item.commission_payer_name || COMMISSION_PARTY_LABELS[item.commission_payer_type || ''] || item.commission_payer_type}</td><td>{money(item.contract_value)}</td><td>{item.commission_rate_percent}%</td><td>{money(item.expected_commission_amount)}</td><td>{money(item.confirmed_receivable_amount)}</td><td>{money(item.received_amount)}</td><td>{money(item.remaining_amount)}</td><td>{COMPANY_COMMISSION_STATUS_LABELS[item.status] || item.status}</td><td>{date(item.expected_receive_date)}</td><td>{date(item.received_date)}</td><td className="row-actions company-commission-action-cell">{actions(item)}</td></tr>)}</tbody>
       </table>
 
       {guide && <CompanyCommissionGuideModal onClose={() => setGuide(false)} />}
-      {create && <CreateCompanyCommissionModal onClose={() => setCreate(false)} onSaved={() => { setCreate(false); load(); }} />}
-      {action && <ActionModal type={action.type} item={action.item} onClose={() => setAction(null)} onSaved={() => { setAction(null); load(); }} />}
+      {create && <CreateCompanyCommissionModal onClose={() => setCreate(false)} onSaved={() => { setCreate(false); void load(); }} />}
+      {action && <ActionModal type={action.type} item={action.item} onClose={() => setAction(null)} onSaved={() => { setAction(null); void load(); }} />}
     </section>
   );
 }

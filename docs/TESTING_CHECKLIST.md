@@ -432,3 +432,17 @@ Sprint 21 bổ sung tầng **Hoa hồng công ty** để quản lý khoản côn
 Các hợp đồng có thêm thông tin vai trò công ty, bên bán thực tế, bên trả hoa hồng, mã hợp đồng/chính sách môi giới và ghi chú căn cứ hoa hồng. Module `/company-commissions` có API list, summary, eligible-contracts, generate, detail, approve, receive, hold, cancel và export CSV. Quyền mới gồm `company_commissions.view`, `company_commissions.create`, `company_commissions.approve`, `company_commissions.receive`, `company_commissions.hold`, `company_commissions.cancel`, `company_commissions.export`.
 
 Sprint 21 chưa thay đổi công thức hoa hồng sale của Sprint 20 và chưa bắt buộc chi hoa hồng sale phải phụ thuộc trạng thái đã nhận hoa hồng công ty. Backlog sprint sau: tính hoa hồng sale từ hoa hồng công ty, chặn/kiểm soát chi hoa hồng sale khi hoa hồng công ty chưa nhận, bổ sung báo cáo hoa hồng công ty theo bên trả hoa hồng, báo cáo công nợ hoa hồng công ty và báo cáo chênh lệch công ty nhận so với sale được chi.
+
+## Sprint 22 QA checklist
+
+- Tạo COM không có CCR vẫn thành công, nhưng approve/mark-paid bị chặn với lý do rõ.
+- CCR `pending`/`approved` cho approve COM nhưng chưa cho mark paid khi `received_amount = 0`.
+- CCR `partially_received`/`received` cho mark paid trong phạm vi `received_amount` còn lại và không vượt approved amount.
+- CCR `on_hold`/`cancelled` chặn approve và mark paid COM.
+- `/commissions` list và detail hiển thị HH công ty, số đã nhận, số còn phải thu, khả năng duyệt/chi và reason bị chặn.
+
+### Sprint 22 regression quick checks
+- `/contracts`: verify pagination shows total contracts and Trang trước/Trang sau so older HD records can be opened after seeded data pushes them past page 1.
+- `/payments/:id`: verify a payment with any non-cancelled invoice cannot create another draft invoice; backend message: “Đợt thanh toán này đã có hóa đơn, không thể tạo thêm hóa đơn nháp.”
+- `/company-commissions/:id` and `/commissions/:id`: verify statuses, payer types, contract status, and timeline events show Vietnamese labels instead of raw enum values.
+- Partial COM payout: pay part of approved COM, receive more CCR, confirm COM stays “Đã chi một phần” until user explicitly marks the remaining sale payout as paid.

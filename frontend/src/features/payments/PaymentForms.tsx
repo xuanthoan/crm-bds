@@ -148,10 +148,17 @@ export function PenaltyForm({ paymentId, onSaved }: { paymentId: string; onSaved
   return <form onSubmit={submit} className="inline-form"><h3>Áp dụng phí phạt</h3>{errors.length > 0 && <div className="form-error">{errors.join('. ')}</div>}<input type="number" placeholder="Phí phạt" value={amount} onChange={e => setAmount(e.target.value)} /><input placeholder="Lý do phí phạt" value={reason} onChange={e => setReason(e.target.value)} /><button type="submit">Áp dụng phí phạt</button></form>;
 }
 
-export function InvoiceForm({ paymentId, onSaved }: { paymentId: string; onSaved: () => void }) {
+export function InvoiceForm({ paymentId, onSaved, disabled, disabledMessage }: { paymentId: string; onSaved: () => void; disabled?: boolean; disabledMessage?: string }) {
+  const [errors, setErrors] = useState<string[]>([]);
   async function make() {
-    await createInvoice(paymentId, { issued_date: new Date().toISOString().slice(0, 10), status: 'draft' });
-    onSaved();
+    if (disabled) return setErrors([disabledMessage || 'Đợt thanh toán này đã có hóa đơn, không thể tạo thêm hóa đơn nháp.']);
+    try {
+      await createInvoice(paymentId, { issued_date: new Date().toISOString().slice(0, 10), status: 'draft' });
+      setErrors([]);
+      onSaved();
+    } catch (error) {
+      setErrors(formatApiError(error));
+    }
   }
-  return <button type="button" onClick={make}>Tạo hóa đơn nháp</button>;
+  return <div>{errors.length > 0 && <div className="form-error">{errors.join('. ')}</div>}<button type="button" disabled={disabled} onClick={make}>Tạo hóa đơn nháp</button>{disabled && disabledMessage && <div className="form-warning">{disabledMessage}</div>}</div>;
 }

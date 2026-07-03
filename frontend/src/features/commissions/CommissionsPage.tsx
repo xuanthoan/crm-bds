@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { can } from '../auth/authStore';
 import { navigateTo } from '../../routes/AppRoutes';
 import { approveCommission, cancelCommission, commissionSummary, generateCommission, holdCommission, listCommissions, markPaidCommission, type Commission } from './api';
@@ -6,6 +6,9 @@ import { ActionModal, GenerateModal, GuideModal } from './CommissionModals';
 
 const money = (v: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(v || 0);
 const date = (v: string | null) => v ? new Date(v).toLocaleDateString('vi-VN') : '-';
+const policyReason = (c: Commission, kind: 'approve' | 'paid') => kind === 'approve' ? c.approve_block_reason : c.mark_paid_block_reason;
+const canByPolicy = (c: Commission, kind: 'approve' | 'paid') => kind === 'approve' ? c.can_approve_by_company_commission_policy !== false : c.can_mark_paid_by_company_commission_policy !== false;
+const companyCommissionStatusClass = (status?: string | null) => `commission-company-status-badge status-${status || 'missing'}`;
 
 type ActionState = { type: 'approve' | 'hold' | 'cancel' | 'paid'; c: Commission };
 
@@ -17,6 +20,11 @@ export function CommissionsPage() {
   const [gen, setGen] = useState(false);
   const [action, setAction] = useState<ActionState | null>(null);
   const [notice, setNotice] = useState('');
+  const [isFiltering, setIsFiltering] = useState(false);
+  const [isClearingFilters, setIsClearingFilters] = useState(false);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const topScrollRef = useRef<HTMLDivElement | null>(null);
+  const [tableScrollWidth, setTableScrollWidth] = useState(0);
 
   async function load(nextFilters = filters) {
     setNotice('');
@@ -27,8 +35,17 @@ export function CommissionsPage() {
 
   useEffect(() => { void load(); }, []);
 
+  useEffect(() => {
+    const updateTableScrollWidth = () => setTableScrollWidth(tableScrollRef.current?.scrollWidth || 0);
+    updateTableScrollWidth();
+    const frame = window.requestAnimationFrame(updateTableScrollWidth);
+    window.addEventListener('resize', updateTableScrollWidth);
+    return () => { window.cancelAnimationFrame(frame); window.removeEventListener('resize', updateTableScrollWidth); };
+  }, [items.length]);
+
   const set = (k: string, v: string) => setFilters((current) => ({ ...current, [k]: v }));
-  const clearFilters = () => { setFilters({}); void load({}); };
+  const clearFilters = async () => { setIsClearingFilters(true); setFilters({}); try { await load({}); } finally { setIsClearingFilters(false); } };
+  const applyFilters = async () => { setIsFiltering(true); try { await load(); } finally { setIsFiltering(false); } };
 
   async function submitAction(p: Record<string, unknown>) {
     if (!action) return;
@@ -39,25 +56,45 @@ export function CommissionsPage() {
     await load();
   }
 
+  function syncTableScroll(source: 'top' | 'bottom') {
+    const top = topScrollRef.current;
+    const bottom = tableScrollRef.current;
+    if (!top || !bottom) return;
+    if (source === 'top' && bottom.scrollLeft !== top.scrollLeft) bottom.scrollLeft = top.scrollLeft;
+    if (source === 'bottom' && top.scrollLeft !== bottom.scrollLeft) top.scrollLeft = bottom.scrollLeft;
+  }
+
   function exportCsv() {
     window.location.href = `/api/v1/commissions/export?${new URLSearchParams(filters).toString()}`;
+  }
+
+  function renderCompanyCommissionCell(c: Commission) {
+    const reason = c.approve_block_reason || c.mark_paid_block_reason || 'Hợp đồng chưa có khoản hoa hồng công ty.';
+    if (!c.company_commission_code) return <span className="commission-company-missing-badge" title={reason}>Chưa có HH công ty</span>;
+    return <div className="commission-company-cell"><strong className="commission-company-code">{c.company_commission_code}</strong><span className={companyCommissionStatusClass(c.company_commission_status)}>{c.company_commission_status_label || c.company_commission_status}</span><small>Đã nhận: {money(c.company_commission_received_amount || 0)}</small><small>Còn phải thu: {money(c.company_commission_remaining_amount || 0)}</small></div>;
   }
 
   function renderRowActions(c: Commission) {
     const isFinal = c.status === 'paid' || c.status === 'cancelled';
     const canApproveAction = can('commissions.approve') && ['eligible', 'on_hold'].includes(c.status);
+    const approvePolicyOk = canByPolicy(c, 'approve');
     const canHoldAction = can('commissions.hold') && ['eligible', 'approved'].includes(c.status);
-    const canMarkPaidAction = can('commissions.mark_paid') && c.status === 'approved';
+    const canMarkPaidAction = can('commissions.mark_paid') && ['approved', 'partially_paid'].includes(c.status);
+    const paidPolicyOk = canByPolicy(c, 'paid');
     const canCancelAction = can('commissions.cancel') && ['eligible', 'approved', 'on_hold'].includes(c.status);
-    return <div className="table-actions commission-row-actions"><button onClick={() => navigateTo(`/commissions/${c.id}`)}>Xem</button>{!isFinal && canApproveAction && <button onClick={() => setAction({ type: 'approve', c })}>Duyệt</button>}{!isFinal && canHoldAction && <button onClick={() => setAction({ type: 'hold', c })}>Tạm giữ</button>}{!isFinal && canMarkPaidAction && <button onClick={() => setAction({ type: 'paid', c })}>Đã chi trả</button>}{!isFinal && canCancelAction && <button onClick={() => setAction({ type: 'cancel', c })}>Hủy</button>}</div>;
+    const blockedReason = policyReason(c, ['approved', 'partially_paid'].includes(c.status) ? 'paid' : 'approve');
+    return <div className="table-actions commission-row-actions"><button onClick={() => navigateTo(`/commissions/${c.id}`)}>Xem</button>{!isFinal && canApproveAction && <button disabled={!approvePolicyOk} title={policyReason(c, 'approve') || undefined} onClick={() => approvePolicyOk && setAction({ type: 'approve', c })}>Duyệt</button>}{!isFinal && canHoldAction && <button onClick={() => setAction({ type: 'hold', c })}>Tạm giữ</button>}{!isFinal && canMarkPaidAction && <button disabled={!paidPolicyOk} title={policyReason(c, 'paid') || undefined} onClick={() => paidPolicyOk && setAction({ type: 'paid', c })}>Đã chi trả</button>}{!isFinal && canCancelAction && <button onClick={() => setAction({ type: 'cancel', c })}>Hủy</button>}{blockedReason && <span className="commission-policy-blocked-caption" title={blockedReason}>Bị chặn</span>}</div>;
   }
 
   const cards = [
     ['Tổng HH đủ điều kiện', money(summary.total_eligible_commission)],
     ['Tổng HH đã duyệt', money(summary.total_approved_commission)],
     ['Tổng đã chi trả', money(summary.total_paid_amount)],
+    ['Chưa có HH công ty', summary.missing_company_commission_count || 0],
+    ['Bị chặn chi', summary.blocked_mark_paid_count || 0],
     ['Chờ duyệt', summary.pending_count || 0],
     ['Đã duyệt', summary.approved_count || 0],
+    ['Đã chi một phần', summary.partially_paid_count || 0],
     ['Đã chi trả', summary.paid_count || 0],
     ['Tạm giữ', summary.on_hold_count || 0],
     ['Đã hủy', summary.cancelled_count || 0],
@@ -79,16 +116,16 @@ export function CommissionsPage() {
       <div className="filter-bar filter-panel commission-filter-panel">
         <label>Từ ngày<input type="date" value={filters.date_from || ''} onChange={(e) => set('date_from', e.target.value)} /></label>
         <label>Đến ngày<input type="date" value={filters.date_to || ''} onChange={(e) => set('date_to', e.target.value)} /></label>
-        <label>Trạng thái<select value={filters.status || ''} onChange={(e) => set('status', e.target.value)}><option value="">Tất cả trạng thái</option><option value="eligible">Đủ điều kiện</option><option value="approved">Đã duyệt</option><option value="paid">Đã chi trả</option><option value="on_hold">Tạm giữ</option><option value="cancelled">Đã hủy</option></select></label>
+        <label>Trạng thái<select value={filters.status || ''} onChange={(e) => set('status', e.target.value)}><option value="">Tất cả trạng thái</option><option value="eligible">Đủ điều kiện</option><option value="approved">Đã duyệt</option><option value="partially_paid">Đã chi một phần</option><option value="paid">Đã chi trả</option><option value="on_hold">Tạm giữ</option><option value="cancelled">Đã hủy</option></select></label>
         <label>Từ khóa<input value={filters.keyword || ''} placeholder="Mã HĐ / mã HH / khách hàng" onChange={(e) => set('keyword', e.target.value)} /></label>
-        <div className="filter-actions"><button onClick={() => void load()}>Lọc</button><button className="secondary-button" onClick={clearFilters}>Xóa lọc</button></div>
+        <div className="filter-actions"><button disabled={isFiltering} onClick={() => void applyFilters()}>{isFiltering ? 'Đang lọc...' : 'Lọc'}</button><button className="secondary-button" disabled={isClearingFilters} onClick={() => void clearFilters()}>{isClearingFilters ? 'Đang xóa...' : 'Xóa lọc'}</button></div>
       </div>
       <section className="metric-grid commission-kpi-grid" aria-label="Chỉ số hoa hồng">
         {cards.map(([label, value], index) => <article className="metric-card" key={String(label)}><span>{label}</span><strong className={index > 2 ? 'commission-count-value' : undefined}>{value}</strong></article>)}
       </section>
       <section className="table-card commission-table-card">
         <div className="section-header commission-table-header"><div><h2>Danh sách hoa hồng</h2><p>{items.length ? `Có ${items.length} hoa hồng đang hiển thị.` : 'Chưa có hoa hồng nào.'}</p></div></div>
-        <div className="responsive-table-wrap"><table><thead><tr><th>Mã HH</th><th>Mã HĐ</th><th>Sale</th><th>Khách hàng</th><th>Giá trị HĐ</th><th>Đã thu</th><th>Tỷ lệ HH</th><th>HH đủ điều kiện</th><th>HH đã duyệt</th><th>Đã chi trả</th><th>Trạng thái</th><th>Ngày duyệt</th><th>Ngày chi trả</th><th>Hành động</th></tr></thead><tbody>{items.map((c) => <tr key={c.id}><td>{c.commission_code}</td><td>{c.contract_code}</td><td>{c.sale_name}</td><td>{c.customer_name}</td><td>{money(c.contract_value)}</td><td>{money(c.total_collected_with_deposit)}</td><td>{c.commission_rate_percent}%</td><td>{money(c.eligible_commission)}</td><td>{money(c.approved_commission)}</td><td>{money(c.paid_amount)}</td><td>{c.status_label}</td><td>{date(c.approved_at)}</td><td>{date(c.paid_at)}</td><td>{renderRowActions(c)}</td></tr>)}</tbody></table></div>
+        <p className="muted-text commission-policy-note">Hoa hồng sale chỉ được chi trong phạm vi hoa hồng công ty đã nhận.</p><div className="commission-table-top-scroll" ref={topScrollRef} onScroll={() => syncTableScroll('top')}><div className="commission-table-scroll-spacer" style={{ width: tableScrollWidth }} /></div><div className="responsive-table-wrap commission-table-scroll" ref={tableScrollRef} onScroll={() => syncTableScroll('bottom')}><table className="commission-policy-table"><colgroup><col className="commission-col-code"/><col className="commission-col-contract"/><col className="commission-col-sale"/><col className="commission-col-customer"/><col className="commission-col-company"/><col className="commission-col-money"/><col className="commission-col-money"/><col className="commission-col-rate"/><col className="commission-col-money"/><col className="commission-col-money"/><col className="commission-col-money"/><col className="commission-col-status"/><col className="commission-col-date"/><col className="commission-col-date"/><col className="commission-col-actions"/></colgroup><thead><tr><th>Mã HH</th><th>Mã HĐ</th><th>Sale</th><th>Khách hàng</th><th>HH công ty</th><th>Giá trị HĐ</th><th>Đã thu</th><th>Tỷ lệ HH</th><th>HH đủ điều kiện</th><th>HH đã duyệt</th><th>Đã chi trả</th><th>Trạng thái</th><th>Ngày duyệt</th><th>Ngày chi trả</th><th>Hành động</th></tr></thead><tbody>{items.map((c) => <tr key={c.id}><td>{c.commission_code}</td><td>{c.contract_code}</td><td>{c.sale_name}</td><td>{c.customer_name}</td><td className="commission-company-column">{renderCompanyCommissionCell(c)}</td><td className="commission-money-cell">{money(c.contract_value)}</td><td className="commission-money-cell">{money(c.total_collected_with_deposit)}</td><td className="commission-nowrap-cell">{c.commission_rate_percent}%</td><td className="commission-money-cell">{money(c.eligible_commission)}</td><td className="commission-money-cell">{money(c.approved_commission)}</td><td className="commission-money-cell">{money(c.paid_amount)}</td><td className="commission-nowrap-cell">{c.status_label}</td><td className="commission-nowrap-cell">{date(c.approved_at)}</td><td className="commission-nowrap-cell">{date(c.paid_at)}</td><td className="commission-actions-column">{renderRowActions(c)}</td></tr>)}</tbody></table></div>
         {!items.length && <p className="empty-state">Chưa có hoa hồng nào.</p>}
       </section>
       {guide && <GuideModal onClose={() => setGuide(false)} />}

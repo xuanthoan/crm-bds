@@ -310,3 +310,13 @@ Sprint 21 bổ sung tầng **Hoa hồng công ty** để quản lý khoản côn
 Các hợp đồng có thêm thông tin vai trò công ty, bên bán thực tế, bên trả hoa hồng, mã hợp đồng/chính sách môi giới và ghi chú căn cứ hoa hồng. Module `/company-commissions` có API list, summary, eligible-contracts, generate, detail, approve, receive, hold, cancel và export CSV. Quyền mới gồm `company_commissions.view`, `company_commissions.create`, `company_commissions.approve`, `company_commissions.receive`, `company_commissions.hold`, `company_commissions.cancel`, `company_commissions.export`.
 
 Sprint 21 chưa thay đổi công thức hoa hồng sale của Sprint 20 và chưa bắt buộc chi hoa hồng sale phải phụ thuộc trạng thái đã nhận hoa hồng công ty. Backlog sprint sau: tính hoa hồng sale từ hoa hồng công ty, chặn/kiểm soát chi hoa hồng sale khi hoa hồng công ty chưa nhận, bổ sung báo cáo hoa hồng công ty theo bên trả hoa hồng, báo cáo công nợ hoa hồng công ty và báo cáo chênh lệch công ty nhận so với sale được chi.
+
+## Sprint 22 — Chính sách chi hoa hồng sale theo hoa hồng công ty đã nhận
+
+- Hoa hồng sale (COM) vẫn được tạo từ hợp đồng đủ điều kiện theo Sprint 20, kể cả khi hợp đồng chưa có hoa hồng công ty (CCR).
+- Khi duyệt hoa hồng sale, hợp đồng bắt buộc phải có CCR và CCR không được ở trạng thái `on_hold` hoặc `cancelled`.
+- CCR ở trạng thái `pending`, `approved`, `partially_received`, hoặc `received` cho phép duyệt hoa hồng sale.
+- Khi đánh dấu đã chi trả hoa hồng sale, CCR bắt buộc phải ở trạng thái `partially_received` hoặc `received` và `received_amount` phải lớn hơn 0.
+- Số tiền chi hoa hồng sale không được vượt số hoa hồng công ty đã nhận còn lại, đồng thời vẫn không được vượt số hoa hồng sale đã duyệt.
+- Sprint 22 chưa hỗ trợ boss override, tạm ứng hoa hồng sale khi công ty chưa nhận tiền, hoặc cấu hình policy động theo từng công ty/dự án.
+- Backlog sau Sprint 22: cấu hình policy theo công ty, boss override, tạm ứng hoa hồng sale, và tùy chọn tính hoa hồng sale trực tiếp từ company commission.
