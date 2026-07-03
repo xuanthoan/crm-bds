@@ -57,6 +57,8 @@ import { CompanyCommissionsPage } from '../features/companyCommissions/CompanyCo
 import { CompanyCommissionDetailPage } from '../features/companyCommissions/CompanyCommissionDetailPage';
 import { CommissionPayoutPolicySettingsPage } from '../features/settings/CommissionPayoutPolicySettingsPage';
 import { COMPANY_COMMISSION_VIEW_PERMISSIONS } from '../features/companyCommissions/constants';
+import { CommissionPaymentVouchersPage } from '../features/commissionPaymentVouchers/CommissionPaymentVouchersPage';
+import { CommissionPaymentVoucherDetailPage } from '../features/commissionPaymentVouchers/CommissionPaymentVoucherDetailPage';
 
 export function navigateTo(path: string): void {
   window.history.pushState({}, '', path);
@@ -100,6 +102,7 @@ const protectedPages: Record<string, ProtectedPage> = {
   '/reports/commissions': { element: <CommissionRevenueReportsPage />, permission: 'reports.view.commissions' },
   '/company-commissions': { element: <CompanyCommissionsPage />, permission: COMPANY_COMMISSION_VIEW_PERMISSIONS },
   '/commissions': { element: <CommissionsPage />, permission: COMMISSION_VIEW_PERMISSIONS },
+  '/commission-payment-vouchers': { element: <CommissionPaymentVouchersPage />, permission: 'commissions.payment_vouchers.view' },
   '/notifications': { element: <NotificationsPage />, permission: 'notifications.view' },
 };
 
@@ -139,6 +142,8 @@ export function AppRoutes() {
   }, [authenticated, normalizedPath]);
 
   const page = useMemo(() => {
+    const voucherDetailMatch = normalizedPath.match(/^\/commission-payment-vouchers\/([0-9a-f-]+)$/i);
+    if (voucherDetailMatch) return { element: <CommissionPaymentVoucherDetailPage voucherId={voucherDetailMatch[1]} />, permission: 'commissions.payment_vouchers.view' };
     const companyCommissionDetailMatch = normalizedPath.match(/^\/company-commissions\/([0-9a-f-]+)$/i);
     if (companyCommissionDetailMatch) return { element: <CompanyCommissionDetailPage receivableId={companyCommissionDetailMatch[1]} />, permission: COMPANY_COMMISSION_VIEW_PERMISSIONS };
     const commissionDetailMatch = normalizedPath.match(/^\/commissions\/([0-9a-f-]+)$/i);

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { can } from '../auth/authStore';
 import { navigateTo } from '../../routes/AppRoutes';
-import { approveCommission, cancelCommission, commissionSummary, generateCommission, holdCommission, listCommissions, markPaidCommission, type Commission } from './api';
+import { approveCommission, cancelCommission, commissionSummary, generateCommission, holdCommission, listCommissions, type Commission } from './api';
+import { createVoucher } from '../commissionPaymentVouchers/api';
 import { ActionModal, GenerateModal, GuideModal } from './CommissionModals';
 
 const money = (v: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(v || 0);
@@ -52,7 +53,7 @@ export function CommissionsPage() {
     if (action.type === 'approve') await approveCommission(action.c.id, p);
     if (action.type === 'hold') await holdCommission(action.c.id, p);
     if (action.type === 'cancel') await cancelCommission(action.c.id, p);
-    if (action.type === 'paid') await markPaidCommission(action.c.id, p);
+    if (action.type === 'paid') await createVoucher({sales_commission_id: action.c.id, amount: p.paid_amount, payment_date: p.payment_date, payment_method: p.payment_method || 'bank_transfer', payment_reference: p.payment_reference, note: p.note, attachment_url: p.attachment_url, status: p.status || 'paid'});
     await load();
   }
 
@@ -79,11 +80,11 @@ export function CommissionsPage() {
     const canApproveAction = can('commissions.approve') && ['eligible', 'on_hold'].includes(c.status);
     const approvePolicyOk = canByPolicy(c, 'approve');
     const canHoldAction = can('commissions.hold') && ['eligible', 'approved'].includes(c.status);
-    const canMarkPaidAction = can('commissions.mark_paid') && ['approved', 'partially_paid'].includes(c.status);
+    const canMarkPaidAction = can('commissions.mark_paid') && ['approved', 'partially_paid'].includes(c.status) && Number(c.paid_amount || 0) < Number(c.approved_commission || 0);
     const paidPolicyOk = canByPolicy(c, 'paid');
     const canCancelAction = can('commissions.cancel') && ['eligible', 'approved', 'on_hold'].includes(c.status);
     const blockedReason = policyReason(c, ['approved', 'partially_paid'].includes(c.status) ? 'paid' : 'approve');
-    return <div className="table-actions commission-row-actions"><button onClick={() => navigateTo(`/commissions/${c.id}`)}>Xem</button>{!isFinal && canApproveAction && <button disabled={!approvePolicyOk} title={policyReason(c, 'approve') || undefined} onClick={() => approvePolicyOk && setAction({ type: 'approve', c })}>Duyệt</button>}{!isFinal && canHoldAction && <button onClick={() => setAction({ type: 'hold', c })}>Tạm giữ</button>}{!isFinal && canMarkPaidAction && <button disabled={!paidPolicyOk} title={policyReason(c, 'paid') || undefined} onClick={() => paidPolicyOk && setAction({ type: 'paid', c })}>Đã chi trả</button>}{!isFinal && canCancelAction && <button onClick={() => setAction({ type: 'cancel', c })}>Hủy</button>}{blockedReason && <span className="commission-policy-blocked-caption" title={blockedReason}>Bị chặn</span>}</div>;
+    return <div className="table-actions commission-row-actions"><button onClick={() => navigateTo(`/commissions/${c.id}`)}>Xem</button>{!isFinal && canApproveAction && <button disabled={!approvePolicyOk} title={policyReason(c, 'approve') || undefined} onClick={() => approvePolicyOk && setAction({ type: 'approve', c })}>Duyệt</button>}{!isFinal && canHoldAction && <button onClick={() => setAction({ type: 'hold', c })}>Tạm giữ</button>}{!isFinal && canMarkPaidAction && <button disabled={!paidPolicyOk} title={policyReason(c, 'paid') || undefined} onClick={() => paidPolicyOk && setAction({ type: 'paid', c })}>Lập phiếu chi</button>}{!isFinal && canCancelAction && <button onClick={() => setAction({ type: 'cancel', c })}>Hủy</button>}{blockedReason && <span className="commission-policy-blocked-caption" title={blockedReason}>Bị chặn</span>}</div>;
   }
 
   const cards = [

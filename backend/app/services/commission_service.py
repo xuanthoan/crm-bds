@@ -12,6 +12,7 @@ from app.models.customer import Customer
 from app.models.payment_receipt import PaymentReceipt
 from app.models.property_unit import PropertyUnit
 from app.models.sales_commission import SalesCommission, SalesCommissionEvent
+from app.models.commission_payment_voucher import SalesCommissionPaymentVoucher
 from app.models.user import User
 from app.services.company_commission_service import get_company_commission_for_contract, get_company_commissions_by_contract_ids, STATUS_LABELS as CCR_STATUS_LABELS
 from app.permissions.dependencies import get_user_permissions
@@ -75,6 +76,18 @@ def _sync_payout_status(c):
     elif approved > 0 and c.status in ('partially_paid','paid'):
         c.status='approved'
     return c.status
+
+def sync_commission_paid_amount_from_vouchers(db, c):
+    if not db or not getattr(c, 'id', None):
+        return c
+    voucher_paid_total=dec(db.query(func.coalesce(func.sum(SalesCommissionPaymentVoucher.amount),0)).filter(SalesCommissionPaymentVoucher.sales_commission_id==c.id, SalesCommissionPaymentVoucher.status=='paid').scalar())
+    paid_total=dec(getattr(c,'legacy_paid_amount',0))+voucher_paid_total
+    if dec(c.paid_amount)!=paid_total:
+        c.paid_amount=paid_total
+        c.updated_at=now()
+    if c.status not in ('cancelled','on_hold'):
+        _sync_payout_status(c)
+    return c
 
 
 def _company_commission_summary(ccr):
@@ -176,6 +189,7 @@ def get_sales_commission_payout_policy_context(db, c, ccr=None, paid_for_contrac
 def row(c, policy=None, company_commission=None, actor=None):
     contract=c.contract; customer=getattr(contract,'customer',None); sale=c.sale
     db=object_session(c)
+    sync_commission_paid_amount_from_vouchers(db, c)
     if policy is None:
         policy=get_sales_commission_payout_policy_context(db, c, company_commission, actor=actor) if db else {}
     if company_commission is None and db:
@@ -205,8 +219,10 @@ def list_commissions(db, page=1, page_size=20, actor=None, **f):
         if f.get(key): q=q.filter(op(col, f[key]))
     total=q.count(); items=q.order_by(SalesCommission.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
     ccr_by_contract=get_company_commissions_by_contract_ids(db, [c.contract_id for c in items])
-    paid_totals=dict(db.query(SalesCommission.contract_id, func.coalesce(func.sum(SalesCommission.paid_amount),0)).filter(SalesCommission.contract_id.in_([c.contract_id for c in items]), SalesCommission.paid_amount>0).group_by(SalesCommission.contract_id).all()) if items else {}
     rows=[]
+    for c in items:
+        sync_commission_paid_amount_from_vouchers(db, c)
+    paid_totals=dict(db.query(SalesCommission.contract_id, func.coalesce(func.sum(SalesCommission.paid_amount),0)).filter(SalesCommission.contract_id.in_([c.contract_id for c in items]), SalesCommission.paid_amount>0).group_by(SalesCommission.contract_id).all()) if items else {}
     for c in items:
         ccr=ccr_by_contract.get(c.contract_id)
         policy=get_sales_commission_payout_policy_context(db, c, ccr, paid_totals.get(c.contract_id, 0), actor=actor)

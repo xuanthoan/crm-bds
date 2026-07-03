@@ -26,6 +26,7 @@ class SalesCommission(Base):
     eligible_commission: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     approved_commission: Mapped[Decimal] = mapped_column(Numeric(18, 2), default=0, nullable=False)
     paid_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), default=0, nullable=False)
+    legacy_paid_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), default=0, nullable=False)
     payout_policy_code: Mapped[str | None] = mapped_column(String(50))
     payout_policy_source: Mapped[str | None] = mapped_column(String(50))
     status: Mapped[str] = mapped_column(String(30), default="eligible", nullable=False)
@@ -45,6 +46,7 @@ class SalesCommission(Base):
     paid_by = relationship("User", foreign_keys=[paid_by_id])
     created_by = relationship("User", foreign_keys=[created_by_id])
     events = relationship("SalesCommissionEvent", back_populates="commission", order_by="SalesCommissionEvent.created_at.desc()", cascade="all, delete-orphan")
+    payment_vouchers = relationship("SalesCommissionPaymentVoucher", back_populates="commission", order_by="SalesCommissionPaymentVoucher.created_at.desc()")
 
 class SalesCommissionEvent(Base):
     __tablename__ = "sales_commission_events"

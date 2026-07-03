@@ -1,0 +1,10 @@
+import { apiRequest } from '../../services/apiClient';
+export const VOUCHER_STATUS_LABELS:Record<string,string>={draft:'Nháp',paid:'Đã chi',cancelled:'Đã hủy'};
+export const PAYMENT_METHOD_LABELS:Record<string,string>={cash:'Tiền mặt',bank_transfer:'Chuyển khoản',other:'Khác'};
+export type Voucher={id:string;code:string;status:string;status_label:string;amount:number;payment_date:string;payment_method:string;payment_method_label:string;payment_reference?:string;sale_name?:string;contract_code?:string;sales_commission_id:string;sales_commission_code?:string;created_by_name?:string;paid_by_name?:string;created_at?:string;paid_at?:string;cancel_reason?:string;note?:string;attachment_url?:string;commission?:any;contract?:any;sale?:any};
+const qs=(f:Record<string,string>)=>new URLSearchParams(Object.entries(f).filter(([,v])=>v)).toString();
+export const listVouchers=(f:Record<string,string>)=>apiRequest<{items:Voucher[];total:number}>(`/api/v1/commission-payment-vouchers?${qs(f)}`);
+export const getVoucher=(id:string)=>apiRequest<Voucher>(`/api/v1/commission-payment-vouchers/${id}`);
+export const createVoucher=(p:Record<string,unknown>)=>apiRequest<Voucher>('/api/v1/commission-payment-vouchers',{method:'POST',body:JSON.stringify(p)});
+export const markPaidVoucher=(id:string,p:Record<string,unknown>)=>apiRequest<Voucher>(`/api/v1/commission-payment-vouchers/${id}/mark-paid`,{method:'POST',body:JSON.stringify(p)});
+export const cancelVoucher=(id:string,reason:string)=>apiRequest<Voucher>(`/api/v1/commission-payment-vouchers/${id}/cancel`,{method:'POST',body:JSON.stringify({reason})});
