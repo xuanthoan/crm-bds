@@ -458,3 +458,10 @@ Sprint 21 chưa thay đổi công thức hoa hồng sale của Sprint 20 và ch�
   - Với CCR xác nhận 600đ, CCR đã nhận 200đ, COM đã duyệt 60đ, COM đã chi 0đ, xác nhận tỷ lệ đã thu là 33,33% và tối đa có thể chi lần này là 20đ.
 - Modal **Đã chi trả** phải tự điền số tiền bằng tối đa có thể chi theo policy hiện tại và backend phải chặn khi nhập vượt số này.
 - Ghi nhận CCR receipt chỉ tăng capacity/tỷ lệ đã thu; không tự động tăng `COM.paid_amount`.
+
+### Sprint 23 flexible policy follow-up
+- Project form: verify section **Chính sách hoa hồng** includes default sale payout policy, sale commission note, and company commission policy note.
+- Permission check: login as a normal sale/viewer and verify `company_commission_policy_note` is not returned/displayed; login as admin/inventory manager and verify the field is visible.
+- Project default: set project default policy to **Chi theo tỷ lệ hoa hồng công ty đã thu**, create/approve a COM under that project without override, and verify effective policy is shown as **theo dự án**.
+- Approval override: approve a COM and choose **Option 1 — Chi theo hạn mức tiền hoa hồng công ty đã nhận**; verify later system-setting changes do not change that COM effective policy.
+- Fallback: leave project policy empty and verify COM falls back to the system default `received_amount_capacity`.

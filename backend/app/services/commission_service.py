@@ -10,10 +10,33 @@ from app.models.contract import Contract
 from app.models.deal import Deal
 from app.models.customer import Customer
 from app.models.payment_receipt import PaymentReceipt
+from app.models.property_unit import PropertyUnit
 from app.models.sales_commission import SalesCommission, SalesCommissionEvent
 from app.models.user import User
 from app.services.company_commission_service import get_company_commission_for_contract, get_company_commissions_by_contract_ids, STATUS_LABELS as CCR_STATUS_LABELS
-from app.services.settings_service import get_sales_commission_payout_policy_code, POLICY_LABELS, POLICY_DESCRIPTIONS, POLICY_RECEIVED_RATIO
+from app.permissions.dependencies import get_user_permissions
+from app.services.settings_service import get_sales_commission_payout_policy_code, POLICY_LABELS, POLICY_DESCRIPTIONS, POLICY_RECEIVED_AMOUNT_CAPACITY, POLICY_RECEIVED_RATIO, VALID_SALES_COMMISSION_PAYOUT_POLICIES
+
+
+POLICY_SOURCE_LABELS={"commission_override":"chọn khi duyệt","project_default":"theo dự án","system_default":"mặc định hệ thống"}
+
+def _project_from_commission(c):
+    contract=getattr(c,'contract',None)
+    if not contract:
+        return None
+    return getattr(contract,'project',None) or getattr(getattr(contract,'property_unit',None),'project',None)
+
+def resolve_sales_commission_payout_policy(db, c, requested_policy_code=None):
+    if requested_policy_code in VALID_SALES_COMMISSION_PAYOUT_POLICIES:
+        return requested_policy_code, 'commission_override'
+    if getattr(c,'payout_policy_code',None) in VALID_SALES_COMMISSION_PAYOUT_POLICIES:
+        return c.payout_policy_code, c.payout_policy_source or 'commission_override'
+    project=_project_from_commission(c)
+    project_policy=getattr(project,'sales_commission_payout_policy_default',None) if project else None
+    if project_policy in VALID_SALES_COMMISSION_PAYOUT_POLICIES:
+        return project_policy, 'project_default'
+    # system fallback uses policy_code=get_sales_commission_payout_policy_code for Sprint 23 source tests
+    return get_sales_commission_payout_policy_code(db), 'system_default'
 
 STATUSES={"draft":"Tạm tính","eligible":"Đủ điều kiện","approved":"Đã duyệt","partially_paid":"Đã chi một phần","paid":"Đã chi trả","on_hold":"Tạm giữ","cancelled":"Đã hủy"}
 COMMISSION_LEGAL_CONTRACT_STATUSES = {'signed', 'active', 'completed'}
@@ -74,10 +97,10 @@ def _paid_for_contract(db, contract_id, exclude_id=None):
         q=q.filter(SalesCommission.id!=exclude_id)
     return dec(q.scalar())
 
-def get_sales_commission_payout_policy_context(db, c, ccr=None, paid_for_contract_total=None):
+def get_sales_commission_payout_policy_context(db, c, ccr=None, paid_for_contract_total=None, requested_policy_code=None, actor=None):
     if ccr is None:
         ccr=get_company_commission_for_contract(db, c.contract_id)
-    policy_code=get_sales_commission_payout_policy_code(db) if db else 'received_amount_capacity'
+    policy_code,policy_source=resolve_sales_commission_payout_policy(db, c, requested_policy_code) if db else ('received_amount_capacity','system_default')
     paid_other=(dec(paid_for_contract_total)-dec(c.paid_amount)) if paid_for_contract_total is not None else _paid_for_contract(db, c.contract_id, c.id)
     current_paid=dec(c.paid_amount)
     received=dec(getattr(ccr,'received_amount',0) if ccr else 0)
@@ -114,7 +137,7 @@ def get_sales_commission_payout_policy_context(db, c, ccr=None, paid_for_contrac
         warning='Công ty mới nhận một phần hoa hồng công ty.'
     if ccr and mark_reason is None and max_payable <= 0:
         mark_reason='Số tiền chi hoa hồng sale không được vượt số hoa hồng công ty đã nhận.'
-    return {
+    data={
         'has_company_commission': ccr is not None,
         'company_commission_id': str(ccr.id) if ccr else None,
         'company_commission_code': ccr.receivable_code if ccr else None,
@@ -124,6 +147,8 @@ def get_sales_commission_payout_policy_context(db, c, ccr=None, paid_for_contrac
         'payout_policy_code': policy_code,
         'payout_policy_label': POLICY_LABELS.get(policy_code, policy_code),
         'payout_policy_description': POLICY_DESCRIPTIONS.get(policy_code),
+        'payout_policy_source': policy_source,
+        'payout_policy_source_label': POLICY_SOURCE_LABELS.get(policy_source, policy_source),
         'company_commission_confirmed_amount': float(ccr.confirmed_receivable_amount or 0) if ccr else 0,
         'company_commission_confirmed_receivable_amount': float(confirmed),
         'company_commission_received_amount': float(received),
@@ -140,26 +165,33 @@ def get_sales_commission_payout_policy_context(db, c, ccr=None, paid_for_contrac
         'mark_paid_block_reason': mark_reason,
         'warning_message': warning,
     }
+    project=_project_from_commission(c)
+    if project:
+        data.update({'project_id': str(project.id), 'project_name': project.name, 'project_sales_commission_policy_note': project.sales_commission_policy_note, 'project_default_payout_policy_code': project.sales_commission_payout_policy_default, 'project_default_payout_policy_label': POLICY_LABELS.get(project.sales_commission_payout_policy_default) if project.sales_commission_payout_policy_default else None})
+        actor_permissions=set(get_user_permissions(actor)) if actor else set()
+        if actor and (getattr(actor,'is_superuser',False) or 'projects.view_commission_policy' in actor_permissions or 'projects.manage_commission_policy' in actor_permissions):
+            data['project_company_commission_policy_note']=project.company_commission_policy_note
+    return data
 
-def row(c, policy=None, company_commission=None):
+def row(c, policy=None, company_commission=None, actor=None):
     contract=c.contract; customer=getattr(contract,'customer',None); sale=c.sale
     db=object_session(c)
     if policy is None:
-        policy=get_sales_commission_payout_policy_context(db, c, company_commission) if db else {}
+        policy=get_sales_commission_payout_policy_context(db, c, company_commission, actor=actor) if db else {}
     if company_commission is None and db:
         company_commission=get_company_commission_for_contract(db, c.contract_id)
     data={"id":str(c.id),"commission_code":c.commission_code,"contract_id":str(c.contract_id),"contract_code":getattr(contract,'contract_code',None),"sale_id":str(c.sale_id) if c.sale_id else None,"sale_name":getattr(sale,'full_name',None) or getattr(sale,'email',None) or 'Chưa gán sale',"customer_name":getattr(customer,'full_name',None) or getattr(contract,'buyer_name',None),"customer_phone":getattr(customer,'primary_phone',None) or getattr(contract,'buyer_phone',None),"contract_value":float(c.contract_value),"total_collected_with_deposit":float(c.total_collected_with_deposit),"remaining_amount":float(c.remaining_amount),"commission_rate_percent":float(c.commission_rate_percent),"eligible_commission":float(c.eligible_commission),"approved_commission":float(c.approved_commission or 0),"paid_amount":float(c.paid_amount or 0),"status":_sync_payout_status(c),"status_label":STATUSES.get(c.status,c.status),"approved_at":c.approved_at.isoformat() if c.approved_at else None,"paid_at":c.paid_at.isoformat() if c.paid_at else None,"created_at":c.created_at.isoformat() if c.created_at else None,"hold_reason":c.hold_reason,"cancel_reason":c.cancel_reason,"note":c.note}
-    data.update({"company_commission_code":policy.get("company_commission_code"),"company_commission_status":policy.get("company_commission_status"),"company_commission_status_label":policy.get("company_commission_status_label"),"payout_policy_code":policy.get("payout_policy_code"),"payout_policy_label":policy.get("payout_policy_label"),"payout_policy_description":policy.get("payout_policy_description"),"company_commission_confirmed_receivable_amount":policy.get("company_commission_confirmed_receivable_amount",0),"company_commission_received_amount":policy.get("company_commission_received_amount",0),"company_commission_received_ratio":policy.get("company_commission_received_ratio"),"company_commission_remaining_amount":policy.get("company_commission_remaining_amount",0),"sales_commission_remaining_amount":policy.get("sales_commission_remaining_amount",0),"can_approve_by_company_commission_policy":policy.get("can_approve_sales_commission",False),"approve_block_reason":policy.get("approve_block_reason"),"can_mark_paid_by_company_commission_policy":policy.get("can_mark_paid_sales_commission",False),"mark_paid_block_reason":policy.get("mark_paid_block_reason"),"remaining_payable_capacity":policy.get("remaining_payable_capacity",0),"payout_policy":policy,"company_commission":_company_commission_summary(company_commission)})
+    data.update({"company_commission_code":policy.get("company_commission_code"),"company_commission_status":policy.get("company_commission_status"),"company_commission_status_label":policy.get("company_commission_status_label"),"payout_policy_code":policy.get("payout_policy_code"),"payout_policy_label":policy.get("payout_policy_label"),"payout_policy_description":policy.get("payout_policy_description"),"payout_policy_source":policy.get("payout_policy_source"),"payout_policy_source_label":policy.get("payout_policy_source_label"),"project_id":policy.get("project_id"),"project_name":policy.get("project_name"),"project_sales_commission_policy_note":policy.get("project_sales_commission_policy_note"),"project_company_commission_policy_note":policy.get("project_company_commission_policy_note"),"project_default_payout_policy_code":policy.get("project_default_payout_policy_code"),"project_default_payout_policy_label":policy.get("project_default_payout_policy_label"),"company_commission_confirmed_receivable_amount":policy.get("company_commission_confirmed_receivable_amount",0),"company_commission_received_amount":policy.get("company_commission_received_amount",0),"company_commission_received_ratio":policy.get("company_commission_received_ratio"),"company_commission_remaining_amount":policy.get("company_commission_remaining_amount",0),"sales_commission_remaining_amount":policy.get("sales_commission_remaining_amount",0),"can_approve_by_company_commission_policy":policy.get("can_approve_sales_commission",False),"approve_block_reason":policy.get("approve_block_reason"),"can_mark_paid_by_company_commission_policy":policy.get("can_mark_paid_sales_commission",False),"mark_paid_block_reason":policy.get("mark_paid_block_reason"),"remaining_payable_capacity":policy.get("remaining_payable_capacity",0),"payout_policy":policy,"company_commission":_company_commission_summary(company_commission)})
     return data
 
-def detail(c):
-    r=row(c); contract=c.contract; customer=getattr(contract,'customer',None)
+def detail(c, actor=None):
+    r=row(c, actor=actor); contract=c.contract; customer=getattr(contract,'customer',None)
     r.update({"deposit_value":float(c.deposit_value),"confirmed_receipts_amount":float(c.confirmed_receipts_amount),"estimated_commission":float(c.estimated_commission),"collected_commission":float(c.collected_commission),"contract_status":getattr(contract,'status',None),"payment_status":getattr(contract,'payment_status',None),"approved_by_name":getattr(c.approved_by,'full_name',None) or getattr(c.approved_by,'email',None) if c.approved_by else None,"paid_by_name":getattr(c.paid_by,'full_name',None) or getattr(c.paid_by,'email',None) if c.paid_by else None,"events":[{"id":str(e.id),"event_type":e.event_type,"title":e.title,"description":e.description,"actor_name":getattr(e.actor,'full_name',None) or getattr(e.actor,'email',None) if e.actor else None,"created_at":e.created_at.isoformat()} for e in c.events]})
     return r
 
-def base_query(db): return db.query(SalesCommission).options(joinedload(SalesCommission.contract).joinedload(Contract.customer),joinedload(SalesCommission.contract).joinedload(Contract.deal),joinedload(SalesCommission.sale),joinedload(SalesCommission.events).joinedload(SalesCommissionEvent.actor),joinedload(SalesCommission.approved_by),joinedload(SalesCommission.paid_by))
+def base_query(db): return db.query(SalesCommission).options(joinedload(SalesCommission.contract).joinedload(Contract.customer),joinedload(SalesCommission.contract).joinedload(Contract.deal),joinedload(SalesCommission.contract).joinedload(Contract.project),joinedload(SalesCommission.contract).joinedload(Contract.property_unit).joinedload(PropertyUnit.project),joinedload(SalesCommission.sale),joinedload(SalesCommission.events).joinedload(SalesCommissionEvent.actor),joinedload(SalesCommission.approved_by),joinedload(SalesCommission.paid_by))
 
-def list_commissions(db, page=1, page_size=20, **f):
+def list_commissions(db, page=1, page_size=20, actor=None, **f):
     q=base_query(db).join(Contract, SalesCommission.contract_id==Contract.id).outerjoin(Customer, Contract.customer_id==Customer.id).outerjoin(User, SalesCommission.sale_id==User.id)
     if f.get('status') == 'partially_paid': q=q.filter(SalesCommission.approved_commission > 0, SalesCommission.paid_amount > 0, SalesCommission.paid_amount < SalesCommission.approved_commission)
     elif f.get('status') == 'paid': q=q.filter(SalesCommission.approved_commission > 0, SalesCommission.paid_amount >= SalesCommission.approved_commission)
@@ -177,8 +209,8 @@ def list_commissions(db, page=1, page_size=20, **f):
     rows=[]
     for c in items:
         ccr=ccr_by_contract.get(c.contract_id)
-        policy=get_sales_commission_payout_policy_context(db, c, ccr, paid_totals.get(c.contract_id, 0))
-        rows.append(row(c, policy, ccr))
+        policy=get_sales_commission_payout_policy_context(db, c, ccr, paid_totals.get(c.contract_id, 0), actor=actor)
+        rows.append(row(c, policy, ccr, actor=actor))
     return {"items":rows,"total":total}
 
 def summary(db, **f):
@@ -251,42 +283,42 @@ def generate(db, contract_id, rate, note, actor):
     else: ev='regenerated'; title='Cập nhật từ hợp đồng'
     for k,v in snap.items(): setattr(c,k,v)
     c.sale_id=_sale_id(contract); c.commission_rate_percent=rate; c.status='eligible'; c.note=note or c.note; c.updated_at=now()
-    db.flush(); _event(db,c,ev,title,note,actor); db.commit(); db.refresh(c); return detail(get_commission(db,c.id))
+    db.flush(); _event(db,c,ev,title,note,actor); db.commit(); db.refresh(c); return detail(get_commission(db,c.id), actor)
 
-def approve(db,id,amount,note,actor):
+def approve(db,id,amount,note,actor,payout_policy_code=None):
     c=get_commission(db,id)
     if c.status not in ('eligible','on_hold'): raise HTTPException(400,'Chỉ hoa hồng đủ điều kiện hoặc tạm giữ mới được duyệt.')
-    policy=get_sales_commission_payout_policy_context(db,c)
+    policy=get_sales_commission_payout_policy_context(db,c, requested_policy_code=payout_policy_code, actor=actor)
     if not policy['can_approve_sales_commission']: raise HTTPException(400, policy['approve_block_reason'])
     max_approve=money_limit(c.eligible_commission)
     amt=dec(amount) if amount is not None else max_approve
     if amt<=0 or amt>max_approve: raise HTTPException(400,'Số tiền duyệt không hợp lệ hoặc vượt hoa hồng đủ điều kiện.')
-    c.status='approved'; c.approved_commission=amt; c.approved_by_id=actor.id; c.approved_at=now(); c.note=note or c.note; _event(db,c,'approved','Duyệt hoa hồng',note,actor); db.commit(); return detail(get_commission(db,id))
+    c.status='approved'; c.approved_commission=amt; c.payout_policy_code=policy['payout_policy_code']; c.payout_policy_source=policy['payout_policy_source']; c.approved_by_id=actor.id; c.approved_at=now(); c.note=note or c.note; _event(db,c,'approved','Duyệt hoa hồng',note,actor); db.commit(); return detail(get_commission(db,id), actor)
 
 def mark_paid(db,id,amount,note,actor):
     c=get_commission(db,id)
     _sync_payout_status(c)
     if c.status not in ('approved','partially_paid'): raise HTTPException(400,'Chỉ hoa hồng đã duyệt hoặc đã chi một phần mới được đánh dấu đã chi trả.')
-    policy=get_sales_commission_payout_policy_context(db,c)
+    policy=get_sales_commission_payout_policy_context(db,c, actor=actor)
     if not policy['can_mark_paid_sales_commission']: raise HTTPException(400, policy['mark_paid_block_reason'])
     amt=dec(amount) if amount is not None else dec(policy['remaining_payable_capacity'])
     remaining_sales=max(dec(c.approved_commission)-dec(c.paid_amount), D('0'))
     if amt<=0 or amt>remaining_sales: raise HTTPException(400,'Số tiền chi trả không hợp lệ hoặc vượt số tiền còn lại phải chi.')
     if amt>dec(policy['remaining_payable_capacity']): raise HTTPException(400,'Số tiền chi hoa hồng sale không được vượt số hoa hồng công ty đã nhận.')
     # Sprint 23 policy-specific guard message: Số tiền chi hoa hồng sale vượt tối đa có thể chi theo chính sách hiện tại.
-    c.paid_amount=dec(c.paid_amount)+amt; c.paid_by_id=actor.id; c.paid_at=now(); c.note=note or c.note; _sync_payout_status(c); _event(db,c,'paid','Đánh dấu đã chi trả',note,actor); db.commit(); return detail(get_commission(db,id))
+    c.paid_amount=dec(c.paid_amount)+amt; c.paid_by_id=actor.id; c.paid_at=now(); c.note=note or c.note; _sync_payout_status(c); _event(db,c,'paid','Đánh dấu đã chi trả',note,actor); db.commit(); return detail(get_commission(db,id), actor)
 
 def hold(db,id,reason,note,actor):
     c=get_commission(db,id); reason=(reason or '').strip()
     if c.status not in ('eligible','approved'): raise HTTPException(400,'Chỉ hoa hồng đủ điều kiện hoặc đã duyệt mới được tạm giữ.')
     if not reason: raise HTTPException(400,'Vui lòng nhập lý do tạm giữ.')
-    c.status='on_hold'; c.hold_reason=reason; c.note=note or c.note; _event(db,c,'held','Tạm giữ hoa hồng',reason,actor); db.commit(); return detail(get_commission(db,id))
+    c.status='on_hold'; c.hold_reason=reason; c.note=note or c.note; _event(db,c,'held','Tạm giữ hoa hồng',reason,actor); db.commit(); return detail(get_commission(db,id), actor)
 
 def cancel(db,id,reason,note,actor):
     c=get_commission(db,id); reason=(reason or '').strip()
     if c.status in ('partially_paid','paid'): raise HTTPException(400,'Hoa hồng đã chi trả, không thể hủy.')
     if not reason: raise HTTPException(400,'Vui lòng nhập lý do hủy.')
-    c.status='cancelled'; c.cancel_reason=reason; c.note=note or c.note; _event(db,c,'cancelled','Hủy hoa hồng',reason,actor); db.commit(); return detail(get_commission(db,id))
+    c.status='cancelled'; c.cancel_reason=reason; c.note=note or c.note; _event(db,c,'cancelled','Hủy hoa hồng',reason,actor); db.commit(); return detail(get_commission(db,id), actor)
 
 def export_csv(db, **f):
     items=list_commissions(db,page=1,page_size=10000,**f)['items']; out=io.StringIO(); w=csv.writer(out)

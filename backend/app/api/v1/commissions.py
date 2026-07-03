@@ -13,7 +13,7 @@ from app.services import commission_service as svc
 
 router=APIRouter(prefix='/commissions',tags=['commissions'])
 class GenerateIn(BaseModel): contract_id: UUID; commission_rate_percent: Decimal=Decimal('1'); note: str|None=None
-class ApproveIn(BaseModel): approved_commission: Decimal|None=None; note: str|None=None
+class ApproveIn(BaseModel): approved_commission: Decimal|None=None; note: str|None=None; payout_policy_code: str|None=None
 class PaidIn(BaseModel): paid_amount: Decimal|None=None; note: str|None=None
 class HoldIn(BaseModel): hold_reason: str; note: str|None=None
 class CancelIn(BaseModel): cancel_reason: str; note: str|None=None
@@ -29,7 +29,7 @@ def filt(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),status:str|N
 
 @router.get('')
 def list_commissions(f:dict=Depends(filt),db:Session=Depends(get_db),actor:User=Depends(need('commissions.view','commissions.view.all','commissions.view.own','commissions.view.team'))):
-    return success_response(svc.list_commissions(db,**f))
+    return success_response(svc.list_commissions(db,actor=actor,**f))
 @router.get('/summary')
 def summary(f:dict=Depends(filt),db:Session=Depends(get_db),actor:User=Depends(need('commissions.view','commissions.view.all','commissions.view.own','commissions.view.team'))):
     return success_response(svc.summary(db,**f))
@@ -45,9 +45,9 @@ def generate(payload:GenerateIn,db:Session=Depends(get_db),actor:User=Depends(ne
     return success_response(svc.generate(db,payload.contract_id,payload.commission_rate_percent,payload.note,actor),'Đã tạo hoa hồng.')
 @router.get('/{id}')
 def detail(id:UUID,db:Session=Depends(get_db),actor:User=Depends(need('commissions.view','commissions.view.all','commissions.view.own','commissions.view.team'))):
-    return success_response(svc.detail(svc.get_commission(db,id)))
+    return success_response(svc.detail(svc.get_commission(db,id), actor))
 @router.post('/{id}/approve')
-def approve(id:UUID,payload:ApproveIn,db:Session=Depends(get_db),actor:User=Depends(need('commissions.approve'))): return success_response(svc.approve(db,id,payload.approved_commission,payload.note,actor))
+def approve(id:UUID,payload:ApproveIn,db:Session=Depends(get_db),actor:User=Depends(need('commissions.approve'))): return success_response(svc.approve(db,id,payload.approved_commission,payload.note,actor,payload.payout_policy_code))
 @router.post('/{id}/mark-paid')
 def paid(id:UUID,payload:PaidIn,db:Session=Depends(get_db),actor:User=Depends(need('commissions.mark_paid'))): return success_response(svc.mark_paid(db,id,payload.paid_amount,payload.note,actor))
 @router.post('/{id}/hold')
