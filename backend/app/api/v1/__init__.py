@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import auth, bookings, contracts, customers, dashboard, deals, lead_appointments, lead_tasks, leads, notifications, organization, permissions, projects, properties, roles, tasks, users, payments, reports, commissions, company_commissions, settings
+from app.api.v1 import auth, bookings, contracts, customers, dashboard, deals, lead_appointments, lead_tasks, leads, notifications, organization, permissions, projects, properties, roles, tasks, users, payments, reports, commissions, company_commissions, commission_payment_vouchers, settings
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
@@ -29,4 +29,5 @@ api_router.include_router(reports.router)
 
 api_router.include_router(commissions.router)
 api_router.include_router(company_commissions.router)
+api_router.include_router(commission_payment_vouchers.router)
 api_router.include_router(settings.router)

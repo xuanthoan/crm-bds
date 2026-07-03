@@ -10,6 +10,7 @@ from app.models.user import User
 from app.permissions.dependencies import require_auth, user_has_permission
 from fastapi import HTTPException, status
 from app.services import commission_service as svc
+from app.services import commission_payment_voucher_service as voucher_svc
 
 router=APIRouter(prefix='/commissions',tags=['commissions'])
 class GenerateIn(BaseModel): contract_id: UUID; commission_rate_percent: Decimal=Decimal('1'); note: str|None=None
@@ -45,7 +46,7 @@ def generate(payload:GenerateIn,db:Session=Depends(get_db),actor:User=Depends(ne
     return success_response(svc.generate(db,payload.contract_id,payload.commission_rate_percent,payload.note,actor),'Đã tạo hoa hồng.')
 @router.get('/{id}')
 def detail(id:UUID,db:Session=Depends(get_db),actor:User=Depends(need('commissions.view','commissions.view.all','commissions.view.own','commissions.view.team'))):
-    return success_response(svc.detail(svc.get_commission(db,id), actor))
+    data=svc.detail(svc.get_commission(db,id), actor); data['payment_vouchers']=voucher_svc.list_vouchers(db,page=1,page_size=100,sales_commission_id=id)['items']; return success_response(data)
 @router.post('/{id}/approve')
 def approve(id:UUID,payload:ApproveIn,db:Session=Depends(get_db),actor:User=Depends(need('commissions.approve'))): return success_response(svc.approve(db,id,payload.approved_commission,payload.note,actor,payload.payout_policy_code))
 @router.post('/{id}/mark-paid')
@@ -54,3 +55,6 @@ def paid(id:UUID,payload:PaidIn,db:Session=Depends(get_db),actor:User=Depends(ne
 def hold(id:UUID,payload:HoldIn,db:Session=Depends(get_db),actor:User=Depends(need('commissions.hold','commissions.approve'))): return success_response(svc.hold(db,id,payload.hold_reason,payload.note,actor))
 @router.post('/{id}/cancel')
 def cancel(id:UUID,payload:CancelIn,db:Session=Depends(get_db),actor:User=Depends(need('commissions.cancel','commissions.approve'))): return success_response(svc.cancel(db,id,payload.cancel_reason,payload.note,actor))
+
+@router.get('/{id}/payment-vouchers')
+def payment_vouchers(id:UUID,db:Session=Depends(get_db),actor:User=Depends(need('commissions.payment_vouchers.view','commissions.view','commissions.view.all','commissions.view.own','commissions.view.team'))): return success_response(voucher_svc.list_vouchers(db,page=1,page_size=100,sales_commission_id=id))
