@@ -1525,3 +1525,60 @@ button:disabled {
 .commission-policy-radio-card small { color: #667085; line-height: 1.4; }
 .commission-policy-note-block { display: grid; gap: 0.75rem; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
 .commission-policy-note-block p { margin: 0.25rem 0 0; line-height: 1.5; }
+
+
+/* Sprint 25 commission reconciliation readability */
+.commission-reconciliation-table {
+  min-width: 116rem;
+  table-layout: fixed;
+}
+.commission-reconciliation-table th,
+.commission-reconciliation-table td {
+  overflow-wrap: normal;
+  vertical-align: middle;
+  word-break: normal;
+}
+.commission-reconciliation-table th:nth-child(1), .commission-reconciliation-table td:nth-child(1) { width: 8rem; }
+.commission-reconciliation-table th:nth-child(2), .commission-reconciliation-table td:nth-child(2) { width: 10rem; }
+.commission-reconciliation-table th:nth-child(3), .commission-reconciliation-table td:nth-child(3) { width: 10rem; }
+.commission-reconciliation-table th:nth-child(4), .commission-reconciliation-table td:nth-child(4) { width: 9rem; }
+.commission-reconciliation-table th:nth-child(11), .commission-reconciliation-table td:nth-child(11) { width: 15rem; }
+.commission-reconciliation-table th:nth-child(15), .commission-reconciliation-table td:nth-child(15) { width: 14rem; }
+.commission-reconciliation-table th:nth-child(16), .commission-reconciliation-table td:nth-child(16) { width: 16rem; }
+.commission-reconciliation-money {
+  text-align: right;
+  white-space: nowrap;
+}
+.commission-reconciliation-policy {
+  line-height: 1.35;
+  white-space: normal;
+}
+.commission-reconciliation-policy small {
+  color: #667085;
+  white-space: nowrap;
+}
+.commission-reconciliation-status {
+  white-space: normal;
+}
+.commission-reconciliation-badge,
+.commission-reconciliation-flags span {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.15;
+  margin: 0 0.25rem 0.25rem 0;
+  padding: 0.28rem 0.52rem;
+  white-space: nowrap;
+}
+.commission-reconciliation-badge {
+  background: #eff8ff;
+  color: #175cd3;
+}
+.commission-reconciliation-flags span {
+  background: #f2f4f7;
+  color: #344054;
+}
+.commission-reconciliation-actions .commission-row-actions {
+  min-width: 14rem;
+}

@@ -27,9 +27,14 @@ class Sprint25CommissionReconciliationReportSourceTest(unittest.TestCase):
         for text in ['/commission-reconciliation-report','Đối soát hoa hồng','Báo cáo đối soát hoa hồng','Theo dõi hoa hồng công ty đã thu','Từ ngày','Đến ngày','Dự án','Sale','Trạng thái đối soát','Tìm kiếm','Lọc','Xóa lọc','Xuất CSV','Chưa có dữ liệu đối soát hoa hồng.','Không tải được báo cáo đối soát hoa hồng.','Bị chặn theo chính sách','Công ty chưa thu đủ','Sale đã chi một phần']:
             self.assertIn(text, combined)
         self.assertIn('.then((res)=>res.data)', combined)
+        self.assertIn('API_BASE_URL', combined)
+        self.assertIn('/api/v1/commission-reconciliation-report/export', combined)
+        self.assertIn('Content-Disposition', combined)
         self.assertIn('const items=data?.items ?? [];', combined)
         self.assertIn('(r.reconciliation_flags ?? []).map', combined)
         self.assertIn('items.length===0', combined)
+        self.assertIn('commission-reconciliation-table', combined)
+        self.assertIn('commission-reconciliation-money', combined)
         self.assertNotIn('data?.items.map', combined)
         self.assertNotIn('{r.reconciliation_status}', combined)
 
