@@ -446,3 +446,15 @@ Sprint 21 chưa thay đổi công thức hoa hồng sale của Sprint 20 và ch�
 - `/payments/:id`: verify a payment with any non-cancelled invoice cannot create another draft invoice; backend message: “Đợt thanh toán này đã có hóa đơn, không thể tạo thêm hóa đơn nháp.”
 - `/company-commissions/:id` and `/commissions/:id`: verify statuses, payer types, contract status, and timeline events show Vietnamese labels instead of raw enum values.
 - Partial COM payout: pay part of approved COM, receive more CCR, confirm COM stays “Đã chi một phần” until user explicitly marks the remaining sale payout as paid.
+
+## Sprint 23 — Commission Payout Policy Configuration
+
+- Kiểm tra cấu hình toàn hệ thống tại **Cài đặt chính sách chi hoa hồng sale**.
+- Policy 1 — **Chi theo hạn mức tiền hoa hồng công ty đã nhận** (`received_amount_capacity`):
+  - Tạo/chuẩn bị CCR xác nhận 600đ, CCR đã nhận 200đ, COM đã duyệt 60đ, COM đã chi 0đ.
+  - Mở `/commissions` hoặc `/commissions/:id` và xác nhận tối đa có thể chi lần này là 60đ.
+- Policy 2 — **Chi theo tỷ lệ hoa hồng công ty đã thu** (`received_ratio`):
+  - Chuyển cấu hình sang policy tỷ lệ.
+  - Với CCR xác nhận 600đ, CCR đã nhận 200đ, COM đã duyệt 60đ, COM đã chi 0đ, xác nhận tỷ lệ đã thu là 33,33% và tối đa có thể chi lần này là 20đ.
+- Modal **Đã chi trả** phải tự điền số tiền bằng tối đa có thể chi theo policy hiện tại và backend phải chặn khi nhập vượt số này.
+- Ghi nhận CCR receipt chỉ tăng capacity/tỷ lệ đã thu; không tự động tăng `COM.paid_amount`.

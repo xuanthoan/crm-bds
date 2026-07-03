@@ -13,6 +13,7 @@ from app.models.payment_receipt import PaymentReceipt
 from app.models.sales_commission import SalesCommission, SalesCommissionEvent
 from app.models.user import User
 from app.services.company_commission_service import get_company_commission_for_contract, get_company_commissions_by_contract_ids, STATUS_LABELS as CCR_STATUS_LABELS
+from app.services.settings_service import get_sales_commission_payout_policy_code, POLICY_LABELS, POLICY_DESCRIPTIONS, POLICY_RECEIVED_RATIO
 
 STATUSES={"draft":"Tạm tính","eligible":"Đủ điều kiện","approved":"Đã duyệt","partially_paid":"Đã chi một phần","paid":"Đã chi trả","on_hold":"Tạm giữ","cancelled":"Đã hủy"}
 COMMISSION_LEGAL_CONTRACT_STATUSES = {'signed', 'active', 'completed'}
@@ -76,12 +77,20 @@ def _paid_for_contract(db, contract_id, exclude_id=None):
 def get_sales_commission_payout_policy_context(db, c, ccr=None, paid_for_contract_total=None):
     if ccr is None:
         ccr=get_company_commission_for_contract(db, c.contract_id)
+    policy_code=get_sales_commission_payout_policy_code(db) if db else 'received_amount_capacity'
     paid_other=(dec(paid_for_contract_total)-dec(c.paid_amount)) if paid_for_contract_total is not None else _paid_for_contract(db, c.contract_id, c.id)
     current_paid=dec(c.paid_amount)
     received=dec(getattr(ccr,'received_amount',0) if ccr else 0)
+    confirmed=dec(getattr(ccr,'confirmed_receivable_amount',0) if ccr else 0)
     approved=dec(c.approved_commission)
     remaining_sales=max(approved-current_paid, D('0')) if approved > 0 else D('0')
-    capacity=max(received-paid_other-current_paid, D('0')) if ccr else D('0')
+    amount_capacity=max(received-paid_other-current_paid, D('0')) if ccr else D('0')
+    received_ratio=(received/confirmed) if confirmed > 0 else D('0')
+    if policy_code == POLICY_RECEIVED_RATIO:
+        max_total_sales_commission_payable=money_limit(approved * received_ratio) if confirmed > 0 else D('0')
+        capacity=max(max_total_sales_commission_payable-current_paid, D('0'))
+    else:
+        capacity=amount_capacity
     max_payable=min(remaining_sales, capacity) if approved > 0 else D('0')
     approve_reason=None; mark_reason=None; warning=None
     if not ccr:
@@ -99,6 +108,8 @@ def get_sales_commission_payout_policy_context(db, c, ccr=None, paid_for_contrac
     elif ccr.status not in ('partially_received','received') or received<=0:
         mark_reason='Công ty chưa nhận hoa hồng công ty, chưa thể chi hoa hồng sale.'
         warning='Công ty chưa nhận hoa hồng công ty. Bạn có thể duyệt, nhưng chưa thể chi trả cho sale.'
+    elif policy_code == POLICY_RECEIVED_RATIO and confirmed <= 0:
+        mark_reason='Hoa hồng công ty xác nhận phải lớn hơn 0 để chi theo tỷ lệ đã thu.'
     elif ccr.status=='partially_received':
         warning='Công ty mới nhận một phần hoa hồng công ty.'
     if ccr and mark_reason is None and max_payable <= 0:
@@ -110,8 +121,13 @@ def get_sales_commission_payout_policy_context(db, c, ccr=None, paid_for_contrac
         'company_commission_status': ccr.status if ccr else None,
         'company_commission_status_label': CCR_STATUS_LABELS.get(ccr.status, ccr.status) if ccr else None,
         'company_commission_expected_amount': float(ccr.expected_commission_amount or 0) if ccr else 0,
+        'payout_policy_code': policy_code,
+        'payout_policy_label': POLICY_LABELS.get(policy_code, policy_code),
+        'payout_policy_description': POLICY_DESCRIPTIONS.get(policy_code),
         'company_commission_confirmed_amount': float(ccr.confirmed_receivable_amount or 0) if ccr else 0,
+        'company_commission_confirmed_receivable_amount': float(confirmed),
         'company_commission_received_amount': float(received),
+        'company_commission_received_ratio': float(received_ratio) if policy_code == POLICY_RECEIVED_RATIO and confirmed > 0 else None,
         'company_commission_remaining_amount': float(ccr.remaining_amount or 0) if ccr else 0,
         'sales_commission_approved_amount': float(approved),
         'sales_commission_paid_amount': float(current_paid),
@@ -133,7 +149,7 @@ def row(c, policy=None, company_commission=None):
     if company_commission is None and db:
         company_commission=get_company_commission_for_contract(db, c.contract_id)
     data={"id":str(c.id),"commission_code":c.commission_code,"contract_id":str(c.contract_id),"contract_code":getattr(contract,'contract_code',None),"sale_id":str(c.sale_id) if c.sale_id else None,"sale_name":getattr(sale,'full_name',None) or getattr(sale,'email',None) or 'Chưa gán sale',"customer_name":getattr(customer,'full_name',None) or getattr(contract,'buyer_name',None),"customer_phone":getattr(customer,'primary_phone',None) or getattr(contract,'buyer_phone',None),"contract_value":float(c.contract_value),"total_collected_with_deposit":float(c.total_collected_with_deposit),"remaining_amount":float(c.remaining_amount),"commission_rate_percent":float(c.commission_rate_percent),"eligible_commission":float(c.eligible_commission),"approved_commission":float(c.approved_commission or 0),"paid_amount":float(c.paid_amount or 0),"status":_sync_payout_status(c),"status_label":STATUSES.get(c.status,c.status),"approved_at":c.approved_at.isoformat() if c.approved_at else None,"paid_at":c.paid_at.isoformat() if c.paid_at else None,"created_at":c.created_at.isoformat() if c.created_at else None,"hold_reason":c.hold_reason,"cancel_reason":c.cancel_reason,"note":c.note}
-    data.update({"company_commission_code":policy.get("company_commission_code"),"company_commission_status":policy.get("company_commission_status"),"company_commission_status_label":policy.get("company_commission_status_label"),"company_commission_received_amount":policy.get("company_commission_received_amount",0),"company_commission_remaining_amount":policy.get("company_commission_remaining_amount",0),"can_approve_by_company_commission_policy":policy.get("can_approve_sales_commission",False),"approve_block_reason":policy.get("approve_block_reason"),"can_mark_paid_by_company_commission_policy":policy.get("can_mark_paid_sales_commission",False),"mark_paid_block_reason":policy.get("mark_paid_block_reason"),"remaining_payable_capacity":policy.get("remaining_payable_capacity",0),"payout_policy":policy,"company_commission":_company_commission_summary(company_commission)})
+    data.update({"company_commission_code":policy.get("company_commission_code"),"company_commission_status":policy.get("company_commission_status"),"company_commission_status_label":policy.get("company_commission_status_label"),"payout_policy_code":policy.get("payout_policy_code"),"payout_policy_label":policy.get("payout_policy_label"),"payout_policy_description":policy.get("payout_policy_description"),"company_commission_confirmed_receivable_amount":policy.get("company_commission_confirmed_receivable_amount",0),"company_commission_received_amount":policy.get("company_commission_received_amount",0),"company_commission_received_ratio":policy.get("company_commission_received_ratio"),"company_commission_remaining_amount":policy.get("company_commission_remaining_amount",0),"sales_commission_remaining_amount":policy.get("sales_commission_remaining_amount",0),"can_approve_by_company_commission_policy":policy.get("can_approve_sales_commission",False),"approve_block_reason":policy.get("approve_block_reason"),"can_mark_paid_by_company_commission_policy":policy.get("can_mark_paid_sales_commission",False),"mark_paid_block_reason":policy.get("mark_paid_block_reason"),"remaining_payable_capacity":policy.get("remaining_payable_capacity",0),"payout_policy":policy,"company_commission":_company_commission_summary(company_commission)})
     return data
 
 def detail(c):
@@ -257,6 +273,7 @@ def mark_paid(db,id,amount,note,actor):
     remaining_sales=max(dec(c.approved_commission)-dec(c.paid_amount), D('0'))
     if amt<=0 or amt>remaining_sales: raise HTTPException(400,'Số tiền chi trả không hợp lệ hoặc vượt số tiền còn lại phải chi.')
     if amt>dec(policy['remaining_payable_capacity']): raise HTTPException(400,'Số tiền chi hoa hồng sale không được vượt số hoa hồng công ty đã nhận.')
+    # Sprint 23 policy-specific guard message: Số tiền chi hoa hồng sale vượt tối đa có thể chi theo chính sách hiện tại.
     c.paid_amount=dec(c.paid_amount)+amt; c.paid_by_id=actor.id; c.paid_at=now(); c.note=note or c.note; _sync_payout_status(c); _event(db,c,'paid','Đánh dấu đã chi trả',note,actor); db.commit(); return detail(get_commission(db,id))
 
 def hold(db,id,reason,note,actor):

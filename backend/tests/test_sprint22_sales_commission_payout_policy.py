@@ -173,3 +173,35 @@ class Sprint22SalesCommissionPayoutPolicySourceTest(unittest.TestCase):
             self.assertIn(text, company_service)
 
 if __name__=='__main__': unittest.main()
+
+class Sprint23CommissionPayoutPolicyConfigurationSourceTest(unittest.TestCase):
+    def read(self,path): return Path(path).read_text()
+    def test_backend_policy_configuration_api_and_storage(self):
+        combined = '\n'.join(self.read(path) for path in [
+            'backend/app/models/system_setting.py',
+            'backend/app/services/settings_service.py',
+            'backend/app/api/v1/settings.py',
+            'backend/app/api/v1/__init__.py',
+            'backend/alembic/versions/20260703_0016_system_settings_commission_payout_policy.py',
+        ])
+        for text in ['system_settings', 'sales_commission_payout_policy', 'received_amount_capacity', 'received_ratio', "'/settings'", "'/commission-payout-policy'", 'settings.manage_master_data']:
+            self.assertIn(text, combined)
+
+    def test_backend_ratio_policy_formula_and_mark_paid_guard(self):
+        service = self.read('backend/app/services/commission_service.py')
+        for text in ['policy_code=get_sales_commission_payout_policy_code', 'received_ratio=(received/confirmed) if confirmed > 0 else D(\'0\')', 'max_total_sales_commission_payable=money_limit(approved * received_ratio)', 'capacity=max(max_total_sales_commission_payable-current_paid, D(\'0\'))', 'max_payable=min(remaining_sales, capacity)', 'company_commission_received_ratio', 'payout_policy_label', 'Số tiền chi hoa hồng sale vượt tối đa có thể chi theo chính sách hiện tại.']:
+            self.assertIn(text, service)
+
+    def test_frontend_policy_settings_and_vietnamese_labels(self):
+        combined='\n'.join(self.read(path) for path in [
+            'frontend/src/features/settings/CommissionPayoutPolicySettingsPage.tsx',
+            'frontend/src/features/settings/api.ts',
+            'frontend/src/features/commissions/CommissionModals.tsx',
+            'frontend/src/features/commissions/CommissionDetailPage.tsx',
+            'frontend/src/features/commissions/CommissionsPage.tsx',
+            'frontend/src/routes/AppRoutes.tsx',
+            'frontend/src/layouts/AppLayout.tsx',
+        ])
+        for text in ['Cài đặt chính sách chi hoa hồng sale', 'Chi theo hạn mức tiền hoa hồng công ty đã nhận', 'Chi theo tỷ lệ hoa hồng công ty đã thu', 'Tỷ lệ đã thu', 'Tối đa có thể chi lần này', 'payout_policy_label']:
+            self.assertIn(text, combined)
+        self.assertNotIn('{commission.payout_policy?.payout_policy_code}', combined)
