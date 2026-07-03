@@ -3,12 +3,16 @@ from typing import Any
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.inventory.constants import PROJECT_STATUS_LABELS, PROJECT_TYPE_LABELS
+from app.services.settings_service import VALID_SALES_COMMISSION_PAYOUT_POLICIES
 
 class ProjectFields(BaseModel):
     name: str | None = Field(default=None, max_length=255); developer: str | None = Field(default=None, max_length=255)
     description: str | None = None; address: str | None = None; province: str | None = Field(default=None,max_length=100); district: str | None = Field(default=None,max_length=100); ward: str | None = Field(default=None,max_length=100)
     project_type: str | None = None; status: str | None = None
-    @field_validator("developer","description","address","province","district","ward","project_type","status", mode="before")
+    sales_commission_payout_policy_default: str | None = None
+    sales_commission_policy_note: str | None = None
+    company_commission_policy_note: str | None = None
+    @field_validator("developer","description","address","province","district","ward","project_type","status","sales_commission_payout_policy_default","sales_commission_policy_note","company_commission_policy_note", mode="before")
     @classmethod
     def blank_to_none(cls, value: Any) -> Any: return None if isinstance(value,str) and not value.strip() else value
     @field_validator("name", mode="before")
@@ -20,6 +24,11 @@ class ProjectFields(BaseModel):
     @classmethod
     def valid_type(cls,value:str|None)->str|None:
         if value is not None and value not in PROJECT_TYPE_LABELS: raise ValueError("Loại dự án không hợp lệ")
+        return value
+    @field_validator("sales_commission_payout_policy_default")
+    @classmethod
+    def valid_sales_commission_payout_policy(cls,value:str|None)->str|None:
+        if value is not None and value not in VALID_SALES_COMMISSION_PAYOUT_POLICIES: raise ValueError("Chính sách chi hoa hồng sale không hợp lệ")
         return value
     @field_validator("status")
     @classmethod
@@ -38,6 +47,6 @@ class ProjectUpdate(ProjectFields):
         return str(value).strip()
 class ProjectRead(BaseModel):
     model_config=ConfigDict(from_attributes=True)
-    id:UUID; project_code:str; name:str; developer:str|None=None; address:str|None=None; province:str|None=None; district:str|None=None; ward:str|None=None; project_type:str|None=None; project_type_label:str|None=None; status:str; status_label:str; created_at:datetime; updated_at:datetime
+    id:UUID; project_code:str; name:str; developer:str|None=None; address:str|None=None; province:str|None=None; district:str|None=None; ward:str|None=None; project_type:str|None=None; project_type_label:str|None=None; status:str; status_label:str; sales_commission_payout_policy_default:str|None=None; sales_commission_policy_note:str|None=None; company_commission_policy_note:str|None=None; created_at:datetime; updated_at:datetime
 class ProjectDetail(ProjectRead):
     description:str|None=None; property_count:int=0

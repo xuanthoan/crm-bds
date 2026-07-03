@@ -27,6 +27,7 @@ const adminItems = [
   { label: 'Phòng ban', path: '/admin/departments', permission: 'settings.manage_master_data' },
   { label: 'Nhóm sale', path: '/admin/teams', permission: 'settings.manage_master_data' },
   { label: 'Phân bổ nhân sự', path: '/admin/memberships', permission: 'users.update' },
+  { label: 'Chính sách chi hoa hồng sale', path: '/admin/commission-payout-policy', permission: 'settings.manage_master_data' },
 ];
 
 export function AppLayout({ children, currentPath }: AppLayoutProps) {

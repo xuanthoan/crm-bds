@@ -55,6 +55,7 @@ import { CommissionDetailPage } from '../features/commissions/CommissionDetailPa
 import { COMMISSION_VIEW_PERMISSIONS } from '../features/commissions/constants';
 import { CompanyCommissionsPage } from '../features/companyCommissions/CompanyCommissionsPage';
 import { CompanyCommissionDetailPage } from '../features/companyCommissions/CompanyCommissionDetailPage';
+import { CommissionPayoutPolicySettingsPage } from '../features/settings/CommissionPayoutPolicySettingsPage';
 import { COMPANY_COMMISSION_VIEW_PERMISSIONS } from '../features/companyCommissions/constants';
 
 export function navigateTo(path: string): void {
@@ -84,6 +85,7 @@ const protectedPages: Record<string, ProtectedPage> = {
   '/admin/departments': { element: <DepartmentsPage />, permission: 'settings.manage_master_data' },
   '/admin/teams': { element: <TeamsPage />, permission: 'settings.manage_master_data' },
   '/admin/memberships': { element: <MembershipsPage />, permission: 'users.update' },
+  '/admin/commission-payout-policy': { element: <CommissionPayoutPolicySettingsPage />, permission: ['settings.manage', 'settings.manage_master_data'] },
   '/customers': { element: <CustomersPage />, permission: CUSTOMER_VIEW_PERMISSIONS },
   '/projects': { element: <ProjectsPage />, permission: PROJECT_VIEW_PERMISSIONS },
   '/properties': { element: <PropertiesPage />, permission: PROPERTY_VIEW_PERMISSIONS },

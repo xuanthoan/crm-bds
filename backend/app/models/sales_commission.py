@@ -26,6 +26,8 @@ class SalesCommission(Base):
     eligible_commission: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     approved_commission: Mapped[Decimal] = mapped_column(Numeric(18, 2), default=0, nullable=False)
     paid_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), default=0, nullable=False)
+    payout_policy_code: Mapped[str | None] = mapped_column(String(50))
+    payout_policy_source: Mapped[str | None] = mapped_column(String(50))
     status: Mapped[str] = mapped_column(String(30), default="eligible", nullable=False)
     approved_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

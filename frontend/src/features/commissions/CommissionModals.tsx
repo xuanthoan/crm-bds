@@ -6,6 +6,9 @@ const money = (v: number) => new Intl.NumberFormat('vi-VN', { style: 'currency',
 const moneyInputValue = (value: number | undefined | null) => String(Math.round(Number(value || 0)));
 const moneyLimit = (value: number | undefined | null) => Math.round(Number(value || 0));
 const CONTRACT_STATUS_LABELS: Record<string, string> = { draft: 'Bản nháp', pending_signature: 'Chờ ký', signed: 'Đã ký', active: 'Có hiệu lực', completed: 'Hoàn tất', cancelled: 'Đã hủy' };
+const percent = (v: number | undefined | null) => `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format((Number(v || 0)) * 100)}%`;
+const POLICY_LABELS: Record<string,string> = { received_amount_capacity: 'Chi theo hạn mức tiền hoa hồng công ty đã nhận', received_ratio: 'Chi theo tỷ lệ hoa hồng công ty đã thu' };
+const policyMax = (commission: Commission, code: string, approvedAmount: number, remainingSalePayout: number) => { const received = moneyLimit(commission.payout_policy?.company_commission_received_amount ?? commission.company_commission_received_amount ?? 0); const confirmed = moneyLimit(commission.payout_policy?.company_commission_confirmed_receivable_amount ?? commission.company_commission_confirmed_receivable_amount ?? 0); const paid = moneyLimit(commission.paid_amount); if (code === 'received_ratio') { if (confirmed <= 0) return 0; return Math.max(Math.min(remainingSalePayout, Math.round(approvedAmount * received / confirmed) - paid), 0); } return Math.max(Math.min(remainingSalePayout, received - paid), 0); };
 const contractStatusLabel = (status?: string) => status ? (CONTRACT_STATUS_LABELS[status] || status) : 'Chưa cập nhật';
 
 export function GuideModal({ onClose }: { onClose: () => void }) {
@@ -71,6 +74,7 @@ export function GenerateModal({ onClose, onSubmit }: { onClose: () => void; onSu
   const [note, setNote] = useState('');
   const [err, setErr] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedPolicy, setSelectedPolicy] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
   async function doSearch(term = query) {
@@ -152,11 +156,16 @@ export function ActionModal({ type, commission, onClose, onSubmit }: { type: 'ap
   const [note, setNote] = useState('');
   const [err, setErr] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedPolicy, setSelectedPolicy] = useState('');
+  const defaultPolicyLabel = commission.payout_policy?.payout_policy_label || commission.payout_policy_label || 'Chi theo hạn mức tiền hoa hồng công ty đã nhận';
+  const defaultPolicySourceLabel = commission.payout_policy?.payout_policy_source_label || commission.payout_policy_source_label || 'mặc định hệ thống';
+  const salePolicyNote = (commission.payout_policy?.project_sales_commission_policy_note || commission.project_sales_commission_policy_note || '').trim();
+  const companyPolicyNote = (commission.payout_policy?.project_company_commission_policy_note || commission.project_company_commission_policy_note || '').trim();
   async function submit() {
     if (isSubmitting) return;
     const p: Record<string, unknown> = { note };
-    if (type === 'approve') { if (commission.payout_policy?.can_approve_sales_commission === false) return setErr(commission.payout_policy.approve_block_reason || 'Chưa đủ điều kiện duyệt hoa hồng sale.'); const v = Number(amount); if (v <= 0) return setErr('Số tiền duyệt phải lớn hơn 0.'); if (v > approveMaxAmount) return setErr(`Số tiền duyệt không được vượt ${money(approveMaxAmount)}.`); p.approved_commission = v; }
-    if (type === 'paid') { if (commission.payout_policy?.can_mark_paid_sales_commission === false) return setErr(commission.payout_policy.mark_paid_block_reason || 'Chưa đủ điều kiện chi hoa hồng sale.'); const v = Number(amount); const cap = moneyLimit(commission.payout_policy?.remaining_payable_capacity ?? commission.remaining_payable_capacity ?? remainingSalePayout); if (v <= 0) return setErr('Số tiền chi trả phải lớn hơn 0.'); if (v > remainingSalePayout) return setErr(`Số tiền chi trả không được vượt ${money(remainingSalePayout)} còn lại.`); if (v > cap) return setErr('Số tiền chi hoa hồng sale không được vượt số hoa hồng công ty đã nhận.'); p.paid_amount = v; }
+    if (type === 'approve') { if (commission.payout_policy?.can_approve_sales_commission === false) return setErr(commission.payout_policy.approve_block_reason || 'Chưa đủ điều kiện duyệt hoa hồng sale.'); const v = Number(amount); if (v <= 0) return setErr('Số tiền duyệt phải lớn hơn 0.'); if (v > approveMaxAmount) return setErr(`Số tiền duyệt không được vượt ${money(approveMaxAmount)}.`); p.approved_commission = v; if (selectedPolicy) p.payout_policy_code = selectedPolicy; }
+    if (type === 'paid') { if (commission.payout_policy?.can_mark_paid_sales_commission === false) return setErr(commission.payout_policy.mark_paid_block_reason || 'Chưa đủ điều kiện chi hoa hồng sale.'); const v = Number(amount); const cap = moneyLimit(commission.payout_policy?.remaining_payable_capacity ?? commission.remaining_payable_capacity ?? remainingSalePayout); if (v <= 0) return setErr('Số tiền chi trả phải lớn hơn 0.'); if (v > remainingSalePayout) return setErr(`Số tiền chi trả không được vượt ${money(remainingSalePayout)} còn lại.`); if (v > cap) return setErr('Số tiền chi hoa hồng sale vượt tối đa có thể chi theo chính sách hiện tại.'); p.paid_amount = v; }
     if (type === 'hold') { if (!reason.trim()) return setErr('Vui lòng nhập lý do tạm giữ.'); p.hold_reason = reason.trim(); }
     if (type === 'cancel') { if (!reason.trim()) return setErr('Vui lòng nhập lý do hủy.'); p.cancel_reason = reason.trim(); }
     try { setIsSubmitting(true); await onSubmit(p); onClose(); } catch (e) { setErr(e instanceof Error ? e.message : 'Không thực hiện được thao tác.'); } finally { setIsSubmitting(false); }
@@ -177,11 +186,13 @@ export function ActionModal({ type, commission, onClose, onSubmit }: { type: 'ap
       </div>
       {type === 'cancel' && <div className="form-warning">Hủy hoa hồng cần lý do để đối chiếu. Hoa hồng đã chi trả không được hủy.</div>}
       {(type === 'approve' || type === 'paid') && commission.payout_policy?.warning_message && <div className="form-warning">{commission.payout_policy.warning_message}</div>}
+      {type === 'approve' && <div className="form-warning commission-policy-note-block"><div><strong>Chính sách mặc định:</strong><p>{defaultPolicyLabel} ({defaultPolicySourceLabel})</p></div>{salePolicyNote && <div><strong>Chính sách hoa hồng sale:</strong><p>{salePolicyNote}</p></div>}{companyPolicyNote && <div><strong>Chính sách hoa hồng công ty:</strong><p>{companyPolicyNote}</p></div>}</div>}
       {type === 'approve' && commission.payout_policy?.can_approve_sales_commission === false && <div className="form-error">{commission.payout_policy.approve_block_reason}</div>}
-      {type === 'paid' && <div className="form-warning">Hoa hồng công ty đã nhận: {money(commission.payout_policy?.company_commission_received_amount || commission.company_commission_received_amount || 0)} · Còn phải thu: {money(commission.payout_policy?.company_commission_remaining_amount || commission.company_commission_remaining_amount || 0)} · Tối đa có thể chi lần này: {money(markPaidDefaultAmount)}</div>}
+      {type === 'paid' && <div className="form-warning">Chính sách chi: {commission.payout_policy?.payout_policy_label || commission.payout_policy_label || 'Chi theo hạn mức tiền hoa hồng công ty đã nhận'} · HH sale đã duyệt: {money(commission.approved_commission)} · HH công ty xác nhận: {money(commission.payout_policy?.company_commission_confirmed_receivable_amount || commission.company_commission_confirmed_receivable_amount || 0)} · Hoa hồng công ty đã nhận: {money(commission.payout_policy?.company_commission_received_amount || commission.company_commission_received_amount || 0)}{(commission.payout_policy?.payout_policy_code || commission.payout_policy_code) === 'received_ratio' ? ` · Tỷ lệ đã thu: ${percent(commission.payout_policy?.company_commission_received_ratio ?? commission.company_commission_received_ratio)}` : ''} · Tối đa có thể chi lần này: {money(markPaidDefaultAmount)}</div>}
       {type === 'paid' && commission.payout_policy?.can_mark_paid_sales_commission === false && <div className="form-error">{commission.payout_policy.mark_paid_block_reason}</div>}
       <div className="commission-modal-form">
         {err && <div className="form-error full-span">{err}</div>}
+        {type === 'approve' && <label className="full-span">Chính sách chi hoa hồng sale áp dụng<select value={selectedPolicy} onChange={(e) => setSelectedPolicy(e.target.value)}><option value="">Dùng chính sách mặc định</option><option value="received_amount_capacity">Option 1 — Chi theo hạn mức tiền hoa hồng công ty đã nhận</option><option value="received_ratio">Option 2 — Chi theo tỷ lệ hoa hồng công ty đã thu</option></select><small>Tối đa có thể chi lần này theo lựa chọn hiện tại: {money(policyMax(commission, selectedPolicy || commission.payout_policy?.payout_policy_code || commission.payout_policy_code || 'received_amount_capacity', Number(amount || 0), Math.max(Number(amount || 0) - moneyLimit(commission.paid_amount), 0)))}</small></label>}
         {(type === 'approve' || type === 'paid') && <label className="full-span">{type === 'approve' ? 'Số tiền duyệt *' : 'Số tiền đã chi trả *'}<input type="number" aria-label={type === 'approve' ? 'Số tiền duyệt *' : 'Số tiền đã chi trả *'} value={amount} onChange={(e) => setAmount(e.target.value)} /></label>}
         {(type === 'hold' || type === 'cancel') && <label className="full-span">{type === 'hold' ? 'Lý do tạm giữ *' : 'Lý do hủy *'}<textarea aria-label={type === 'hold' ? 'Lý do tạm giữ *' : 'Lý do hủy *'} value={reason} onChange={(e) => setReason(e.target.value)} /></label>}
         <label className="full-span">Ghi chú<textarea value={note} onChange={(e) => setNote(e.target.value)} /></label>

@@ -173,3 +173,65 @@ class Sprint22SalesCommissionPayoutPolicySourceTest(unittest.TestCase):
             self.assertIn(text, company_service)
 
 if __name__=='__main__': unittest.main()
+
+class Sprint23CommissionPayoutPolicyConfigurationSourceTest(unittest.TestCase):
+    def read(self,path): return Path(path).read_text()
+    def test_backend_policy_configuration_api_and_storage(self):
+        combined = '\n'.join(self.read(path) for path in [
+            'backend/app/models/system_setting.py',
+            'backend/app/services/settings_service.py',
+            'backend/app/api/v1/settings.py',
+            'backend/app/api/v1/__init__.py',
+            'backend/alembic/versions/20260703_0016_system_settings_commission_payout_policy.py',
+        ])
+        for text in ['system_settings', 'sales_commission_payout_policy', 'received_amount_capacity', 'received_ratio', "'/settings'", "'/commission-payout-policy'", 'settings.manage_master_data']:
+            self.assertIn(text, combined)
+
+    def test_backend_ratio_policy_formula_and_mark_paid_guard(self):
+        service = self.read('backend/app/services/commission_service.py')
+        for text in ['policy_code=get_sales_commission_payout_policy_code', 'received_ratio=(received/confirmed) if confirmed > 0 else D(\'0\')', 'max_total_sales_commission_payable=money_limit(approved * received_ratio)', 'capacity=max(max_total_sales_commission_payable-current_paid, D(\'0\'))', 'max_payable=min(remaining_sales, capacity)', 'company_commission_received_ratio', 'payout_policy_label', 'Số tiền chi hoa hồng sale vượt tối đa có thể chi theo chính sách hiện tại.']:
+            self.assertIn(text, service)
+
+    def test_frontend_policy_settings_and_vietnamese_labels(self):
+        combined='\n'.join(self.read(path) for path in [
+            'frontend/src/features/settings/CommissionPayoutPolicySettingsPage.tsx',
+            'frontend/src/features/settings/api.ts',
+            'frontend/src/features/commissions/CommissionModals.tsx',
+            'frontend/src/features/commissions/CommissionDetailPage.tsx',
+            'frontend/src/features/commissions/CommissionsPage.tsx',
+            'frontend/src/routes/AppRoutes.tsx',
+            'frontend/src/layouts/AppLayout.tsx',
+        ])
+        for text in ['Cài đặt chính sách chi hoa hồng sale', 'Chi theo hạn mức tiền hoa hồng công ty đã nhận', 'Chi theo tỷ lệ hoa hồng công ty đã thu', 'Tỷ lệ đã thu', 'Tối đa có thể chi lần này', 'payout_policy_label']:
+            self.assertIn(text, combined)
+        self.assertNotIn('{commission.payout_policy?.payout_policy_code}', combined)
+
+class Sprint23FlexibleCommissionPolicySourceTest(unittest.TestCase):
+    def read(self,path): return Path(path).read_text()
+    def test_project_fields_permissions_and_sensitive_note_guard_exist(self):
+        combined='\n'.join(self.read(p) for p in [
+            'backend/app/models/project.py',
+            'backend/app/schemas/project.py',
+            'backend/app/services/project_service.py',
+            'backend/app/permissions/constants.py',
+            'backend/alembic/versions/20260703_0017_project_commission_policy_defaults.py',
+        ])
+        for text in ['sales_commission_payout_policy_default','sales_commission_policy_note','company_commission_policy_note','projects.view_commission_policy','projects.manage_commission_policy','can_view_commission_policy','can_manage_commission_policy']:
+            self.assertIn(text, combined)
+        self.assertIn('if can_view_sensitive: data["company_commission_policy_note"]', combined)
+
+    def test_commission_policy_resolution_and_approval_persistence(self):
+        service=self.read('backend/app/services/commission_service.py')
+        for text in ['resolve_sales_commission_payout_policy', 'requested_policy_code in VALID_SALES_COMMISSION_PAYOUT_POLICIES', 'payout_policy_code', 'payout_policy_source', 'project_default', 'system_default', "c.payout_policy_code=policy['payout_policy_code']", "c.payout_policy_source=policy['payout_policy_source']"]:
+            self.assertIn(text, service)
+
+    def test_frontend_project_and_approval_policy_controls(self):
+        combined='\n'.join(self.read(p) for p in [
+            'frontend/src/features/projects/ProjectFormModal.tsx',
+            'frontend/src/features/projects/types.ts',
+            'frontend/src/features/commissions/CommissionModals.tsx',
+            'frontend/src/features/commissions/CommissionsPage.tsx',
+            'frontend/src/features/commissions/CommissionDetailPage.tsx',
+        ])
+        for text in ['Chính sách hoa hồng', 'Chính sách chi hoa hồng sale mặc định', 'Ghi chú chính sách hoa hồng sale', 'Ghi chú chính sách hoa hồng công ty', "can('projects.manage_commission_policy')", 'Dùng chính sách mặc định', 'Option 1 — Chi theo hạn mức tiền hoa hồng công ty đã nhận', 'Option 2 — Chi theo tỷ lệ hoa hồng công ty đã thu', 'Tối đa có thể chi lần này theo lựa chọn hiện tại', 'payout_policy_source_label']:
+            self.assertIn(text, combined)
