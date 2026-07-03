@@ -6,6 +6,7 @@ Create Date: 2026-07-03
 """
 from alembic import op
 import sqlalchemy as sa
+from datetime import datetime, timezone
 from uuid import uuid4
 from sqlalchemy.dialects import postgresql
 
@@ -36,13 +37,14 @@ def upgrade():
         sa.column('created_at', sa.DateTime(timezone=True)),
         sa.column('updated_at', sa.DateTime(timezone=True)),
     )
+    now = datetime.now(timezone.utc)
     op.bulk_insert(settings_table, [{
         'id': uuid4(),
         'key': 'sales_commission_payout_policy',
         'value': 'received_amount_capacity',
         'description': 'Cấu hình toàn hệ thống cho chính sách chi hoa hồng sale.',
-        'created_at': sa.func.now(),
-        'updated_at': sa.func.now(),
+        'created_at': now,
+        'updated_at': now,
     }])
 
 
