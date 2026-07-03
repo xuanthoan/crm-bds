@@ -16,6 +16,8 @@ class Sprint25CommissionReconciliationReportSourceTest(unittest.TestCase):
         service=self.read('backend/app/services/commission_reconciliation_report_service.py')
         for text in ['total_company_commission_confirmed','total_company_commission_received','total_company_commission_remaining','total_sales_commission_approved','total_sales_commission_paid','total_sales_commission_remaining','total_remaining_payable_capacity','draft_voucher_count','paid_voucher_count','cancelled_voucher_count','sale_unpaid_count','sale_partially_paid_count','sale_paid_count','blocked_by_policy_count','over_paid_count','over_received_count']:
             self.assertIn(text, service)
+        self.assertIn('def _apply_filters(query, actor=None, **fil):', service)
+        self.assertNotIn('def _apply_filters(q, actor=None, **fil):', service)
         for text in ['project_id','sale_id','contract_id','customer_id','company_commission_status','sales_commission_status','voucher_status','reconciliation_status','has_draft_voucher','only_blocked_by_policy','only_has_remaining_sale_payable','Contract.contract_code.ilike','Customer.full_name.ilike','Project.name.ilike','User.full_name.ilike','SalesCommission.commission_code.ilike','CompanyCommissionReceivable.receivable_code.ilike']:
             self.assertIn(text, service)
         for header in ['Mã hợp đồng','Dự án','Khách hàng','Sale','Mã HH công ty','Trạng thái HH công ty','HH công ty xác nhận','HH công ty đã nhận','HH công ty còn phải thu','Mã HH sale','Trạng thái HH sale','HH sale đã duyệt','HH sale đã chi','HH sale còn phải chi','Chính sách chi','Hạn mức còn có thể chi','Phiếu nháp','Phiếu đã chi','Trạng thái đối soát','Cảnh báo']:

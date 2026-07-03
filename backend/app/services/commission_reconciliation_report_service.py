@@ -25,20 +25,20 @@ def s(v): return str(v) if v is not None else None
 def _base(db:Session):
     return db.query(SalesCommission).options(joinedload(SalesCommission.contract).joinedload(Contract.customer),joinedload(SalesCommission.contract).joinedload(Contract.project),joinedload(SalesCommission.sale),joinedload(SalesCommission.payment_vouchers)).join(Contract, SalesCommission.contract_id==Contract.id).outerjoin(Customer, Contract.customer_id==Customer.id).outerjoin(Project, Contract.project_id==Project.id).outerjoin(User, SalesCommission.sale_id==User.id).outerjoin(CompanyCommissionReceivable, CompanyCommissionReceivable.contract_id==Contract.id)
 
-def _apply_filters(q, actor=None, **fil):
+def _apply_filters(query, actor=None, **fil):
     perms=set(get_user_permissions(actor)) if actor else set()
     if actor and not getattr(actor,'is_superuser',False) and 'reports.commission_reconciliation.view' in perms and 'commissions.view.all' not in perms and 'commissions.view.team' not in perms:
-        q=q.filter(SalesCommission.sale_id==actor.id)
-    if fil.get('date_from'): q=q.filter(SalesCommission.created_at>=fil['date_from'])
-    if fil.get('date_to'): q=q.filter(SalesCommission.created_at<=fil['date_to'])
+        query=query.filter(SalesCommission.sale_id==actor.id)
+    if fil.get('date_from'): query=query.filter(SalesCommission.created_at>=fil['date_from'])
+    if fil.get('date_to'): query=query.filter(SalesCommission.created_at<=fil['date_to'])
     for k,col in [('project_id',Contract.project_id),('sale_id',SalesCommission.sale_id),('contract_id',SalesCommission.contract_id),('customer_id',Contract.customer_id),('company_commission_status',CompanyCommissionReceivable.status),('sales_commission_status',SalesCommission.status)]:
-        if fil.get(k): q=q.filter(col==fil[k])
+        if fil.get(k): query=query.filter(col==fil[k])
     if fil.get('voucher_status'):
-        q=q.join(SalesCommissionPaymentVoucher, SalesCommissionPaymentVoucher.sales_commission_id==SalesCommission.id).filter(SalesCommissionPaymentVoucher.status==fil['voucher_status'])
+        query=query.join(SalesCommissionPaymentVoucher, SalesCommissionPaymentVoucher.sales_commission_id==SalesCommission.id).filter(SalesCommissionPaymentVoucher.status==fil['voucher_status'])
     if fil.get('q'):
         term=f"%{fil['q'].strip()}%"
-        q=q.filter(or_(Contract.contract_code.ilike(term), Customer.full_name.ilike(term), Project.name.ilike(term), User.full_name.ilike(term), User.email.ilike(term), SalesCommission.commission_code.ilike(term), CompanyCommissionReceivable.receivable_code.ilike(term)))
-    return q
+        query=query.filter(or_(Contract.contract_code.ilike(term), Customer.full_name.ilike(term), Project.name.ilike(term), User.full_name.ilike(term), User.email.ilike(term), SalesCommission.commission_code.ilike(term), CompanyCommissionReceivable.receivable_code.ilike(term)))
+    return query
 
 def _voucher_stats(c):
     stats={'draft':0,'paid':0,'cancelled':0}; paid=D('0')
