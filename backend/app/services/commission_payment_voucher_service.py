@@ -9,7 +9,7 @@ from app.models.commission_payment_voucher import SalesCommissionPaymentVoucher
 from app.models.sales_commission import SalesCommission
 from app.models.contract import Contract
 from app.models.user import User
-from app.services.commission_service import D, dec, money_limit, now, get_commission, get_sales_commission_payout_policy_context, _event, _sync_payout_status
+from app.services.commission_service import D, dec, money_limit, now, get_commission, get_sales_commission_payout_policy_context, _event, sync_commission_paid_amount_from_vouchers
 from app.permissions.dependencies import get_user_permissions
 
 STATUSES={'draft':'Nháp','paid':'Đã chi','cancelled':'Đã hủy'}
@@ -27,7 +27,7 @@ def can_cancel_paid(actor):
     return getattr(actor,'is_superuser',False) or 'commissions.payment_vouchers.cancel_paid' in set(get_user_permissions(actor))
 
 def _validate_commission_for_payment(db,c,amount):
-    _sync_payout_status(c)
+    sync_commission_paid_amount_from_vouchers(db,c)
     if c.status in ('cancelled','on_hold'): raise HTTPException(400,'Hoa hồng này đang tạm giữ/đã hủy nên không thể lập phiếu chi.')
     if c.status not in ('approved','partially_paid','paid'): raise HTTPException(400,'Hoa hồng này chưa được duyệt.')
     if dec(c.approved_commission)<=0: raise HTTPException(400,'Hoa hồng này chưa có số tiền duyệt hợp lệ.')
@@ -38,13 +38,9 @@ def _validate_commission_for_payment(db,c,amount):
 
 def recalculate_sales_commission_paid_amount(db:Session, sales_commission_id):
     c=get_commission(db,sales_commission_id)
-    voucher_sum=dec(db.query(func.coalesce(func.sum(SalesCommissionPaymentVoucher.amount),0)).filter(SalesCommissionPaymentVoucher.sales_commission_id==sales_commission_id, SalesCommissionPaymentVoucher.status=='paid').scalar())
-    total=dec(getattr(c,'legacy_paid_amount',0))+voucher_sum
-    if dec(c.approved_commission)>0 and total>dec(c.approved_commission): raise HTTPException(400,'Tổng phiếu chi vượt số tiền hoa hồng đã duyệt.')
-    c.paid_amount=total
-    if c.status not in ('cancelled','on_hold'):
-        _sync_payout_status(c)
-    c.updated_at=now()
+    sync_commission_paid_amount_from_vouchers(db,c)
+    if dec(c.approved_commission)>0 and dec(c.paid_amount)>dec(c.approved_commission): raise HTTPException(400,'Tổng phiếu chi vượt số tiền hoa hồng đã duyệt.')
+    db.flush()
     return c
 
 def row(v):

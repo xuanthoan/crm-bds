@@ -80,7 +80,7 @@ export function CommissionsPage() {
     const canApproveAction = can('commissions.approve') && ['eligible', 'on_hold'].includes(c.status);
     const approvePolicyOk = canByPolicy(c, 'approve');
     const canHoldAction = can('commissions.hold') && ['eligible', 'approved'].includes(c.status);
-    const canMarkPaidAction = can('commissions.mark_paid') && ['approved', 'partially_paid'].includes(c.status);
+    const canMarkPaidAction = can('commissions.mark_paid') && ['approved', 'partially_paid'].includes(c.status) && Number(c.paid_amount || 0) < Number(c.approved_commission || 0);
     const paidPolicyOk = canByPolicy(c, 'paid');
     const canCancelAction = can('commissions.cancel') && ['eligible', 'approved', 'on_hold'].includes(c.status);
     const blockedReason = policyReason(c, ['approved', 'partially_paid'].includes(c.status) ? 'paid' : 'approve');
