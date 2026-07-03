@@ -1,6 +1,81 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { navigateTo } from '../../routes/AppRoutes';
 import { can } from '../auth/authStore';
 import { cancelVoucher, getVoucher, markPaidVoucher, PAYMENT_METHOD_LABELS, VOUCHER_STATUS_LABELS, type Voucher } from './api';
-const money=(v:number)=>new Intl.NumberFormat('vi-VN').format(v||0);
-export function CommissionPaymentVoucherDetailPage({voucherId}:{voucherId:string}){const [v,setV]=useState<Voucher|null>(null); const load=()=>getVoucher(voucherId).then(r=>setV(r.data)); useEffect(()=>{void load()},[voucherId]); if(!v)return <p>Đang tải...</p>; const cancel=async()=>{const reason=prompt('Vui lòng nhập lý do hủy phiếu chi.'); if(reason){await cancelVoucher(v.id,reason); await load();}}; return <section className="page-card"><button onClick={()=>navigateTo('/commission-payment-vouchers')}>Quay lại danh sách</button><h1>Chi tiết phiếu chi hoa hồng</h1><dl className="detail-grid"><dt>Mã phiếu</dt><dd>{v.code}</dd><dt>Trạng thái</dt><dd>{VOUCHER_STATUS_LABELS[v.status]}</dd><dt>Số tiền</dt><dd>{money(v.amount)}</dd><dt>Ngày chi</dt><dd>{v.payment_date}</dd><dt>Phương thức</dt><dd>{PAYMENT_METHOD_LABELS[v.payment_method]}</dd><dt>Mã giao dịch/chứng từ</dt><dd>{v.payment_reference||'—'}</dd><dt>Sale nhận tiền</dt><dd>{v.sale_name}</dd><dt>Hợp đồng</dt><dd>{v.contract_code}</dd><dt>Hoa hồng sale liên quan</dt><dd>{v.sales_commission_code}</dd><dt>Người tạo</dt><dd>{v.created_by_name}</dd><dt>Người xác nhận chi</dt><dd>{v.paid_by_name||'—'}</dd><dt>Thời gian xác nhận</dt><dd>{v.paid_at||'—'}</dd><dt>Lý do hủy</dt><dd>{v.cancel_reason||'—'}</dd><dt>Ghi chú</dt><dd>{v.note||'—'}</dd><dt>Attachment URL</dt><dd>{v.attachment_url||'—'}</dd></dl><div>{v.status==='draft'&&can('commissions.payment_vouchers.mark_paid')&&<button onClick={async()=>{await markPaidVoucher(v.id,{}); await load();}}>Xác nhận đã chi</button>} {v.status==='draft'&&can('commissions.payment_vouchers.cancel')&&<button onClick={cancel}>Hủy</button>} {v.status==='paid'&&can('commissions.payment_vouchers.cancel_paid')&&<button onClick={cancel}>Hủy phiếu đã chi</button>}</div></section>}
+
+const money = (v: number) => new Intl.NumberFormat('vi-VN').format(v || 0);
+const date = (value?: string | null) => value ? new Date(value).toLocaleDateString('vi-VN') : '—';
+const dateTime = (value?: string | null) => value ? new Date(value).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+const isHttpUrl = (value?: string | null) => Boolean(value && /^https?:\/\//i.test(value));
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return <div><dt>{label}</dt><dd>{children}</dd></div>;
+}
+
+function AttachmentValue({ value }: { value?: string | null }) {
+  if (!value) return <>—</>;
+  if (isHttpUrl(value)) return <a href={value} target="_blank" rel="noreferrer">{value}</a>;
+  return <>{value}</>;
+}
+
+export function CommissionPaymentVoucherDetailPage({ voucherId }: { voucherId: string }) {
+  const [v, setV] = useState<Voucher | null>(null);
+  const load = () => getVoucher(voucherId).then((r) => setV(r.data));
+
+  useEffect(() => { void load(); }, [voucherId]);
+
+  if (!v) return <p>Đang tải...</p>;
+
+  const cancel = async () => {
+    const reason = prompt('Vui lòng nhập lý do hủy phiếu chi.');
+    if (reason) {
+      await cancelVoucher(v.id, reason);
+      await load();
+    }
+  };
+
+  return (
+    <section className="page-card detail-page">
+      <header className="detail-header">
+        <div>
+          <button className="secondary-button" onClick={() => navigateTo('/commission-payment-vouchers')}>Quay lại danh sách</button>
+          <h1>Chi tiết phiếu chi hoa hồng</h1>
+          <p>Mã phiếu: <b>{v.code}</b></p>
+        </div>
+        <div className="header-actions">
+          {v.status === 'draft' && can('commissions.payment_vouchers.mark_paid') && <button onClick={async () => { await markPaidVoucher(v.id, {}); await load(); }}>Xác nhận đã chi</button>}
+          {v.status === 'draft' && can('commissions.payment_vouchers.cancel') && <button className="secondary-button" onClick={cancel}>Hủy</button>}
+          {v.status === 'paid' && can('commissions.payment_vouchers.cancel_paid') && <button className="secondary-button" onClick={cancel}>Hủy phiếu đã chi</button>}
+        </div>
+      </header>
+
+      <section className="detail-section">
+        <h2>Thông tin phiếu chi</h2>
+        <dl className="detail-grid">
+          <Field label="Mã phiếu">{v.code}</Field>
+          <Field label="Trạng thái">{VOUCHER_STATUS_LABELS[v.status]}</Field>
+          <Field label="Số tiền">{money(v.amount)}</Field>
+          <Field label="Ngày chi">{date(v.payment_date)}</Field>
+          <Field label="Phương thức">{PAYMENT_METHOD_LABELS[v.payment_method]}</Field>
+          <Field label="Mã giao dịch/chứng từ">{v.payment_reference || '—'}</Field>
+          <Field label="Người tạo">{v.created_by_name || '—'}</Field>
+          <Field label="Ngày tạo">{dateTime(v.created_at)}</Field>
+          <Field label="Người xác nhận chi">{v.paid_by_name || '—'}</Field>
+          <Field label="Thời gian xác nhận">{dateTime(v.paid_at)}</Field>
+          <Field label="Lý do hủy">{v.cancel_reason || '—'}</Field>
+          <Field label="Link chứng từ"><AttachmentValue value={v.attachment_url} /></Field>
+        </dl>
+      </section>
+
+      <section className="detail-section">
+        <h2>Đối tượng liên quan</h2>
+        <dl className="detail-grid">
+          <Field label="Sale nhận tiền">{v.sale_name || '—'}</Field>
+          <Field label="Hợp đồng">{v.contract_code || '—'}</Field>
+          <Field label="Hoa hồng sale liên quan">{v.sales_commission_code || '—'}</Field>
+          <Field label="Ghi chú">{v.note || '—'}</Field>
+        </dl>
+      </section>
+    </section>
+  );
+}
