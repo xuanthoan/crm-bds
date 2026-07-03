@@ -1,16 +1,22 @@
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from app.api.deps import get_db
+from app.db.session import get_db
 from app.models.user import User
-from app.permissions.dependencies import require_permission as need
-from app.schemas.common import success_response
+from app.permissions.dependencies import require_auth, user_has_permission
+from app.core.responses import success_response
 from app.services import commission_payment_voucher_service as svc
 
 router=APIRouter(prefix='/commission-payment-vouchers',tags=['commission-payment-vouchers'])
+
+def need(code):
+    def dep(actor:User=Depends(require_auth)):
+        if not user_has_permission(actor,code): raise HTTPException(status.HTTP_403_FORBIDDEN,'Bạn không có quyền thực hiện thao tác này.')
+        return actor
+    return dep
 class VoucherCreate(BaseModel):
     sales_commission_id: UUID; amount: Decimal; payment_date: date|None=None; payment_method: str='bank_transfer'; payment_reference: str|None=None; note: str|None=None; attachment_url: str|None=None; status: str|None='paid'
 class VoucherUpdate(BaseModel):
