@@ -26,7 +26,9 @@ class Sprint261SalesPlaybookRealEstateHelpSourceTest(unittest.TestCase):
             'Lý do mất khách thường gặp',
             'Lỗi thường gặp của sale',
             'Quy trình từ lead đến hợp đồng',
-            'Các checklist và nguyên tắc giúp sale chăm sóc khách hàng bất động sản hiệu quả hơn.',
+            'Bộ hướng dẫn nhanh giúp sale chăm sóc khách hàng bất động sản bài bản hơn.',
+            'Bao gồm: checklist tư vấn khách, phân loại khách nóng/ấm/lạnh, nguyên tắc follow-up, mẫu ghi chú sale, lý do mất khách và các lỗi sale cần tránh.',
+            'Lưu ý: Nội dung này là hướng dẫn nghiệp vụ phổ thông trong CRM, không phải tư vấn pháp lý chính thức.',
         ]:
             self.assertIn(text, content)
 
