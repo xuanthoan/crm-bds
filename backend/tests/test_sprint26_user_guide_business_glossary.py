@@ -72,6 +72,16 @@ class Sprint26UserGuideBusinessGlossarySourceTest(unittest.TestCase):
         self.assertIn("Chính sách chi:", source)
         self.assertNotIn("Chính sách chi <HelpTooltip content={tooltipTexts.payoutPolicy}", source)
 
+    def test_company_commission_summary_tooltips_stay_inline(self):
+        source = self.read("frontend/src/features/companyCommissions/CompanyCommissionsPage.tsx")
+        styles = self.read("frontend/src/styles.css")
+        self.assertIn("<HelpLabel content={tooltipTexts.companyConfirmed}>Tổng HH xác nhận</HelpLabel>", source)
+        self.assertIn("<HelpLabel content={tooltipTexts.companyReceived}>Đã nhận</HelpLabel>", source)
+        self.assertIn("<HelpLabel content={tooltipTexts.companyRemaining}>Còn phải thu</HelpLabel>", source)
+        self.assertIn(".company-commissions-page .summary-grid span .help-label", styles)
+        self.assertIn("white-space: nowrap", styles)
+        self.assertIn("display: inline-flex", styles)
+
     def test_tooltips_and_guide_boxes_added_to_commission_modules(self):
         expected_files = [
             "frontend/src/features/commissions/CommissionsPage.tsx",

@@ -1785,3 +1785,13 @@ th .help-label {
   font-size: 1.05rem;
   margin: 0;
 }
+
+/* Keep company commission summary labels and help icon on one visual line. */
+.company-commissions-page .summary-grid span .help-label {
+  display: inline-flex;
+  white-space: nowrap;
+}
+
+.company-commissions-page .summary-grid span .help-label-text {
+  display: inline;
+}
