@@ -76,6 +76,7 @@ export function CommissionPaymentVoucherDetailPage({ voucherId }: { voucherId: s
           <Field label="Ghi chú">{v.note || '—'}</Field>
         </dl>
       </section>
+      <ActivityTimeline entityType="commission_payment_voucher" entityId={voucherId} title="Lịch sử thao tác" />
     </section>
   );
 }

@@ -1794,3 +1794,12 @@ th .help-label {
 .company-commissions-page .summary-grid article > span .help-label-text {
   display: inline;
 }
+.audit-table-wrap { overflow-x: auto; }
+.audit-table-wrap table { min-width: 78rem; }
+.audit-detail pre { background:#0f172a; color:#e5e7eb; border-radius:.75rem; max-height:16rem; overflow:auto; padding:1rem; white-space:pre-wrap; }
+.audit-detail table { width:100%; }
+.activity-timeline { margin-top:1rem; }
+.timeline-list { display:grid; gap:.75rem; }
+.timeline-item { border-left:3px solid #4f46e5; padding:.25rem 0 .25rem .75rem; }
+.timeline-item div { display:flex; gap:.75rem; justify-content:space-between; }
+.timeline-item span, .timeline-item small { color:#64748b; }

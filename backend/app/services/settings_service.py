@@ -3,6 +3,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.system_setting import SystemSetting
+from app.services.audit_log_service import create_audit_log, snapshot_model, diff_dict
 
 SALES_COMMISSION_PAYOUT_POLICY_KEY = 'sales_commission_payout_policy'
 POLICY_RECEIVED_AMOUNT_CAPACITY = 'received_amount_capacity'
@@ -52,10 +53,11 @@ def get_sales_commission_payout_policy(db: Session) -> dict:
     return policy_payload(get_sales_commission_payout_policy_code(db))
 
 
-def update_sales_commission_payout_policy(db: Session, policy_code: str) -> dict:
+def update_sales_commission_payout_policy(db: Session, policy_code: str, actor=None) -> dict:
     if policy_code not in VALID_SALES_COMMISSION_PAYOUT_POLICIES:
         raise HTTPException(400, 'Chính sách chi hoa hồng sale không hợp lệ.')
     setting = _setting(db, SALES_COMMISSION_PAYOUT_POLICY_KEY)
+    before = snapshot_model(setting) if setting else None
     if not setting:
         setting = SystemSetting(
             key=SALES_COMMISSION_PAYOUT_POLICY_KEY,
@@ -68,5 +70,8 @@ def update_sales_commission_payout_policy(db: Session, policy_code: str) -> dict
     else:
         setting.value = policy_code
         setting.updated_at = now()
+    db.flush()
+    after = snapshot_model(setting)
+    create_audit_log(db, actor=actor, action='update_policy', module='commission_payout_policy', entity_type='commission_payout_policy', entity_id=SALES_COMMISSION_PAYOUT_POLICY_KEY, entity_label='Chính sách chi hoa hồng sale', before_data=before, after_data=after, changed_fields=diff_dict(before, after), description='Cập nhật chính sách chi hoa hồng')
     db.commit()
     return policy_payload(policy_code)

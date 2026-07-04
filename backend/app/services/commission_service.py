@@ -16,6 +16,7 @@ from app.models.commission_payment_voucher import SalesCommissionPaymentVoucher
 from app.models.user import User
 from app.services.company_commission_service import get_company_commission_for_contract, get_company_commissions_by_contract_ids, STATUS_LABELS as CCR_STATUS_LABELS
 from app.permissions.dependencies import get_user_permissions
+from app.services.audit_log_service import create_audit_log, snapshot_model, diff_dict
 from app.services.settings_service import get_sales_commission_payout_policy_code, POLICY_LABELS, POLICY_DESCRIPTIONS, POLICY_RECEIVED_AMOUNT_CAPACITY, POLICY_RECEIVED_RATIO, VALID_SALES_COMMISSION_PAYOUT_POLICIES
 
 
@@ -299,7 +300,7 @@ def generate(db, contract_id, rate, note, actor):
     else: ev='regenerated'; title='Cập nhật từ hợp đồng'
     for k,v in snap.items(): setattr(c,k,v)
     c.sale_id=_sale_id(contract); c.commission_rate_percent=rate; c.status='eligible'; c.note=note or c.note; c.updated_at=now()
-    db.flush(); _event(db,c,ev,title,note,actor); db.commit(); db.refresh(c); return detail(get_commission(db,c.id), actor)
+    db.flush(); _event(db,c,ev,title,note,actor); create_audit_log(db, actor=actor, action='create' if ev=='generated' else 'update', module='sales_commission', entity_type='sales_commission', entity_id=c.id, entity_label=c.commission_code, after_data=snapshot_model(c), description='Tạo hoa hồng sale' if ev=='generated' else 'Cập nhật hoa hồng sale'); db.commit(); db.refresh(c); return detail(get_commission(db,c.id), actor)
 
 def approve(db,id,amount,note,actor,payout_policy_code=None):
     c=get_commission(db,id)
@@ -309,7 +310,7 @@ def approve(db,id,amount,note,actor,payout_policy_code=None):
     max_approve=money_limit(c.eligible_commission)
     amt=dec(amount) if amount is not None else max_approve
     if amt<=0 or amt>max_approve: raise HTTPException(400,'Số tiền duyệt không hợp lệ hoặc vượt hoa hồng đủ điều kiện.')
-    c.status='approved'; c.approved_commission=amt; c.payout_policy_code=policy['payout_policy_code']; c.payout_policy_source=policy['payout_policy_source']; c.approved_by_id=actor.id; c.approved_at=now(); c.note=note or c.note; _event(db,c,'approved','Duyệt hoa hồng',note,actor); db.commit(); return detail(get_commission(db,id), actor)
+    before=snapshot_model(c); c.status='approved'; c.approved_commission=amt; c.payout_policy_code=policy['payout_policy_code']; c.payout_policy_source=policy['payout_policy_source']; c.approved_by_id=actor.id; c.approved_at=now(); c.note=note or c.note; _event(db,c,'approved','Duyệt hoa hồng',note,actor); after=snapshot_model(c); create_audit_log(db, actor=actor, action='approve', module='sales_commission', entity_type='sales_commission', entity_id=c.id, entity_label=c.commission_code, before_data=before, after_data=after, changed_fields=diff_dict(before, after), description='Duyệt hoa hồng sale', reason=note); db.commit(); return detail(get_commission(db,id), actor)
 
 def mark_paid(db,id,amount,note,actor):
     c=get_commission(db,id)
@@ -322,19 +323,19 @@ def mark_paid(db,id,amount,note,actor):
     if amt<=0 or amt>remaining_sales: raise HTTPException(400,'Số tiền chi trả không hợp lệ hoặc vượt số tiền còn lại phải chi.')
     if amt>dec(policy['remaining_payable_capacity']): raise HTTPException(400,'Số tiền chi hoa hồng sale không được vượt số hoa hồng công ty đã nhận.')
     # Sprint 23 policy-specific guard message: Số tiền chi hoa hồng sale vượt tối đa có thể chi theo chính sách hiện tại.
-    c.paid_amount=dec(c.paid_amount)+amt; c.paid_by_id=actor.id; c.paid_at=now(); c.note=note or c.note; _sync_payout_status(c); _event(db,c,'paid','Đánh dấu đã chi trả',note,actor); db.commit(); return detail(get_commission(db,id), actor)
+    before=snapshot_model(c); c.paid_amount=dec(c.paid_amount)+amt; c.paid_by_id=actor.id; c.paid_at=now(); c.note=note or c.note; _sync_payout_status(c); _event(db,c,'paid','Đánh dấu đã chi trả',note,actor); after=snapshot_model(c); create_audit_log(db, actor=actor, action='mark_paid', module='sales_commission', entity_type='sales_commission', entity_id=c.id, entity_label=c.commission_code, before_data=before, after_data=after, changed_fields=diff_dict(before, after), description='Xác nhận chi hoa hồng sale', reason=note); db.commit(); return detail(get_commission(db,id), actor)
 
 def hold(db,id,reason,note,actor):
     c=get_commission(db,id); reason=(reason or '').strip()
     if c.status not in ('eligible','approved'): raise HTTPException(400,'Chỉ hoa hồng đủ điều kiện hoặc đã duyệt mới được tạm giữ.')
     if not reason: raise HTTPException(400,'Vui lòng nhập lý do tạm giữ.')
-    c.status='on_hold'; c.hold_reason=reason; c.note=note or c.note; _event(db,c,'held','Tạm giữ hoa hồng',reason,actor); db.commit(); return detail(get_commission(db,id), actor)
+    before=snapshot_model(c); c.status='on_hold'; c.hold_reason=reason; c.note=note or c.note; _event(db,c,'held','Tạm giữ hoa hồng',reason,actor); after=snapshot_model(c); create_audit_log(db, actor=actor, action='hold', module='sales_commission', entity_type='sales_commission', entity_id=c.id, entity_label=c.commission_code, before_data=before, after_data=after, changed_fields=diff_dict(before, after), description='Tạm giữ hoa hồng sale', reason=reason); db.commit(); return detail(get_commission(db,id), actor)
 
 def cancel(db,id,reason,note,actor):
     c=get_commission(db,id); reason=(reason or '').strip()
     if c.status in ('partially_paid','paid'): raise HTTPException(400,'Hoa hồng đã chi trả, không thể hủy.')
     if not reason: raise HTTPException(400,'Vui lòng nhập lý do hủy.')
-    c.status='cancelled'; c.cancel_reason=reason; c.note=note or c.note; _event(db,c,'cancelled','Hủy hoa hồng',reason,actor); db.commit(); return detail(get_commission(db,id), actor)
+    before=snapshot_model(c); c.status='cancelled'; c.cancel_reason=reason; c.note=note or c.note; _event(db,c,'cancelled','Hủy hoa hồng',reason,actor); after=snapshot_model(c); create_audit_log(db, actor=actor, action='cancel', module='sales_commission', entity_type='sales_commission', entity_id=c.id, entity_label=c.commission_code, before_data=before, after_data=after, changed_fields=diff_dict(before, after), description='Hủy hoa hồng sale', reason=reason); db.commit(); return detail(get_commission(db,id), actor)
 
 def export_csv(db, **f):
     items=list_commissions(db,page=1,page_size=10000,**f)['items']; out=io.StringIO(); w=csv.writer(out)

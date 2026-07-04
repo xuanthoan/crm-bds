@@ -30,4 +30,4 @@ def get_policy(db: Session = Depends(get_db), actor: User = Depends(need('settin
 
 @router.put('/commission-payout-policy')
 def update_policy(payload: CommissionPayoutPolicyIn, db: Session = Depends(get_db), actor: User = Depends(need('settings.manage', 'settings.manage_master_data'))):
-    return success_response(svc.update_sales_commission_payout_policy(db, payload.policy_code), 'Đã cập nhật chính sách chi hoa hồng sale.')
+    return success_response(svc.update_sales_commission_payout_policy(db, payload.policy_code, actor), 'Đã cập nhật chính sách chi hoa hồng sale.')

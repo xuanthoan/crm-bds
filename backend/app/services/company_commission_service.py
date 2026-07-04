@@ -10,6 +10,7 @@ from app.models.company_commission import CompanyCommissionReceivable as CCR, Co
 from app.models.contract import Contract
 from app.models.customer import Customer
 from app.models.user import User
+from app.services.audit_log_service import create_audit_log, snapshot_model, diff_dict
 
 LEGAL={'signed','active','completed'}; D=Decimal
 STATUS_LABELS={'draft':'Bản nháp','pending':'Chờ duyệt','approved':'Đã duyệt','partially_received':'Đã nhận một phần','received':'Đã nhận đủ','on_hold':'Tạm giữ','cancelled':'Đã hủy'}
@@ -86,7 +87,7 @@ def generate(db,contract_id,rate,expected,expected_date,note,actor):
     exp=dec(expected) if expected is not None else (dec(c.contract_value)*rate/D('100')).quantize(D('0.01'))
     if exp<=0: raise HTTPException(400,'Hoa hồng dự kiến phải lớn hơn 0.')
     r=CCR(receivable_code=_code(db),contract_id=c.id,company_role=c.company_role or 'broker',actual_seller_type=c.actual_seller_type,actual_seller_name=c.actual_seller_name,commission_payer_type=c.commission_payer_type,commission_payer_name=c.commission_payer_name,brokerage_contract_code=c.brokerage_contract_code,brokerage_policy_note=c.brokerage_policy_note,contract_value=c.contract_value,commission_rate_percent=rate,expected_commission_amount=exp,confirmed_receivable_amount=exp,remaining_amount=exp,status='pending',expected_receive_date=expected_date,note=note,created_by_id=actor.id,created_at=now(),updated_at=now())
-    db.add(r); db.flush(); _event(db,r,'created',None,'pending',exp,note,actor=actor); db.commit(); return detail(_get(db,r.id))
+    db.add(r); db.flush(); _event(db,r,'created',None,'pending',exp,note,actor=actor); create_audit_log(db, actor=actor, action='create', module='company_commission', entity_type='company_commission', entity_id=r.id, entity_label=r.receivable_code, after_data=snapshot_model(r), description='Tạo hoa hồng công ty'); db.commit(); return detail(_get(db,r.id))
 def approve(db,id,amount,note,actor):
     r=_get(db,id)
     if r.status not in ('pending','on_hold'): raise HTTPException(400,'Chỉ khoản hoa hồng công ty chờ duyệt hoặc tạm giữ mới được duyệt.')
@@ -94,27 +95,27 @@ def approve(db,id,amount,note,actor):
     amt=dec(amount) if amount is not None else max_approve
     if amt<=0: raise HTTPException(400,'Hoa hồng xác nhận phải lớn hơn 0.')
     if amt>max_approve: raise HTTPException(400,'Hoa hồng xác nhận không được vượt quá hoa hồng dự kiến.')
-    old=r.status; r.status='approved'; r.confirmed_receivable_amount=amt; r.remaining_amount=amt-dec(r.received_amount); r.approved_by_id=actor.id; r.approved_at=now(); r.note=note or r.note; _event(db,r,'approved',old,r.status,amt,note,actor=actor); db.commit(); return detail(_get(db,id))
+    before=snapshot_model(r); old=r.status; r.status='approved'; r.confirmed_receivable_amount=amt; r.remaining_amount=amt-dec(r.received_amount); r.approved_by_id=actor.id; r.approved_at=now(); r.note=note or r.note; _event(db,r,'approved',old,r.status,amt,note,actor=actor); after=snapshot_model(r); create_audit_log(db, actor=actor, action='approve', module='company_commission', entity_type='company_commission', entity_id=r.id, entity_label=r.receivable_code, before_data=before, after_data=after, changed_fields=diff_dict(before, after), description='Duyệt hoa hồng công ty', reason=note); db.commit(); return detail(_get(db,id))
 def receive(db,id,amount,received_date,note,actor):
     r=_get(db,id)
     if r.status not in ('approved','partially_received'): raise HTTPException(400,'Chỉ khoản hoa hồng công ty đã duyệt mới được ghi nhận đã nhận tiền.')
     amt=dec(amount)
     if amt<=0: raise HTTPException(400,'Số tiền nhận lần này phải lớn hơn 0.')
     if dec(r.received_amount)+amt>dec(r.confirmed_receivable_amount): raise HTTPException(400,'Số tiền đã nhận không được vượt quá hoa hồng xác nhận.')
-    old=r.status; r.received_amount=dec(r.received_amount)+amt; r.remaining_amount=max(dec(r.confirmed_receivable_amount)-dec(r.received_amount),D('0')); r.status='received' if r.remaining_amount==0 else 'partially_received'; r.marked_received_by_id=actor.id; r.marked_received_at=now();
+    before=snapshot_model(r); old=r.status; r.received_amount=dec(r.received_amount)+amt; r.remaining_amount=max(dec(r.confirmed_receivable_amount)-dec(r.received_amount),D('0')); r.status='received' if r.remaining_amount==0 else 'partially_received'; r.marked_received_by_id=actor.id; r.marked_received_at=now();
     if r.status=='received': r.received_date=received_date or date.today()
-    r.note=note or r.note; _event(db,r,r.status,old,r.status,amt,note,actor=actor); db.commit(); return detail(_get(db,id))
+    r.note=note or r.note; _event(db,r,r.status,old,r.status,amt,note,actor=actor); after=snapshot_model(r); create_audit_log(db, actor=actor, action='record_received', module='company_commission', entity_type='company_commission', entity_id=r.id, entity_label=r.receivable_code, before_data=before, after_data=after, changed_fields=diff_dict(before, after), description='Ghi nhận tiền hoa hồng công ty đã nhận', reason=note); db.commit(); return detail(_get(db,id))
 def hold(db,id,reason,note,actor):
     r=_get(db,id); reason=(reason or '').strip()
     if r.status not in ('pending','approved'): raise HTTPException(400,'Chỉ khoản hoa hồng công ty chờ duyệt hoặc đã duyệt mới được tạm giữ.')
     if not reason: raise HTTPException(400,'Lý do tạm giữ là bắt buộc.')
-    old=r.status; r.status='on_hold'; r.hold_reason=reason; r.note=note or r.note; _event(db,r,'held',old,r.status,note=note,reason=reason,actor=actor); db.commit(); return detail(_get(db,id))
+    before=snapshot_model(r); old=r.status; r.status='on_hold'; r.hold_reason=reason; r.note=note or r.note; _event(db,r,'held',old,r.status,note=note,reason=reason,actor=actor); after=snapshot_model(r); create_audit_log(db, actor=actor, action='hold', module='company_commission', entity_type='company_commission', entity_id=r.id, entity_label=r.receivable_code, before_data=before, after_data=after, changed_fields=diff_dict(before, after), description='Tạm giữ hoa hồng công ty', reason=reason); db.commit(); return detail(_get(db,id))
 def cancel(db,id,reason,note,actor):
     r=_get(db,id); reason=(reason or '').strip()
     if r.status in ('partially_received','received') or dec(r.received_amount)>0: raise HTTPException(400,'Khoản hoa hồng công ty đã nhận tiền, không thể hủy.')
     if r.status not in ('pending','approved','on_hold'): raise HTTPException(400,'Trạng thái hiện tại không cho phép hủy hoa hồng công ty.')
     if not reason: raise HTTPException(400,'Lý do hủy là bắt buộc.')
-    old=r.status; r.status='cancelled'; r.cancel_reason=reason; r.cancelled_by_id=actor.id; r.cancelled_at=now(); r.note=note or r.note; _event(db,r,'cancelled',old,r.status,note=note,reason=reason,actor=actor); db.commit(); return detail(_get(db,id))
+    before=snapshot_model(r); old=r.status; r.status='cancelled'; r.cancel_reason=reason; r.cancelled_by_id=actor.id; r.cancelled_at=now(); r.note=note or r.note; _event(db,r,'cancelled',old,r.status,note=note,reason=reason,actor=actor); after=snapshot_model(r); create_audit_log(db, actor=actor, action='cancel', module='company_commission', entity_type='company_commission', entity_id=r.id, entity_label=r.receivable_code, before_data=before, after_data=after, changed_fields=diff_dict(before, after), description='Hủy hoa hồng công ty', reason=reason); db.commit(); return detail(_get(db,id))
 def export_csv(db,**f):
     out=io.StringIO(); w=csv.writer(out); items=[row(i) for i in _query(db,**f).all()]
     w.writerow(['Mã hoa hồng công ty','Mã hợp đồng','Khách hàng','Sale','Vai trò công ty','Bên bán thực tế','Tên bên bán','Bên trả hoa hồng','Tên bên trả hoa hồng','Mã hợp đồng/chính sách môi giới','Giá trị hợp đồng','Tỷ lệ HH công ty','HH dự kiến','HH xác nhận','Đã nhận','Còn phải thu','Trạng thái','Ngày dự kiến nhận','Ngày nhận đủ','Ghi chú'])

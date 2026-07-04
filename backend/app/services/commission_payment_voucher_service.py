@@ -11,6 +11,7 @@ from app.models.contract import Contract
 from app.models.user import User
 from app.services.commission_service import D, dec, money_limit, now, get_commission, get_sales_commission_payout_policy_context, _event, sync_commission_paid_amount_from_vouchers
 from app.permissions.dependencies import get_user_permissions
+from app.services.audit_log_service import create_audit_log, snapshot_model, diff_dict
 
 STATUSES={'draft':'Nháp','paid':'Đã chi','cancelled':'Đã hủy'}
 METHODS={'cash':'Tiền mặt','bank_transfer':'Chuyển khoản','other':'Khác'}
@@ -77,38 +78,40 @@ def create(db, payload, actor):
     _validate_commission_for_payment(db,c,amount)
     v=SalesCommissionPaymentVoucher(code=_code(db),sales_commission_id=c.id,contract_id=c.contract_id,sale_id=c.sale_id,amount=amount,payment_date=payload.payment_date or date.today(),payment_method=payload.payment_method,payment_reference=payload.payment_reference,status=status,created_by_id=actor.id,note=payload.note,attachment_url=payload.attachment_url,created_at=now(),updated_at=now())
     if status=='paid': v.paid_by_id=actor.id; v.paid_at=now()
-    db.add(v); db.flush()
+    db.add(v); db.flush(); create_audit_log(db, actor=actor, action='create_voucher', module='commission_payment_voucher', entity_type='commission_payment_voucher', entity_id=v.id, entity_label=v.code, after_data=snapshot_model(v), description='Tạo phiếu chi hoa hồng')
     if status=='paid': recalculate_sales_commission_paid_amount(db,c.id); _event(db,c,'payment_voucher_paid','Lập phiếu chi hoa hồng',v.code,actor)
     else: _event(db,c,'payment_voucher_draft','Lưu nháp phiếu chi hoa hồng',v.code,actor)
     db.commit(); return detail(get(db,v.id))
 
 def update(db,id,payload,actor):
     v=get(db,id)
+    before=snapshot_model(v)
     if v.status!='draft': raise HTTPException(400,'Chỉ được sửa phiếu chi nháp.')
     amount=money_limit(payload.amount) if payload.amount is not None else v.amount
     _validate_commission_for_payment(db,v.commission,amount)
     for field in ['payment_date','payment_method','payment_reference','note','attachment_url']:
         val=getattr(payload,field,None)
         if val is not None: setattr(v,field,val)
-    v.amount=amount; v.updated_at=now(); db.commit(); return detail(get(db,id))
+    v.amount=amount; v.updated_at=now(); after=snapshot_model(v); create_audit_log(db, actor=actor, action='update', module='commission_payment_voucher', entity_type='commission_payment_voucher', entity_id=v.id, entity_label=v.code, before_data=before, after_data=after, changed_fields=diff_dict(before, after), description='Cập nhật phiếu chi hoa hồng'); db.commit(); return detail(get(db,id))
 
 def mark_paid(db,id,payload,actor):
     v=get(db,id)
+    before=snapshot_model(v)
     if v.status!='draft': raise HTTPException(400,'Chỉ phiếu nháp mới có thể xác nhận đã chi.')
     _validate_commission_for_payment(db,v.commission,v.amount)
     if getattr(payload,'payment_date',None): v.payment_date=payload.payment_date
     if getattr(payload,'payment_reference',None): v.payment_reference=payload.payment_reference
     if getattr(payload,'note',None): v.note=(v.note or '')+'\n'+payload.note if v.note else payload.note
-    v.status='paid'; v.paid_by_id=actor.id; v.paid_at=now(); v.updated_at=now(); recalculate_sales_commission_paid_amount(db,v.sales_commission_id); _event(db,v.commission,'payment_voucher_paid','Xác nhận đã chi phiếu hoa hồng',v.code,actor); db.commit(); return detail(get(db,id))
+    before=snapshot_model(v); v.status='paid'; v.paid_by_id=actor.id; v.paid_at=now(); v.updated_at=now(); recalculate_sales_commission_paid_amount(db,v.sales_commission_id); _event(db,v.commission,'payment_voucher_paid','Xác nhận đã chi phiếu hoa hồng',v.code,actor); after=snapshot_model(v); create_audit_log(db, actor=actor, action='mark_paid', module='commission_payment_voucher', entity_type='commission_payment_voucher', entity_id=v.id, entity_label=v.code, before_data=before, after_data=after, changed_fields=diff_dict(before, after), description='Xác nhận phiếu chi đã chi'); db.commit(); return detail(get(db,id))
 
 def cancel(db,id,reason,actor):
     v=get(db,id); reason=(reason or '').strip()
     if v.status=='cancelled': raise HTTPException(400,'Phiếu chi đã hủy nên không thể thao tác.')
     if not reason: raise HTTPException(400,'Vui lòng nhập lý do hủy phiếu chi.')
     if v.status=='paid' and not can_cancel_paid(actor): raise HTTPException(403,'Bạn không có quyền hủy phiếu chi đã chi.')
-    was_paid=v.status=='paid'; v.status='cancelled'; v.cancel_reason=reason; v.cancelled_by_id=actor.id; v.cancelled_at=now(); v.updated_at=now()
+    before=snapshot_model(v); was_paid=v.status=='paid'; v.status='cancelled'; v.cancel_reason=reason; v.cancelled_by_id=actor.id; v.cancelled_at=now(); v.updated_at=now()
     if was_paid: recalculate_sales_commission_paid_amount(db,v.sales_commission_id)
-    _event(db,v.commission,'payment_voucher_cancelled','Hủy phiếu chi hoa hồng',reason,actor); db.commit(); return detail(get(db,id))
+    _event(db,v.commission,'payment_voucher_cancelled','Hủy phiếu chi hoa hồng',reason,actor); after=snapshot_model(v); create_audit_log(db, actor=actor, action='cancel_voucher', module='commission_payment_voucher', entity_type='commission_payment_voucher', entity_id=v.id, entity_label=v.code, before_data=before, after_data=after, changed_fields=diff_dict(before, after), description='Hủy phiếu chi hoa hồng', reason=reason); db.commit(); return detail(get(db,id))
 
 def export_csv(db, **f):
     items=list_vouchers(db,page=1,page_size=10000,**f)['items']; out=io.StringIO(); w=csv.writer(out); w.writerow(['Mã phiếu','Trạng thái','Ngày chi','Sale nhận','Hợp đồng','Mã hoa hồng','Số tiền','Phương thức','Người chi','Ngày tạo','Ghi chú'])
