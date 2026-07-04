@@ -3,12 +3,26 @@ import { glossaryTerms } from './helpContent';
 
 const groups = ['Tất cả', ...Array.from(new Set(glossaryTerms.map((term) => term.group)))];
 
+export function normalizeSearchText(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'd');
+}
+
 export function GlossaryPage() {
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState('Tất cả');
   const terms = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return glossaryTerms.filter((term) => (group === 'Tất cả' || term.group === group) && (!q || [term.term, term.group, term.description, term.modules?.join(' ')].join(' ').toLowerCase().includes(q)));
+    const normalizedQuery = normalizeSearchText(query.trim());
+    return glossaryTerms.filter((term) => {
+      const matchesGroup = group === 'Tất cả' || term.group === group;
+      const searchableValues = [term.term, term.group, term.description, term.example, term.modules?.join(' ')].filter(Boolean);
+      const matchesSearch = !normalizedQuery || searchableValues.some((value) => normalizeSearchText(String(value)).includes(normalizedQuery));
+      return matchesGroup && matchesSearch;
+    });
   }, [query, group]);
   return <section className="help-page glossary-page"><header className="page-header"><div><h1>Từ điển nghiệp vụ</h1><p>Giải thích các thuật ngữ thường gặp trong hệ thống CRM bất động sản.</p></div></header>
     <div className="glossary-controls"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm thuật ngữ, nhóm, mô tả..." aria-label="Tìm kiếm thuật ngữ" /><select value={group} onChange={(event) => setGroup(event.target.value)} aria-label="Lọc nhóm thuật ngữ">{groups.map((name) => <option key={name} value={name}>{name}</option>)}</select></div>

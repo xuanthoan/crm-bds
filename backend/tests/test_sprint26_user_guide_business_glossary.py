@@ -34,6 +34,20 @@ class Sprint26UserGuideBusinessGlossarySourceTest(unittest.TestCase):
         self.assertGreaterEqual(content.count("description"), 0)
         self.assertGreaterEqual(content.count("['"), 30)
 
+    def test_glossary_search_normalizes_case_and_vietnamese_accents(self):
+        source = self.read("frontend/src/features/help/GlossaryPage.tsx")
+        self.assertIn("normalizeSearchText", source)
+        self.assertIn(".toLowerCase()", source)
+        self.assertIn(".normalize('NFD')", source)
+        self.assertIn("/[\\u0300-\\u036f]/g", source)
+        self.assertIn(".replace(/đ/g, 'd')", source)
+        self.assertIn("term.term", source)
+        self.assertIn("term.group", source)
+        self.assertIn("term.description", source)
+        self.assertIn("term.modules?.join(' ')", source)
+        self.assertIn("matchesGroup && matchesSearch", source)
+        self.assertNotIn("join(' ').toLowerCase().includes(q)", source)
+
     def test_tooltips_and_guide_boxes_added_to_commission_modules(self):
         expected_files = [
             "frontend/src/features/commissions/CommissionsPage.tsx",
