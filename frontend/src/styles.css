@@ -1528,6 +1528,17 @@ button:disabled {
 
 
 /* Sprint 25 commission reconciliation readability */
+.commission-reconciliation-top-scroll {
+  height: 16px;
+  margin: 0 0 0.35rem;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.commission-reconciliation-scroll-spacer {
+  height: 1px;
+  width: 140rem;
+}
 .commission-reconciliation-scroll {
   max-width: 100%;
   overflow-x: auto;
