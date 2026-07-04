@@ -1615,3 +1615,69 @@ button:disabled {
   align-items: flex-start;
   min-width: 15rem;
 }
+
+.help-tooltip {
+  align-items: center;
+  background: #e0ecff;
+  border: 1px solid #9db7ff;
+  border-radius: 999px;
+  color: #1d4ed8;
+  cursor: help;
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 900;
+  height: 1.1rem;
+  justify-content: center;
+  line-height: 1;
+  margin-left: 0.35rem;
+  vertical-align: middle;
+  width: 1.1rem;
+}
+
+.help-label { align-items: center; display: inline-flex; gap: 0.15rem; white-space: nowrap; }
+
+.guide-box {
+  background: #f0f7ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 1rem;
+  color: #1e3a8a;
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0;
+  padding: 1rem 1.25rem;
+}
+
+.guide-box p { margin: 0.25rem 0 0; }
+.guide-box ul { margin: 0; padding-left: 1.25rem; }
+.guide-box li { margin: 0.25rem 0; }
+
+.help-page { display: grid; gap: 1rem; }
+.help-toc, .glossary-controls {
+  background: #ffffff;
+  border: 1px solid #dfe5f2;
+  border-radius: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+.help-toc a { background: #f3f6fb; border-radius: 999px; color: #1d4ed8; font-weight: 700; padding: 0.5rem 0.8rem; text-decoration: none; }
+.help-section-grid, .glossary-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); }
+.help-card, .glossary-card {
+  background: #ffffff;
+  border: 1px solid #dfe5f2;
+  border-radius: 1rem;
+  box-shadow: 0 12px 30px rgb(23 32 51 / 6%);
+  padding: 1.25rem;
+}
+.help-card h2, .glossary-card h2 { font-size: 1.2rem; margin: 0 0 0.75rem; }
+.help-card h3 { font-size: 1rem; margin: 1rem 0 0.4rem; }
+.help-card ul { margin: 0; padding-left: 1.25rem; }
+.help-card li { margin: 0.35rem 0; }
+.glossary-controls input { flex: 1 1 20rem; }
+.glossary-controls input, .glossary-controls select { border: 1px solid #cfd8ea; border-radius: 0.75rem; padding: 0.75rem 0.9rem; }
+.glossary-count { color: #5d6b84; font-weight: 700; }
+.glossary-card-heading { align-items: flex-start; display: flex; gap: 0.75rem; justify-content: space-between; }
+.glossary-card-heading span { background: #eef2ff; border-radius: 999px; color: #3730a3; font-size: 0.78rem; font-weight: 800; padding: 0.35rem 0.6rem; white-space: nowrap; }
+.glossary-card p { color: #334155; line-height: 1.6; }
+.glossary-card small { color: #64748b; font-weight: 700; }

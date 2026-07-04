@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getCommissionPayoutPolicy, updateCommissionPayoutPolicy, type CommissionPayoutPolicyCode, type CommissionPayoutPolicySetting } from './api';
+import { HelpTooltip } from '../../components/help/HelpTooltip';
+import { tooltipTexts } from '../help/helpContent';
 
 export function CommissionPayoutPolicySettingsPage() {
   const [setting, setSetting] = useState<CommissionPayoutPolicySetting | null>(null);
@@ -38,7 +40,7 @@ export function CommissionPayoutPolicySettingsPage() {
       {message && <div className="form-success">{message}</div>}
       <section className="detail-card">
         <h2>Chính sách đang áp dụng</h2>
-        <p className="muted-text">Mặc định là “Chi theo hạn mức tiền hoa hồng công ty đã nhận” để giữ nguyên hành vi Sprint 22.</p>
+        <p className="muted-text">Mặc định là “Chi theo hạn mức tiền hoa hồng công ty đã nhận” để giữ nguyên hành vi Sprint 22. <HelpTooltip content={tooltipTexts.systemFallback} /> <HelpTooltip content={tooltipTexts.projectDefault} /> <HelpTooltip content={tooltipTexts.approvalOverride} /></p>
         <div className="commission-policy-option-list">
           {(setting?.options || [
             { policy_code: 'received_amount_capacity' as const, policy_label: 'Chi theo hạn mức tiền hoa hồng công ty đã nhận', policy_description: 'Sale được chi nếu số tiền chi không vượt quá hoa hồng công ty đã thực nhận còn khả dụng.' },
@@ -46,7 +48,7 @@ export function CommissionPayoutPolicySettingsPage() {
           ]).map((option) => (
             <label key={option.policy_code} className="commission-policy-radio-card">
               <input type="radio" value={option.policy_code} checked={selected === option.policy_code} onChange={() => setSelected(option.policy_code)} />
-              <span><b>{option.policy_label}</b><small>{option.policy_description}</small></span>
+              <span><b>{option.policy_label} <HelpTooltip content={option.policy_code === 'received_amount_capacity' ? tooltipTexts.policyOption1 : tooltipTexts.policyOption2} /></b><small>{option.policy_description}</small></span>
             </label>
           ))}
         </div>

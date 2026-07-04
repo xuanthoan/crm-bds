@@ -6,6 +6,9 @@ import { companyCommissionSummary, exportCompanyCommissionsUrl, listCompanyCommi
 import { ActionModal, CompanyCommissionGuideModal, CreateCompanyCommissionModal } from './CompanyCommissionModals';
 import { COMPANY_COMMISSION_STATUS_LABELS, COMPANY_ROLE_LABELS, COMMISSION_PARTY_LABELS } from './constants';
 import type { CompanyCommission } from './types';
+import { GuideBox } from '../../components/help/GuideBox';
+import { HelpLabel, HelpTooltip } from '../../components/help/HelpTooltip';
+import { tooltipTexts } from '../help/helpContent';
 
 const money = (value: unknown) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(value || 0));
 const date = (value?: string) => value ? new Date(value).toLocaleDateString('vi-VN') : '';
@@ -38,7 +41,7 @@ export function CompanyCommissionsPage() {
       <div className="table-actions commission-row-actions company-commission-row-actions">
         <button onClick={() => navigateTo(`/company-commissions/${i.id}`)}>Xem</button>
         {(i.status === 'pending' || i.status === 'on_hold') && can('company_commissions.approve') && <button onClick={() => setAction({ type: 'approve', item: i })}>Duyệt</button>}
-        {(i.status === 'approved' || i.status === 'partially_received') && can('company_commissions.receive') && <button onClick={() => setAction({ type: 'receive', item: i })}>Ghi nhận đã nhận</button>}
+        {(i.status === 'approved' || i.status === 'partially_received') && can('company_commissions.receive') && <><button onClick={() => setAction({ type: 'receive', item: i })}>Ghi nhận đã nhận</button><HelpTooltip content={tooltipTexts.receiveCompanyCommission} /></>}
         {(i.status === 'pending' || i.status === 'approved') && can('company_commissions.hold') && <button onClick={() => setAction({ type: 'hold', item: i })}>Tạm giữ</button>}
         {(i.status === 'pending' || i.status === 'approved' || i.status === 'on_hold') && can('company_commissions.cancel') && <button onClick={() => setAction({ type: 'cancel', item: i })}>Hủy</button>}
       </div>
@@ -56,6 +59,8 @@ export function CompanyCommissionsPage() {
         </div>
       </header>
 
+      <GuideBox title="Cách hiểu hoa hồng công ty" items={["Đây là khoản công ty phải thu từ chủ đầu tư/chủ nhà/đối tác.", "Số tiền đã nhận ảnh hưởng đến hạn mức chi hoa hồng sale.", "Không nên nhầm hoa hồng công ty với hoa hồng sale."]} />
+
       <div className="filters company-commission-filter-bar">
         <input type="date" value={filters.from_date || ''} onChange={(event) => set('from_date', event.target.value)} />
         <input type="date" value={filters.to_date || ''} onChange={(event) => set('to_date', event.target.value)} />
@@ -66,12 +71,12 @@ export function CompanyCommissionsPage() {
       </div>
 
       <div className="summary-grid">
-        {[["Tổng HH dự kiến", "total_expected_commission_amount"], ["Tổng HH xác nhận", "total_confirmed_receivable_amount"], ["Đã nhận", "total_received_amount"], ["Còn phải thu", "total_remaining_amount"]].map(([label, key]) => <article className="summary-card" key={key}><span>{label}</span><strong>{money(summary[key])}</strong></article>)}
+        {[["Tổng HH dự kiến", "total_expected_commission_amount"], [<HelpLabel content={tooltipTexts.companyConfirmed}>Tổng HH xác nhận</HelpLabel>, "total_confirmed_receivable_amount"], [<HelpLabel content={tooltipTexts.companyReceived}>Đã nhận</HelpLabel>, "total_received_amount"], [<HelpLabel content={tooltipTexts.companyRemaining}>Còn phải thu</HelpLabel>, "total_remaining_amount"]].map(([label, key]) => <article className="summary-card" key={key}><span>{label}</span><strong>{money(summary[key])}</strong></article>)}
         {[["Chờ duyệt", "pending_count"], ["Đã duyệt", "approved_count"], ["Nhận một phần", "partially_received_count"], ["Đã nhận đủ", "received_count"], ["Tạm giữ", "on_hold_count"], ["Đã hủy", "cancelled_count"]].map(([label, key]) => <article className="summary-card" key={key}><span>{label}</span><strong>{summary[key] || 0}</strong></article>)}
       </div>
 
       <table className="data-table">
-        <thead><tr>{['Mã HH công ty', 'Mã HĐ', 'Khách hàng', 'Sale', 'Vai trò', 'Bên trả HH', 'Giá trị HĐ', 'Tỷ lệ HH', 'HH dự kiến', 'HH xác nhận', 'Đã nhận', 'Còn phải thu', 'Trạng thái', 'Ngày dự kiến', 'Ngày nhận đủ', 'Hành động'].map((heading) => <th key={heading}>{heading}</th>)}</tr></thead>
+        <thead><tr>{['Mã HH công ty', 'Mã HĐ', 'Khách hàng', 'Sale', 'Vai trò'].map((heading) => <th key={heading}>{heading}</th>)}<th><HelpLabel content={tooltipTexts.commissionPayer}>Bên trả HH</HelpLabel></th>{['Giá trị HĐ', 'Tỷ lệ HH', 'HH dự kiến'].map((heading) => <th key={heading}>{heading}</th>)}<th><HelpLabel content={tooltipTexts.companyConfirmed}>HH xác nhận</HelpLabel></th><th><HelpLabel content={tooltipTexts.companyReceived}>Đã nhận</HelpLabel></th><th><HelpLabel content={tooltipTexts.companyRemaining}>Còn phải thu</HelpLabel></th>{['Trạng thái', 'Ngày dự kiến', 'Ngày nhận đủ', 'Hành động'].map((heading) => <th key={heading}>{heading}</th>)}</tr></thead>
         <tbody>{items.map((item) => <tr key={item.id}><td>{item.receivable_code}</td><td>{item.contract_code}</td><td>{item.customer_name}</td><td>{item.sale_name}</td><td>{COMPANY_ROLE_LABELS[item.company_role] || item.company_role}</td><td>{item.commission_payer_name || COMMISSION_PARTY_LABELS[item.commission_payer_type || ''] || item.commission_payer_type}</td><td>{money(item.contract_value)}</td><td>{item.commission_rate_percent}%</td><td>{money(item.expected_commission_amount)}</td><td>{money(item.confirmed_receivable_amount)}</td><td>{money(item.received_amount)}</td><td>{money(item.remaining_amount)}</td><td>{COMPANY_COMMISSION_STATUS_LABELS[item.status] || item.status}</td><td>{date(item.expected_receive_date)}</td><td>{date(item.received_date)}</td><td className="row-actions company-commission-action-cell">{actions(item)}</td></tr>)}</tbody>
       </table>
 

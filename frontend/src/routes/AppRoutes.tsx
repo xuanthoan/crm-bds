@@ -60,6 +60,8 @@ import { COMPANY_COMMISSION_VIEW_PERMISSIONS } from '../features/companyCommissi
 import { CommissionPaymentVouchersPage } from '../features/commissionPaymentVouchers/CommissionPaymentVouchersPage';
 import { CommissionPaymentVoucherDetailPage } from '../features/commissionPaymentVouchers/CommissionPaymentVoucherDetailPage';
 import { CommissionReconciliationReportPage } from '../features/commissionReconciliationReport/CommissionReconciliationReportPage';
+import { HelpPage } from '../features/help/HelpPage';
+import { GlossaryPage } from '../features/help/GlossaryPage';
 
 export function navigateTo(path: string): void {
   window.history.pushState({}, '', path);
@@ -106,6 +108,8 @@ const protectedPages: Record<string, ProtectedPage> = {
   '/commission-payment-vouchers': { element: <CommissionPaymentVouchersPage />, permission: 'commissions.payment_vouchers.view' },
   '/commission-reconciliation-report': { element: <CommissionReconciliationReportPage />, permission: 'reports.commission_reconciliation.view' },
   '/notifications': { element: <NotificationsPage />, permission: 'notifications.view' },
+  '/help': { element: <HelpPage /> },
+  '/glossary': { element: <GlossaryPage /> },
 };
 
 export function PermissionRoute({ permission, children }: { permission?: string | string[]; children?: ReactNode }) {
