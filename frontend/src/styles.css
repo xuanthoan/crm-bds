@@ -554,7 +554,7 @@ th {
 @media (max-width: 700px) { .form-grid, .info-grid { grid-template-columns: 1fr; } .full-span { grid-column: auto; } .detail-hero { align-items: flex-start; flex-direction: column; gap: 1rem; } .lead-filters input { min-width: 100%; } }
 
 /* Sprint 6 - daily sales work */
-.work-page .page-header p,.dashboard-page .page-header p{color:#667085}.work-filters{flex-wrap:wrap}.work-filters .checkbox-row{align-items:center}.danger-text{color:#b42318!important}.metric-grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));margin:1.25rem 0}.metric-card{background:linear-gradient(145deg,#f7f9ff,#fff);border:1px solid #dfe5f2;border-radius:1rem;display:grid;gap:.65rem;padding:1.2rem}.metric-card span{color:#667085;font-weight:700}.metric-card strong{color:#3563e9;font-size:2rem}.metric-red strong{color:#b42318}.metric-orange strong{color:#b54708}.metric-green strong{color:#027a48}.metric-violet strong{color:#6941c6}.dashboard-sections{display:grid;gap:1rem;grid-template-columns:repeat(2,minmax(0,1fr))}.modal-actions{display:flex;gap:.75rem;justify-content:flex-end}.work-page table{min-width:1050px}@media(max-width:800px){.dashboard-sections{grid-template-columns:1fr}}
+.work-page .page-header p,.dashboard-page .page-header p{color:#667085}.work-filters{flex-wrap:wrap}.work-filters .checkbox-row{align-items:center}.danger-text{color:#b42318!important}.metric-grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));margin:1.25rem 0}.metric-card{background:linear-gradient(145deg,#f7f9ff,#fff);border:1px solid #dfe5f2;border-radius:1rem;display:grid;gap:.65rem;padding:1.2rem}.metric-card > span{color:#667085;font-weight:700}.metric-card strong{color:#3563e9;font-size:2rem}.metric-red strong{color:#b42318}.metric-orange strong{color:#b54708}.metric-green strong{color:#027a48}.metric-violet strong{color:#6941c6}.dashboard-sections{display:grid;gap:1rem;grid-template-columns:repeat(2,minmax(0,1fr))}.modal-actions{display:flex;gap:.75rem;justify-content:flex-end}.work-page table{min-width:1050px}@media(max-width:800px){.dashboard-sections{grid-template-columns:1fr}}
 
 /* Sprint 7 - Customer 360 */
 .customers-page .page-header p{color:#667085}.customers-page table{min-width:1450px}.customer-detail .detail-grid{align-items:start}.customer-detail main,.customer-detail aside{display:grid;gap:1.25rem}.customer-detail aside .info-grid{grid-template-columns:1fr}.customer-detail ul{color:#475467;display:grid;gap:.5rem;padding-left:1.2rem}.conversion-preview{background:#f8fafc;border:1px solid #dfe5f2;border-radius:.85rem;padding:1rem}.conversion-preview p{color:#667085;margin:.45rem 0 0}.badge.customer-active{background:#ecfdf3;color:#027a48}.badge.customer-inactive{background:#f2f4f7;color:#475467}.badge.customer-potential{background:#eff8ff;color:#175cd3}.badge.customer-vip{background:#fff6ed;color:#b54708}.badge.customer-blacklisted{background:#fff1f0;color:#b42318}.badge.customer-individual,.badge.customer-company,.badge.customer-investor,.badge.customer-agent,.badge.customer-other{background:#eef2ff;color:#3538cd}
@@ -706,7 +706,7 @@ th {
 .inventory-badge { border-radius:999px; display:inline-block; font-size:.78rem; font-weight:800; padding:.35rem .65rem; white-space:nowrap; }
 .type-badge { background:#eef2ff; color:#3730a3; }.status-available,.status-selling,.status-opening,.status-completed { background:#dcfce7;color:#166534 }.status-reserved,.status-negotiating,.status-deposited,.status-handover,.status-planning { background:#fef3c7;color:#92400e }.status-sold { background:#dbeafe;color:#1d4ed8 }.status-locked,.status-unavailable,.status-paused,.status-cancelled { background:#fee2e2;color:#991b1b }
 .table-actions { display:flex; flex-wrap:wrap; gap:.4rem; min-width:12rem; }.table-actions button,.link-button { background:none;border:0;color:#3157d5;cursor:pointer;font-weight:700;padding:.2rem }.danger-link { color:#b42318!important }.danger-button { background:#b42318!important }.empty-cell { color:#667085;text-align:center!important;padding:2rem!important }
-.detail-page { display:grid;gap:1.25rem }.detail-header,.section-heading { align-items:flex-start;display:flex;gap:1rem;justify-content:space-between }.header-actions,.badge-row { display:flex;flex-wrap:wrap;gap:.6rem }.detail-section { background:#fff;border:1px solid #dfe5f2;border-radius:1rem;padding:1.5rem }.detail-section h2 { margin-top:0 }.detail-grid { display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));margin:0 }.detail-grid div { border-bottom:1px solid #eef1f6;padding-bottom:.75rem }.detail-grid dt { color:#667085;font-size:.82rem;font-weight:700;margin-bottom:.35rem }.detail-grid dd { margin:0;white-space:pre-wrap }.summary-grid { display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr)) }.summary-grid article { background:#fff;border:1px solid #dfe5f2;border-radius:1rem;padding:1.2rem }.summary-grid span { color:#667085;display:block;font-size:.82rem }.summary-grid strong { display:block;font-size:1.15rem;margin-top:.4rem }.property-form details { border:1px solid #dfe5f2;border-radius:.8rem;margin-bottom:1rem;padding:1rem }.property-form summary { cursor:pointer;font-weight:800;margin-bottom:1rem }.compact-table { min-width:46rem }
+.detail-page { display:grid;gap:1.25rem }.detail-header,.section-heading { align-items:flex-start;display:flex;gap:1rem;justify-content:space-between }.header-actions,.badge-row { display:flex;flex-wrap:wrap;gap:.6rem }.detail-section { background:#fff;border:1px solid #dfe5f2;border-radius:1rem;padding:1.5rem }.detail-section h2 { margin-top:0 }.detail-grid { display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));margin:0 }.detail-grid div { border-bottom:1px solid #eef1f6;padding-bottom:.75rem }.detail-grid dt { color:#667085;font-size:.82rem;font-weight:700;margin-bottom:.35rem }.detail-grid dd { margin:0;white-space:pre-wrap }.summary-grid { display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr)) }.summary-grid article { background:#fff;border:1px solid #dfe5f2;border-radius:1rem;padding:1.2rem }.summary-grid article > span { color:#667085;display:block;font-size:.82rem }.summary-grid strong { display:block;font-size:1.15rem;margin-top:.4rem }.property-form details { border:1px solid #dfe5f2;border-radius:.8rem;margin-bottom:1rem;padding:1rem }.property-form summary { cursor:pointer;font-weight:800;margin-bottom:1rem }.compact-table { min-width:46rem }
 @media(max-width:760px){.detail-header,.section-heading{align-items:stretch;flex-direction:column}.header-actions button{flex:1}.content-area{padding:1rem}.detail-section{padding:1rem}.inventory-filters{grid-template-columns:1fr}}
 
 .dialog-error {
@@ -1614,4 +1614,183 @@ button:disabled {
 .commission-reconciliation-actions .commission-row-actions {
   align-items: flex-start;
   min-width: 15rem;
+}
+
+.help-tooltip {
+  align-items: center;
+  background: #e0ecff;
+  border: 1px solid #9db7ff;
+  border-radius: 999px;
+  box-sizing: border-box;
+  color: #1d4ed8;
+  cursor: help;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  font-weight: 900;
+  height: 1.1rem;
+  justify-content: center;
+  line-height: 1;
+  margin-left: 0;
+  min-height: 1.1rem;
+  min-width: 1.1rem;
+  padding: 0;
+  vertical-align: middle;
+  width: 1.1rem;
+}
+
+.guide-box {
+  background: #f0f7ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 1rem;
+  color: #1e3a8a;
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0;
+  padding: 1rem 1.25rem;
+}
+
+.guide-box p { margin: 0.25rem 0 0; }
+.guide-box ul { margin: 0; padding-left: 1.25rem; }
+.guide-box li { margin: 0.25rem 0; }
+
+.help-page { display: grid; gap: 1rem; }
+.help-toc, .glossary-controls {
+  background: #ffffff;
+  border: 1px solid #dfe5f2;
+  border-radius: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+.help-toc a { background: #f3f6fb; border-radius: 999px; color: #1d4ed8; font-weight: 700; padding: 0.5rem 0.8rem; text-decoration: none; }
+.help-section-grid, .glossary-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); }
+.help-card, .glossary-card {
+  background: #ffffff;
+  border: 1px solid #dfe5f2;
+  border-radius: 1rem;
+  box-shadow: 0 12px 30px rgb(23 32 51 / 6%);
+  padding: 1.25rem;
+}
+.help-card h2, .glossary-card h2 { font-size: 1.2rem; margin: 0 0 0.75rem; }
+.help-card h3 { font-size: 1rem; margin: 1rem 0 0.4rem; }
+.help-card ul { margin: 0; padding-left: 1.25rem; }
+.help-card li { margin: 0.35rem 0; }
+.glossary-controls input { flex: 1 1 20rem; }
+.glossary-controls input, .glossary-controls select { border: 1px solid #cfd8ea; border-radius: 0.75rem; padding: 0.75rem 0.9rem; }
+.glossary-count { color: #5d6b84; font-weight: 700; }
+.glossary-card-heading { align-items: flex-start; display: flex; gap: 0.75rem; justify-content: space-between; }
+.glossary-card-heading span { background: #eef2ff; border-radius: 999px; color: #3730a3; font-size: 0.78rem; font-weight: 800; padding: 0.35rem 0.6rem; white-space: nowrap; }
+.glossary-card p { color: #334155; line-height: 1.6; }
+.glossary-card small { color: #64748b; font-weight: 700; }
+
+/* Sprint 26 UI polish: keep help icons compact and prevent tooltip-induced overflow. */
+.help-label {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.25rem;
+  max-width: 100%;
+  min-width: 0;
+  vertical-align: middle;
+  white-space: normal;
+}
+
+.help-label-text {
+  min-width: 0;
+}
+
+
+.summary-grid article > span .help-label,
+.metric-card > span .help-label,
+th .help-label {
+  line-height: 1.25;
+}
+
+th .help-label {
+  justify-content: center;
+}
+
+.company-commissions-page {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.company-commissions-page .summary-grid {
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+}
+
+.company-commissions-page .summary-grid article,
+.company-commissions-page .summary-grid article > span,
+.company-commissions-page .summary-grid strong {
+  min-width: 0;
+}
+
+.company-commission-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.company-commission-table {
+  min-width: 96rem;
+}
+
+.commission-reconciliation-table th {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+.commission-reconciliation-table th .help-label {
+  width: 100%;
+}
+
+.glossary-group-list {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.glossary-group {
+  background: #ffffff;
+  border: 1px solid #dfe5f2;
+  border-radius: 1rem;
+  padding: 1rem;
+}
+
+.glossary-group-header {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.glossary-group-header h2 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+.glossary-group-header span {
+  background: #eef2ff;
+  border-radius: 999px;
+  color: #3730a3;
+  font-size: 0.8rem;
+  font-weight: 800;
+  padding: 0.35rem 0.65rem;
+  white-space: nowrap;
+}
+
+.glossary-card-heading h3 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+/* Keep company commission summary labels and help icon on one visual line. */
+.company-commissions-page .summary-grid article > span .help-label {
+  display: inline-flex;
+  white-space: nowrap;
+}
+
+.company-commissions-page .summary-grid article > span .help-label-text {
+  display: inline;
 }

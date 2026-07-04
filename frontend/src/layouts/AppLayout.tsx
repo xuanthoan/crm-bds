@@ -71,7 +71,7 @@ export function AppLayout({ children, currentPath }: AppLayoutProps) {
     return (
       <a
         href={path}
-        className={currentPath === path || (path === '/customers' && /^\/customers\/[^/]+$/.test(currentPath)) || (path === '/leads' && /^\/leads\/[^/]+$/.test(currentPath)) || (path === '/deals' && /^\/deals\/[^/]+$/.test(currentPath)) || (path === '/projects' && /^\/projects\/[^/]+$/.test(currentPath)) || (path === '/properties' && /^\/properties\/[^/]+$/.test(currentPath)) || (path === '/bookings' && /^\/bookings\/[^/]+$/.test(currentPath)) || (path === '/contracts' && /^\/contracts\/[^/]+$/.test(currentPath)) || (path === '/reports/finance' && currentPath === '/reports/finance') || (path === '/reports/commissions' && currentPath === '/reports/commissions') || (path === '/company-commissions' && /^\/company-commissions(\/[^/]+)?$/.test(currentPath)) || (path === '/commissions' && /^\/commissions(\/[^/]+)?$/.test(currentPath)) || (path === '/commission-payment-vouchers' && /^\/commission-payment-vouchers(\/[^/]+)?$/.test(currentPath)) || (path === '/commission-reconciliation-report' && currentPath === '/commission-reconciliation-report') || ((path === '/payments' && /^\/payments\/[^/]+$/.test(currentPath)) || (path === '/receipts' && /^\/receipts\/[^/]+$/.test(currentPath)) || (path === '/invoices' && /^\/invoices\/[^/]+$/.test(currentPath))) ? 'active' : ''}
+        className={currentPath === path || (path === '/customers' && /^\/customers\/[^/]+$/.test(currentPath)) || (path === '/leads' && /^\/leads\/[^/]+$/.test(currentPath)) || (path === '/deals' && /^\/deals\/[^/]+$/.test(currentPath)) || (path === '/projects' && /^\/projects\/[^/]+$/.test(currentPath)) || (path === '/properties' && /^\/properties\/[^/]+$/.test(currentPath)) || (path === '/bookings' && /^\/bookings\/[^/]+$/.test(currentPath)) || (path === '/contracts' && /^\/contracts\/[^/]+$/.test(currentPath)) || (path === '/reports/finance' && currentPath === '/reports/finance') || (path === '/reports/commissions' && currentPath === '/reports/commissions') || (path === '/company-commissions' && /^\/company-commissions(\/[^/]+)?$/.test(currentPath)) || (path === '/commissions' && /^\/commissions(\/[^/]+)?$/.test(currentPath)) || (path === '/commission-payment-vouchers' && /^\/commission-payment-vouchers(\/[^/]+)?$/.test(currentPath)) || (path === '/commission-reconciliation-report' && currentPath === '/commission-reconciliation-report') || (path === '/help' && currentPath === '/help') || (path === '/glossary' && currentPath === '/glossary') || ((path === '/payments' && /^\/payments\/[^/]+$/.test(currentPath)) || (path === '/receipts' && /^\/receipts\/[^/]+$/.test(currentPath)) || (path === '/invoices' && /^\/invoices\/[^/]+$/.test(currentPath))) ? 'active' : ''}
         onClick={(event: any) => {
           event.preventDefault();
           navigateTo(path);
@@ -114,6 +114,11 @@ export function AppLayout({ children, currentPath }: AppLayoutProps) {
               {canViewProperties && <div>{renderLink('Bất động sản', '/properties')}</div>}
             </div>
           )}
+          <div className="nav-section">
+            <span>Trợ giúp</span>
+            <div>{renderLink('Hướng dẫn', '/help')}</div>
+            <div>{renderLink('Từ điển nghiệp vụ', '/glossary')}</div>
+          </div>
           {visibleAdminItems.length > 0 && (
             <div className="nav-section">
               <span>Quản trị hệ thống</span>
