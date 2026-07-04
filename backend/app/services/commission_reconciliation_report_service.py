@@ -84,7 +84,10 @@ def list_report(db:Session, page=1, page_size=20, actor=None, **filters):
     return {'summary':summary,'items':rows[start:start+page_size],'pagination':{'page':page,'page_size':page_size,'total':total,'pages':(total+page_size-1)//page_size}}
 
 def export_csv(db, actor=None, **filters):
-    data=list_report(db,page=1,page_size=10000,actor=actor,**filters); out=io.StringIO(); w=csv.writer(out)
+    export_filters=dict(filters)
+    export_filters.pop('page', None)
+    export_filters.pop('page_size', None)
+    data=list_report(db,page=1,page_size=10000,actor=actor,**export_filters); out=io.StringIO(); w=csv.writer(out)
     headers=['Mã hợp đồng','Dự án','Khách hàng','Sale','Mã HH công ty','Trạng thái HH công ty','HH công ty xác nhận','HH công ty đã nhận','HH công ty còn phải thu','Mã HH sale','Trạng thái HH sale','HH sale đã duyệt','HH sale đã chi','HH sale còn phải chi','Chính sách chi','Hạn mức còn có thể chi','Phiếu nháp','Phiếu đã chi','Trạng thái đối soát','Cảnh báo']
     w.writerow(headers)
     for r in data['items']:

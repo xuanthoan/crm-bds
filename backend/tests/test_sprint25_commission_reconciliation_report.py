@@ -22,8 +22,10 @@ class Sprint25CommissionReconciliationReportSourceTest(unittest.TestCase):
             self.assertIn(text, service)
         for header in ['Mã hợp đồng','Dự án','Khách hàng','Sale','Mã HH công ty','Trạng thái HH công ty','HH công ty xác nhận','HH công ty đã nhận','HH công ty còn phải thu','Mã HH sale','Trạng thái HH sale','HH sale đã duyệt','HH sale đã chi','HH sale còn phải chi','Chính sách chi','Hạn mức còn có thể chi','Phiếu nháp','Phiếu đã chi','Trạng thái đối soát','Cảnh báo']:
             self.assertIn(header, service)
+        self.assertIn("export_filters.pop('page', None)", service)
+        self.assertIn("export_filters.pop('page_size', None)", service)
     def test_frontend_route_menu_labels_and_no_raw_enums(self):
-        combined='\n'.join(Path(p).read_text() for p in ['frontend/src/features/commissionReconciliationReport/api.ts','frontend/src/features/commissionReconciliationReport/CommissionReconciliationReportPage.tsx','frontend/src/layouts/AppLayout.tsx','frontend/src/routes/AppRoutes.tsx'])
+        combined='\n'.join(Path(p).read_text() for p in ['frontend/src/features/commissionReconciliationReport/api.ts','frontend/src/features/commissionReconciliationReport/CommissionReconciliationReportPage.tsx','frontend/src/layouts/AppLayout.tsx','frontend/src/routes/AppRoutes.tsx','frontend/src/styles.css'])
         for text in ['/commission-reconciliation-report','Đối soát hoa hồng','Báo cáo đối soát hoa hồng','Theo dõi hoa hồng công ty đã thu','Từ ngày','Đến ngày','Dự án','Sale','Trạng thái đối soát','Tìm kiếm','Lọc','Xóa lọc','Xuất CSV','Chưa có dữ liệu đối soát hoa hồng.','Không tải được báo cáo đối soát hoa hồng.','Bị chặn theo chính sách','Công ty chưa thu đủ','Sale đã chi một phần']:
             self.assertIn(text, combined)
         self.assertIn('.then((res)=>res.data)', combined)
@@ -33,6 +35,9 @@ class Sprint25CommissionReconciliationReportSourceTest(unittest.TestCase):
         self.assertIn('const items=data?.items ?? [];', combined)
         self.assertIn('(r.reconciliation_flags ?? []).map', combined)
         self.assertIn('items.length===0', combined)
+        self.assertIn('commission-reconciliation-scroll', combined)
+        self.assertIn('min-width: 140rem', combined)
+        self.assertIn('width: 140rem', combined)
         self.assertIn('commission-reconciliation-table', combined)
         self.assertIn('commission-reconciliation-money', combined)
         self.assertNotIn('data?.items.map', combined)
