@@ -78,21 +78,32 @@ class Sprint26UserGuideBusinessGlossarySourceTest(unittest.TestCase):
         self.assertIn("<HelpLabel content={tooltipTexts.companyConfirmed}>Tổng HH xác nhận</HelpLabel>", source)
         self.assertIn("<HelpLabel content={tooltipTexts.companyReceived}>Đã nhận</HelpLabel>", source)
         self.assertIn("<HelpLabel content={tooltipTexts.companyRemaining}>Còn phải thu</HelpLabel>", source)
-        self.assertIn(".company-commissions-page .summary-grid span .help-label", styles)
+        self.assertIn(".company-commissions-page .summary-grid article > span .help-label", styles)
         self.assertIn("white-space: nowrap", styles)
         self.assertIn("display: inline-flex", styles)
 
-    def test_company_commission_summary_tooltips_reuse_standard_icon_visuals(self):
+    def test_tooltip_icon_has_single_standard_visual_style(self):
+        component = self.read("frontend/src/components/help/HelpTooltip.tsx")
         styles = self.read("frontend/src/styles.css")
-        self.assertIn(".company-commissions-page .summary-grid span .help-tooltip", styles)
-        self.assertIn("background: #e0ecff", styles)
-        self.assertIn("border: 1px solid #9db7ff", styles)
-        self.assertIn("color: #1d4ed8", styles)
-        self.assertIn("height: 1.1rem", styles)
-        self.assertIn("width: 1.1rem", styles)
-        self.assertIn("line-height: 1", styles)
-        self.assertIn("justify-content: center", styles)
-        self.assertIn("align-items: center", styles)
+        self.assertIn('className="help-tooltip"', component)
+        self.assertEqual(styles.count(".help-tooltip"), 1)
+        for rule in [
+            "background: #e0ecff",
+            "border: 1px solid #9db7ff",
+            "color: #1d4ed8",
+            "display: inline-flex",
+            "flex: 0 0 auto",
+            "height: 1.1rem",
+            "width: 1.1rem",
+            "line-height: 1",
+            "justify-content: center",
+            "align-items: center",
+            "box-sizing: border-box",
+        ]:
+            self.assertIn(rule, styles)
+        self.assertNotIn(".summary-grid span", styles)
+        self.assertNotIn(".metric-card span", styles)
+        self.assertNotIn(".summary-grid span .help-tooltip", styles)
 
     def test_tooltips_and_guide_boxes_added_to_commission_modules(self):
         expected_files = [
