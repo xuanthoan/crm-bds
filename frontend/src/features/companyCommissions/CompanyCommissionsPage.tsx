@@ -75,10 +75,10 @@ export function CompanyCommissionsPage() {
         {[["Chờ duyệt", "pending_count"], ["Đã duyệt", "approved_count"], ["Nhận một phần", "partially_received_count"], ["Đã nhận đủ", "received_count"], ["Tạm giữ", "on_hold_count"], ["Đã hủy", "cancelled_count"]].map(([label, key]) => <article className="summary-card" key={key}><span>{label}</span><strong>{summary[key] || 0}</strong></article>)}
       </div>
 
-      <table className="data-table">
+      <div className="company-commission-table-wrap"><table className="data-table company-commission-table">
         <thead><tr>{['Mã HH công ty', 'Mã HĐ', 'Khách hàng', 'Sale', 'Vai trò'].map((heading) => <th key={heading}>{heading}</th>)}<th><HelpLabel content={tooltipTexts.commissionPayer}>Bên trả HH</HelpLabel></th>{['Giá trị HĐ', 'Tỷ lệ HH', 'HH dự kiến'].map((heading) => <th key={heading}>{heading}</th>)}<th><HelpLabel content={tooltipTexts.companyConfirmed}>HH xác nhận</HelpLabel></th><th><HelpLabel content={tooltipTexts.companyReceived}>Đã nhận</HelpLabel></th><th><HelpLabel content={tooltipTexts.companyRemaining}>Còn phải thu</HelpLabel></th>{['Trạng thái', 'Ngày dự kiến', 'Ngày nhận đủ', 'Hành động'].map((heading) => <th key={heading}>{heading}</th>)}</tr></thead>
         <tbody>{items.map((item) => <tr key={item.id}><td>{item.receivable_code}</td><td>{item.contract_code}</td><td>{item.customer_name}</td><td>{item.sale_name}</td><td>{COMPANY_ROLE_LABELS[item.company_role] || item.company_role}</td><td>{item.commission_payer_name || COMMISSION_PARTY_LABELS[item.commission_payer_type || ''] || item.commission_payer_type}</td><td>{money(item.contract_value)}</td><td>{item.commission_rate_percent}%</td><td>{money(item.expected_commission_amount)}</td><td>{money(item.confirmed_receivable_amount)}</td><td>{money(item.received_amount)}</td><td>{money(item.remaining_amount)}</td><td>{COMPANY_COMMISSION_STATUS_LABELS[item.status] || item.status}</td><td>{date(item.expected_receive_date)}</td><td>{date(item.received_date)}</td><td className="row-actions company-commission-action-cell">{actions(item)}</td></tr>)}</tbody>
-      </table>
+      </table></div>
 
       {guide && <CompanyCommissionGuideModal onClose={() => setGuide(false)} />}
       {create && <CreateCompanyCommissionModal onClose={() => setCreate(false)} onSaved={() => { setCreate(false); void load(); }} />}

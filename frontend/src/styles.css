@@ -1681,3 +1681,107 @@ button:disabled {
 .glossary-card-heading span { background: #eef2ff; border-radius: 999px; color: #3730a3; font-size: 0.78rem; font-weight: 800; padding: 0.35rem 0.6rem; white-space: nowrap; }
 .glossary-card p { color: #334155; line-height: 1.6; }
 .glossary-card small { color: #64748b; font-weight: 700; }
+
+/* Sprint 26 UI polish: keep help icons compact and prevent tooltip-induced overflow. */
+.help-label {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.25rem;
+  max-width: 100%;
+  min-width: 0;
+  vertical-align: middle;
+  white-space: normal;
+}
+
+.help-label-text {
+  min-width: 0;
+}
+
+.help-tooltip {
+  flex: 0 0 auto;
+  margin-left: 0;
+}
+
+.summary-grid span .help-label,
+.metric-card span .help-label,
+th .help-label {
+  line-height: 1.25;
+}
+
+th .help-label {
+  justify-content: center;
+}
+
+.company-commissions-page {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.company-commissions-page .summary-grid {
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+}
+
+.company-commissions-page .summary-grid article,
+.company-commissions-page .summary-grid span,
+.company-commissions-page .summary-grid strong {
+  min-width: 0;
+}
+
+.company-commission-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.company-commission-table {
+  min-width: 96rem;
+}
+
+.commission-reconciliation-table th {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+.commission-reconciliation-table th .help-label {
+  width: 100%;
+}
+
+.glossary-group-list {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.glossary-group {
+  background: #ffffff;
+  border: 1px solid #dfe5f2;
+  border-radius: 1rem;
+  padding: 1rem;
+}
+
+.glossary-group-header {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.glossary-group-header h2 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+.glossary-group-header span {
+  background: #eef2ff;
+  border-radius: 999px;
+  color: #3730a3;
+  font-size: 0.8rem;
+  font-weight: 800;
+  padding: 0.35rem 0.65rem;
+  white-space: nowrap;
+}
+
+.glossary-card-heading h3 {
+  font-size: 1.05rem;
+  margin: 0;
+}

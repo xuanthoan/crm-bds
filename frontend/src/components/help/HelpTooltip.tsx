@@ -3,5 +3,5 @@ export function HelpTooltip({ content }: { content: string }) {
 }
 
 export function HelpLabel({ children, content }: { children: string; content: string }) {
-  return <span className="help-label">{children}<HelpTooltip content={content} /></span>;
+  return <span className="help-label"><span className="help-label-text">{children}</span><HelpTooltip content={content} /></span>;
 }

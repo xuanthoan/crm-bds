@@ -48,6 +48,30 @@ class Sprint26UserGuideBusinessGlossarySourceTest(unittest.TestCase):
         self.assertIn("matchesGroup && matchesSearch", source)
         self.assertNotIn("join(' ').toLowerCase().includes(q)", source)
 
+    def test_glossary_renders_grouped_terms_and_keeps_normalized_search(self):
+        source = self.read("frontend/src/features/help/GlossaryPage.tsx")
+        self.assertIn("groupGlossaryTerms", source)
+        self.assertIn("groupedTerms", source)
+        self.assertIn("Object.entries(groupedTerms).map", source)
+        self.assertIn("glossary-group", source)
+        self.assertIn("glossary-group-header", source)
+        self.assertIn("normalizeSearchText(query.trim())", source)
+
+    def test_help_label_css_prevents_tooltip_overflow(self):
+        component = self.read("frontend/src/components/help/HelpTooltip.tsx")
+        styles = self.read("frontend/src/styles.css")
+        self.assertIn("help-label-text", component)
+        self.assertIn(".help-label", styles)
+        self.assertIn("display: inline-flex", styles)
+        self.assertIn("flex: 0 0 auto", styles)
+        self.assertIn("company-commission-table-wrap", styles)
+        self.assertIn("overflow-x: auto", styles)
+
+    def test_commissions_policy_cell_does_not_include_inline_policy_tooltip(self):
+        source = self.read("frontend/src/features/commissions/CommissionsPage.tsx")
+        self.assertIn("Chính sách chi:", source)
+        self.assertNotIn("Chính sách chi <HelpTooltip content={tooltipTexts.payoutPolicy}", source)
+
     def test_tooltips_and_guide_boxes_added_to_commission_modules(self):
         expected_files = [
             "frontend/src/features/commissions/CommissionsPage.tsx",
