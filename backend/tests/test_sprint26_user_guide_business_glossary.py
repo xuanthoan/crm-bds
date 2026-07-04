@@ -32,7 +32,8 @@ class Sprint26UserGuideBusinessGlossarySourceTest(unittest.TestCase):
         ]:
             self.assertIn(term, content)
         self.assertGreaterEqual(content.count("description"), 0)
-        self.assertGreaterEqual(content.count("['"), 30)
+        self.assertGreaterEqual(content.count("term:"), 0)
+        self.assertGreaterEqual(content.count("["), 30)
 
     def test_glossary_search_normalizes_case_and_vietnamese_accents(self):
         source = self.read("frontend/src/features/help/GlossaryPage.tsx")

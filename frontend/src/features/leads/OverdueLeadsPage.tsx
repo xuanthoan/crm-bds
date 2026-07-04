@@ -1,3 +1,144 @@
-import { useEffect,useState } from 'react'; import { FormError } from '../../components/FormError'; import { can } from '../auth/authStore'; import { formatApiError } from '../../services/apiClient'; import { navigateTo } from '../../routes/AppRoutes'; import { listOverdueLeads,reclaimLead } from './api'; import { PRIORITY_LABELS } from './constants'; import { LeadPriorityBadge } from './components/LeadPriorityBadge'; import { LeadStatusBadge } from './components/LeadStatusBadge'; import type { Lead } from './types';
-const days=(v:string|null)=>v?Math.max(0,Math.floor((Date.now()-new Date(v).getTime())/86400000)):0;
-export function OverdueLeadsPage(){const [items,setItems]=useState<Lead[]>([]),[priority,setPriority]=useState(''),[errors,setErrors]=useState<string[]|null>(null),[loading,setLoading]=useState(true);async function load(){setLoading(true);try{setItems((await listOverdueLeads({priority})).data);setErrors(null)}catch(e){setErrors(formatApiError(e))}finally{setLoading(false)}}useEffect(()=>{void load()},[]);async function reclaim(lead:Lead){const reason=window.prompt('Lý do thu hồi lead','Sale không chăm sóc quá hạn');if(!reason)return;try{await reclaimLead(lead.id,undefined,reason);await load()}catch(e){setErrors(formatApiError(e))}}return <section className="admin-page leads-page"><header className="page-header"><div><h1>Lead quá hạn chăm sóc</h1><p>Theo dõi các lead đã quá thời điểm chăm sóc tiếp theo.</p></div></header><div className="filter-panel"><select value={priority} onChange={(e:any)=>setPriority(e.target.value)}><option value="">Tất cả ưu tiên</option>{Object.entries(PRIORITY_LABELS).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select><button onClick={()=>void load()}>Lọc</button></div><FormError messages={errors}/><div className="table-card"><table><thead><tr><th>Mã</th><th>Khách hàng</th><th>Điện thoại</th><th>Trạng thái</th><th>Ưu tiên</th><th>Phụ trách</th><th>Chăm sóc tiếp</th><th>Quá hạn</th><th>Thao tác</th></tr></thead><tbody>{loading?<tr><td colSpan={9}>Đang tải…</td></tr>:items.map(i=><tr key={i.id}><td>{i.code}</td><td>{i.full_name}</td><td>{i.phone_primary}</td><td><LeadStatusBadge status={i.status}/></td><td><LeadPriorityBadge priority={i.priority}/></td><td>{i.owner?.full_name??'—'}</td><td>{i.next_follow_up_at?new Date(i.next_follow_up_at).toLocaleString('vi-VN'):'—'}</td><td>{days(i.next_follow_up_at)} ngày</td><td><button className="link-button" onClick={()=>navigateTo(`/leads/${i.id}`)}>Chi tiết</button>{(can('leads.reclaim.team')||can('leads.reclaim.all'))&&<button className="link-button" onClick={()=>void reclaim(i)}>Thu hồi</button>}</td></tr>)}</tbody></table></div></section>}
+import { useEffect, useState } from "react";
+import { FormError } from "../../components/FormError";
+import { GuideBox } from "../../components/help/GuideBox";
+import { can } from "../auth/authStore";
+import { formatApiError } from "../../services/apiClient";
+import { navigateTo } from "../../routes/AppRoutes";
+import { listOverdueLeads, reclaimLead } from "./api";
+import { PRIORITY_LABELS } from "./constants";
+import { LeadPriorityBadge } from "./components/LeadPriorityBadge";
+import { LeadStatusBadge } from "./components/LeadStatusBadge";
+import type { Lead } from "./types";
+const days = (v: string | null) =>
+  v
+    ? Math.max(0, Math.floor((Date.now() - new Date(v).getTime()) / 86400000))
+    : 0;
+export function OverdueLeadsPage() {
+  const [items, setItems] = useState<Lead[]>([]),
+    [priority, setPriority] = useState(""),
+    [errors, setErrors] = useState<string[] | null>(null),
+    [loading, setLoading] = useState(true);
+  async function load() {
+    setLoading(true);
+    try {
+      setItems((await listOverdueLeads({ priority })).data);
+      setErrors(null);
+    } catch (e) {
+      setErrors(formatApiError(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    void load();
+  }, []);
+  async function reclaim(lead: Lead) {
+    const reason = window.prompt(
+      "Lý do thu hồi lead",
+      "Sale không chăm sóc quá hạn",
+    );
+    if (!reason) return;
+    try {
+      await reclaimLead(lead.id, undefined, reason);
+      await load();
+    } catch (e) {
+      setErrors(formatApiError(e));
+    }
+  }
+  return (
+    <section className="admin-page leads-page">
+      <header className="page-header">
+        <div>
+          <h1>Lead quá hạn chăm sóc</h1>
+          <p>Theo dõi các lead đã quá thời điểm chăm sóc tiếp theo.</p>
+        </div>
+      </header>
+      <GuideBox
+        title="Cách xử lý lead quá hạn"
+        items={[
+          "Ưu tiên gọi lại các lead quá hạn trước.",
+          "Cập nhật kết quả chăm sóc sau khi gọi.",
+          "Nếu không còn tiềm năng, ghi rõ lý do.",
+          "Không để lead quá hạn lặp lại nhiều lần.",
+        ]}
+      />
+      <div className="filter-panel">
+        <select
+          value={priority}
+          onChange={(e: any) => setPriority(e.target.value)}
+        >
+          <option value="">Tất cả ưu tiên</option>
+          {Object.entries(PRIORITY_LABELS).map(([v, l]) => (
+            <option key={v} value={v}>
+              {l}
+            </option>
+          ))}
+        </select>
+        <button onClick={() => void load()}>Lọc</button>
+      </div>
+      <FormError messages={errors} />
+      <div className="table-card">
+        <table>
+          <thead>
+            <tr>
+              <th>Mã</th>
+              <th>Khách hàng</th>
+              <th>Điện thoại</th>
+              <th>Trạng thái</th>
+              <th>Ưu tiên</th>
+              <th>Phụ trách</th>
+              <th>Chăm sóc tiếp</th>
+              <th>Quá hạn</th>
+              <th>Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={9}>Đang tải…</td>
+              </tr>
+            ) : (
+              items.map((i) => (
+                <tr key={i.id}>
+                  <td>{i.code}</td>
+                  <td>{i.full_name}</td>
+                  <td>{i.phone_primary}</td>
+                  <td>
+                    <LeadStatusBadge status={i.status} />
+                  </td>
+                  <td>
+                    <LeadPriorityBadge priority={i.priority} />
+                  </td>
+                  <td>{i.owner?.full_name ?? "—"}</td>
+                  <td>
+                    {i.next_follow_up_at
+                      ? new Date(i.next_follow_up_at).toLocaleString("vi-VN")
+                      : "—"}
+                  </td>
+                  <td>{days(i.next_follow_up_at)} ngày</td>
+                  <td>
+                    <button
+                      className="link-button"
+                      onClick={() => navigateTo(`/leads/${i.id}`)}
+                    >
+                      Chi tiết
+                    </button>
+                    {(can("leads.reclaim.team") ||
+                      can("leads.reclaim.all")) && (
+                      <button
+                        className="link-button"
+                        onClick={() => void reclaim(i)}
+                      >
+                        Thu hồi
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
