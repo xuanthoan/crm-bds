@@ -59,6 +59,7 @@ import { CommissionPayoutPolicySettingsPage } from '../features/settings/Commiss
 import { COMPANY_COMMISSION_VIEW_PERMISSIONS } from '../features/companyCommissions/constants';
 import { CommissionPaymentVouchersPage } from '../features/commissionPaymentVouchers/CommissionPaymentVouchersPage';
 import { CommissionPaymentVoucherDetailPage } from '../features/commissionPaymentVouchers/CommissionPaymentVoucherDetailPage';
+import { CommissionReconciliationReportPage } from '../features/commissionReconciliationReport/CommissionReconciliationReportPage';
 
 export function navigateTo(path: string): void {
   window.history.pushState({}, '', path);
@@ -103,6 +104,7 @@ const protectedPages: Record<string, ProtectedPage> = {
   '/company-commissions': { element: <CompanyCommissionsPage />, permission: COMPANY_COMMISSION_VIEW_PERMISSIONS },
   '/commissions': { element: <CommissionsPage />, permission: COMMISSION_VIEW_PERMISSIONS },
   '/commission-payment-vouchers': { element: <CommissionPaymentVouchersPage />, permission: 'commissions.payment_vouchers.view' },
+  '/commission-reconciliation-report': { element: <CommissionReconciliationReportPage />, permission: 'reports.commission_reconciliation.view' },
   '/notifications': { element: <NotificationsPage />, permission: 'notifications.view' },
 };
 
