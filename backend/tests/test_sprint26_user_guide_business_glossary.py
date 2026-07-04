@@ -82,6 +82,18 @@ class Sprint26UserGuideBusinessGlossarySourceTest(unittest.TestCase):
         self.assertIn("white-space: nowrap", styles)
         self.assertIn("display: inline-flex", styles)
 
+    def test_company_commission_summary_tooltips_reuse_standard_icon_visuals(self):
+        styles = self.read("frontend/src/styles.css")
+        self.assertIn(".company-commissions-page .summary-grid span .help-tooltip", styles)
+        self.assertIn("background: #e0ecff", styles)
+        self.assertIn("border: 1px solid #9db7ff", styles)
+        self.assertIn("color: #1d4ed8", styles)
+        self.assertIn("height: 1.1rem", styles)
+        self.assertIn("width: 1.1rem", styles)
+        self.assertIn("line-height: 1", styles)
+        self.assertIn("justify-content: center", styles)
+        self.assertIn("align-items: center", styles)
+
     def test_tooltips_and_guide_boxes_added_to_commission_modules(self):
         expected_files = [
             "frontend/src/features/commissions/CommissionsPage.tsx",

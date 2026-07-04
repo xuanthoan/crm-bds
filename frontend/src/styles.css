@@ -1795,3 +1795,22 @@ th .help-label {
 .company-commissions-page .summary-grid span .help-label-text {
   display: inline;
 }
+
+/* Re-apply the shared tooltip icon visual inside company summary labels; .summary-grid span is more specific than .help-tooltip. */
+.company-commissions-page .summary-grid span .help-tooltip {
+  align-items: center;
+  background: #e0ecff;
+  border: 1px solid #9db7ff;
+  border-radius: 999px;
+  color: #1d4ed8;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  font-weight: 900;
+  height: 1.1rem;
+  justify-content: center;
+  line-height: 1;
+  margin-left: 0;
+  padding: 0;
+  width: 1.1rem;
+}
