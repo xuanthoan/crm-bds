@@ -12,6 +12,12 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
         model = self.read('backend/app/models/audit_log.py')
         service = self.read('backend/app/services/audit_log_service.py')
         self.assertIn('audit_logs', migration)
+        self.assertIn('inspect(op.get_bind())', migration)
+        self.assertIn('if not _table_exists()', migration)
+        self.assertIn('_create_missing_columns()', migration)
+        self.assertIn('_create_missing_indexes()', migration)
+        for index_name in ['ix_audit_logs_created_at', 'ix_audit_logs_actor_id', 'ix_audit_logs_module_entity']:
+            self.assertIn(index_name, migration)
         for field in ['actor_id','actor_name','actor_email','module','entity_label','changed_fields','request_id']:
             self.assertIn(field, model)
         self.assertIn('def create_audit_log', service)
