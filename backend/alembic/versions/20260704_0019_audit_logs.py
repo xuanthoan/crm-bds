@@ -66,13 +66,40 @@ def _existing_indexes() -> set[str]:
     return {index['name'] for index in _inspector().get_indexes(TABLE_NAME)} if _table_exists() else set()
 
 
+def _backfill_not_null_column(name: str) -> None:
+    if name == 'action':
+        op.execute("UPDATE audit_logs SET action = 'unknown' WHERE action IS NULL")
+    elif name == 'module':
+        op.execute("UPDATE audit_logs SET module = 'audit_log' WHERE module IS NULL")
+    elif name == 'entity_type':
+        op.execute("UPDATE audit_logs SET entity_type = 'audit_log' WHERE entity_type IS NULL")
+    elif name == 'entity_id':
+        if 'id' in _existing_columns():
+            op.execute("UPDATE audit_logs SET entity_id = COALESCE(id::text, 'unknown') WHERE entity_id IS NULL")
+        else:
+            op.execute("UPDATE audit_logs SET entity_id = 'unknown' WHERE entity_id IS NULL")
+    elif name == 'created_at':
+        op.execute("UPDATE audit_logs SET created_at = now() WHERE created_at IS NULL")
+
+
+def _add_column_safely(name: str, column: sa.Column) -> None:
+    if name in _existing_columns():
+        return
+    column_to_add = column.copy()
+    if not column.nullable:
+        column_to_add.nullable = True
+        op.add_column(TABLE_NAME, column_to_add)
+        _backfill_not_null_column(name)
+        op.alter_column(TABLE_NAME, name, nullable=False)
+        return
+    op.add_column(TABLE_NAME, column_to_add)
+
+
 def _create_missing_columns() -> None:
-    existing_columns = _existing_columns()
     for name, column in COLUMN_DEFINITIONS.items():
         if name == 'id':
             continue
-        if name not in existing_columns:
-            op.add_column(TABLE_NAME, column.copy())
+        _add_column_safely(name, column)
 
 
 def _create_missing_indexes() -> None:

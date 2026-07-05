@@ -16,6 +16,18 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
         self.assertIn('if not _table_exists()', migration)
         self.assertIn('_create_missing_columns()', migration)
         self.assertIn('_create_missing_indexes()', migration)
+        self.assertIn('def _add_column_safely', migration)
+        self.assertIn('column_to_add.nullable = True', migration)
+        self.assertIn('op.alter_column(TABLE_NAME, name, nullable=False)', migration)
+        for backfill_sql in [
+            "UPDATE audit_logs SET action = 'unknown' WHERE action IS NULL",
+            "UPDATE audit_logs SET module = 'audit_log' WHERE module IS NULL",
+            "UPDATE audit_logs SET entity_type = 'audit_log' WHERE entity_type IS NULL",
+            "UPDATE audit_logs SET entity_id = COALESCE(id::text, 'unknown') WHERE entity_id IS NULL",
+            "UPDATE audit_logs SET created_at = now() WHERE created_at IS NULL",
+        ]:
+            self.assertIn(backfill_sql, migration)
+        self.assertNotIn('drop_table(TABLE_NAME)\n    else', migration)
         for index_name in ['ix_audit_logs_created_at', 'ix_audit_logs_actor_id', 'ix_audit_logs_module_entity']:
             self.assertIn(index_name, migration)
         for field in ['actor_id','actor_name','actor_email','module','entity_label','changed_fields','request_id']:
