@@ -123,8 +123,10 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
         for path in ['frontend/src/features/deals/components/DealTimeline.tsx','frontend/src/features/contracts/components/ContractTimeline.tsx','frontend/src/features/bookings/components/BookingTimeline.tsx','frontend/src/features/leads/components/LeadTimeline.tsx']:
             self.assertIn('BusinessTimeline', self.read(path))
         for path in ['frontend/src/features/commissions/CommissionDetailPage.tsx','frontend/src/features/companyCommissions/CompanyCommissionDetailPage.tsx','frontend/src/features/commissionPaymentVouchers/CommissionPaymentVoucherDetailPage.tsx']:
-            self.assertIn('ActivityTimeline', self.read(path))
-            self.assertIn('Lịch sử thao tác hệ thống', self.read(path))
+            source = self.read(path)
+            self.assertIn('ActivityTimeline', source)
+            self.assertIn('components/audit/ActivityTimeline', source)
+            self.assertIn('Lịch sử thao tác hệ thống', source)
 
 if __name__ == '__main__':
     unittest.main()
