@@ -128,5 +128,30 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
             self.assertIn('components/audit/ActivityTimeline', source)
             self.assertIn('Lịch sử thao tác hệ thống', source)
 
+    def test_audit_log_filter_search_hotfix_source_contract(self):
+        api = self.read('backend/app/api/v1/audit_logs.py')
+        page = self.read('frontend/src/features/auditLogs/AuditLogsPage.tsx')
+        api_client = self.read('frontend/src/features/auditLogs/api.ts')
+        for text in [
+            'def _apply_actor_filter', 'actor_name.ilike', 'actor_email.ilike',
+            'def _apply_entity_type_filter', 'ENTITY_TYPE_ALIASES',
+            'def _apply_entity_id_filter', 'def _lookup_entity_ids_by_display',
+            'contract_code', 'booking_code', 'deal_code',
+            'def _keyword_candidate_query', 'EXTRA_ACTION_LABELS', 'EXTRA_MODULE_LABELS',
+            'Đăng nhập', 'Đổi trạng thái hợp đồng', 'Booking / Giữ chỗ',
+            'Defensive final pass keeps display-label behavior exact while SQL prefilter avoids enriching the whole table.',
+        ]:
+            self.assertIn(text, api)
+        for text in [
+            "setDraftValue('actor_id'", "setDraftValue('entity_type'", "setDraftValue('entity_id'", "setDraftValue('q'",
+            'listAuditLogs(filters)', '.catch(err=>', '.finally(()=>{if(active)setLoading(false)})',
+            'formatApiError', 'Không tải được lịch sử thao tác.',
+            'ID, tên hoặc email người thao tác', 'VD: contract, booking, deal, user',
+            'VD: HD-000066, BK-000107, DL-000086 hoặc UUID',
+            'Tìm theo người thao tác, hành động, module, mã đối tượng, mô tả...',
+        ]:
+            self.assertIn(text, page)
+        self.assertIn('/api/v1/audit-logs?', api_client)
+
 if __name__ == '__main__':
     unittest.main()
