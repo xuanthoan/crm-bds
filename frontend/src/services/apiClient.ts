@@ -32,6 +32,8 @@ export class ApiRequestError extends Error {
 const API_BASE_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000' : '');
 const ACCESS_TOKEN_KEY = 'crm_bds_access_token';
 const RAW_OBJECT_ERROR_MESSAGE = String({});
+const SESSION_EXPIRED_MESSAGE = 'Phiên đăng nhập đã hết hạn hoặc bạn chưa đăng nhập. Vui lòng đăng nhập lại.';
+const NETWORK_ERROR_MESSAGE = 'Không kết nối được máy chủ. Kiểm tra VITE_API_URL hoặc backend port 8000.';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -126,6 +128,20 @@ export function formatApiError(error: unknown, fallback = 'Đã có lỗi xảy 
   return [fallback];
 }
 
+
+function isPublicAuthPath(path: string): boolean {
+  return path.includes('/api/v1/auth/login');
+}
+
+function redirectToLogin(): void {
+  clearAccessToken();
+  localStorage.removeItem('crm_bds_refresh_token');
+  localStorage.removeItem('crm_bds_current_user');
+  if (window.location.pathname !== '/login') {
+    window.location.assign('/login');
+  }
+}
+
 export function getAccessToken(): string | null {
   return localStorage.getItem(ACCESS_TOKEN_KEY);
 }
@@ -145,6 +161,9 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
   const token = getAccessToken();
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
+  } else if (!isPublicAuthPath(path)) {
+    redirectToLogin();
+    throw new ApiRequestError(401, { detail: SESSION_EXPIRED_MESSAGE });
   }
 
   let response: Response;
@@ -157,18 +176,14 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
     });
   } catch (error) {
     console.error('API network error', error);
-    throw new ApiRequestError(0, { detail: 'Không kết nối được máy chủ. Kiểm tra VITE_API_URL hoặc backend port 8000.' });
+    throw new ApiRequestError(0, { detail: NETWORK_ERROR_MESSAGE });
   }
 
   const payload = (await response.json().catch(() => ({ detail: 'Unexpected API response' }))) as ApiResponse<T> | ErrorPayload;
 
   if (response.status === 401) {
-    clearAccessToken();
-    localStorage.removeItem('crm_bds_refresh_token');
-    localStorage.removeItem('crm_bds_current_user');
-    if (window.location.pathname !== '/login') {
-      window.location.assign('/login');
-    }
+    redirectToLogin();
+    throw new ApiRequestError(401, { detail: SESSION_EXPIRED_MESSAGE });
   }
 
   if (!response.ok) {

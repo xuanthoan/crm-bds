@@ -132,6 +132,8 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
         api = self.read('backend/app/api/v1/audit_logs.py')
         page = self.read('frontend/src/features/auditLogs/AuditLogsPage.tsx')
         api_client = self.read('frontend/src/features/auditLogs/api.ts')
+        service_client = self.read('frontend/src/services/apiClient.ts')
+        app_layout = self.read('frontend/src/layouts/AppLayout.tsx')
         styles = self.read('frontend/src/styles.css')
         for text in [
             'def _apply_actor_filter', 'def _lookup_actor_user_ids', 'User.full_name.ilike', 'User.email.ilike',
@@ -157,6 +159,13 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
         ]:
             self.assertIn(text, page)
         self.assertIn('/api/v1/audit-logs?', api_client)
+        for text in [
+            'ACCESS_TOKEN_KEY', 'crm_bds_access_token', "headers.set('Authorization', `Bearer ${token}`)",
+            'SESSION_EXPIRED_MESSAGE', 'NETWORK_ERROR_MESSAGE', 'response.status === 401',
+            'redirectToLogin()', 'throw new ApiRequestError(401', 'throw new ApiRequestError(0',
+        ]:
+            self.assertIn(text, service_client)
+        self.assertIn('unreadCount()', app_layout)
         for text in ['audit-pagination', 'audit-pagination-controls', 'audit-page-number.active', 'audit-page-ellipsis']:
             self.assertIn(text, styles)
 
