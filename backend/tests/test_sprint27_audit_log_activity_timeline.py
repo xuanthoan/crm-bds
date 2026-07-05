@@ -33,6 +33,9 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
         for field in ['actor_id','actor_name','actor_email','module','entity_label','changed_fields','request_id']:
             self.assertIn(field, model)
         self.assertIn('def create_audit_log', service)
+        self.assertIn("safe_module = module or 'system'", service)
+        self.assertIn("safe_entity_type = entity_type or 'system'", service)
+        self.assertIn("safe_entity_id = str(entity_id or actor_id or 'unknown')", service)
         self.assertIn('SENSITIVE_KEYS', service)
         self.assertIn('password', service)
         self.assertIn('token', service)
@@ -53,6 +56,20 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
             if line.strip().startswith('api_router.include_router('):
                 self.assertNotIn(', audit_logs.router', line)
         self.assertIn('audit_logs.view', perms)
+
+
+    def test_auth_login_audit_has_required_not_null_fields(self):
+        auth_service = self.read('backend/app/services/auth_service.py')
+        legacy_audit_service = self.read('backend/app/services/audit_service.py')
+        self.assertIn('action="auth.login"', auth_service)
+        self.assertIn('module="auth"', auth_service)
+        self.assertIn('entity_type="user"', auth_service)
+        self.assertIn('entity_id=str(user.id)', auth_service)
+        self.assertIn('entity_label=user.email', auth_service)
+        self.assertIn('description="Đăng nhập hệ thống"', auth_service)
+        self.assertIn('safe_module = module or _module_from_action(safe_action)', legacy_audit_service)
+        self.assertIn('safe_entity_type = entity_type or safe_module or "system"', legacy_audit_service)
+        self.assertIn('safe_entity_id = str(entity_id or user_id or "unknown")', legacy_audit_service)
 
     def test_labels_and_sensitive_fields(self):
         constants = self.read('backend/app/audit_constants.py')

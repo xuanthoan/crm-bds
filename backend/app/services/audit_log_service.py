@@ -43,14 +43,18 @@ def get_actor_snapshot(user):
     if not user: return None, None, None
     return getattr(user, 'id', None), getattr(user, 'full_name', None), getattr(user, 'email', None)
 
-def create_audit_log(db: Session, *, actor=None, action: str, module: str, entity_type: str, entity_id, entity_label=None,
+def create_audit_log(db: Session, *, actor=None, action: str | None = None, module: str | None = None, entity_type: str | None = None, entity_id=None, entity_label=None,
                      before_data=None, after_data=None, changed_fields=None, description=None, reason=None, request=None,
                      request_id=None, commit: bool = False):
     actor_id, actor_name, actor_email = get_actor_snapshot(actor)
     ip_address = getattr(getattr(request, 'client', None), 'host', None) if request is not None else None
     user_agent = request.headers.get('user-agent') if request is not None and getattr(request, 'headers', None) else None
-    log = AuditLog(actor_id=actor_id, user_id=actor_id, actor_name=actor_name, actor_email=actor_email, action=action,
-                   module=module, entity_type=entity_type, entity_id=str(entity_id), entity_label=entity_label,
+    safe_action = action or 'unknown'
+    safe_module = module or 'system'
+    safe_entity_type = entity_type or 'system'
+    safe_entity_id = str(entity_id or actor_id or 'unknown')
+    log = AuditLog(actor_id=actor_id, user_id=actor_id, actor_name=actor_name, actor_email=actor_email, action=safe_action,
+                   module=safe_module, entity_type=safe_entity_type, entity_id=safe_entity_id, entity_label=entity_label,
                    before_data=sanitize_audit_data(before_data), after_data=sanitize_audit_data(after_data),
                    changed_fields=sanitize_audit_data(changed_fields), description=description, reason=reason,
                    request_id=request_id, ip_address=ip_address, user_agent=user_agent)

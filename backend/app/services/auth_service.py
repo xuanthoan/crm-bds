@@ -43,7 +43,7 @@ def login(db: Session, email: str, password: str, request: Request | None = None
     user.last_login_at = datetime.now(timezone.utc)
     access_token = create_access_token(str(user.id))
     refresh_token = create_refresh_token(db, user)
-    write_audit_log(db, action="auth.login", user_id=user.id, ip_address=_client_ip(request), user_agent=_user_agent(request))
+    write_audit_log(db, action="auth.login", user_id=user.id, module="auth", entity_type="user", entity_id=str(user.id), entity_label=user.email, description="Đăng nhập hệ thống", ip_address=_client_ip(request), user_agent=_user_agent(request))
     db.commit()
     db.refresh(user)
     return {
@@ -81,5 +81,5 @@ def logout(db: Session, user: User, refresh_token: str | None = None, request: R
         stored = db.scalar(select(RefreshToken).where(RefreshToken.token_hash == hash_token(refresh_token), RefreshToken.user_id == user.id))
         if stored and stored.revoked_at is None:
             stored.revoked_at = datetime.now(timezone.utc)
-    write_audit_log(db, action="auth.logout", user_id=user.id, ip_address=_client_ip(request), user_agent=_user_agent(request))
+    write_audit_log(db, action="auth.logout", user_id=user.id, module="auth", entity_type="user", entity_id=str(user.id), entity_label=user.email, description="Đăng xuất hệ thống", ip_address=_client_ip(request), user_agent=_user_agent(request))
     db.commit()
