@@ -123,6 +123,19 @@ def _lookup_entity_label(db: Session | None, entity_type: str | None, entity_id:
         return value or getattr(item, 'full_name', None)
     return value
 
+
+def _lookup_actor_snapshot(db: Session | None, actor_id) -> tuple[str | None, str | None]:
+    if not db or not actor_id:
+        return None, None
+    from app.models.user import User
+    try:
+        user = db.query(User).filter(User.id == actor_id).first()
+    except Exception:
+        return None, None
+    if not user:
+        return None, None
+    return getattr(user, 'full_name', None), getattr(user, 'email', None)
+
 def _has_friendly_label(value: str | None) -> bool:
     if not value:
         return False
@@ -133,8 +146,14 @@ def audit_log_to_dict(log: AuditLog, db: Session | None = None):
     display_module = infer_module_from_action(log.module, log.action)
     entity_label = log.entity_label if _has_friendly_label(log.entity_label) else _lookup_entity_label(db, log.entity_type, log.entity_id)
     entity_display = entity_label or None
-    return {'id': str(log.id), 'actor_id': str(log.actor_id or log.user_id) if (log.actor_id or log.user_id) else None,
-            'actor_name': log.actor_name, 'actor_email': log.actor_email, 'action': log.action,
+    actor_id = log.actor_id or log.user_id
+    actor_name, actor_email = log.actor_name, log.actor_email
+    if not actor_name and not actor_email:
+        actor_name, actor_email = _lookup_actor_snapshot(db, actor_id)
+    if not actor_name and not actor_email and log.entity_type == 'user' and _has_friendly_label(entity_label):
+        actor_email = entity_label
+    return {'id': str(log.id), 'actor_id': str(actor_id) if actor_id else None,
+            'actor_name': actor_name, 'actor_email': actor_email, 'action': log.action,
             'action_label': ACTION_LABELS.get(log.action, log.action), 'module': display_module,
             'module_label': MODULE_LABELS.get(display_module, display_module), 'entity_type': log.entity_type,
             'entity_id': log.entity_id, 'entity_label': entity_label, 'entity_display': entity_display, 'before_data': log.before_data,

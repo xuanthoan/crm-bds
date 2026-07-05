@@ -15,6 +15,7 @@ const moduleOpts=['','auth','audit_log','sales_commission','company_commission',
 function actorName(item: AuditLog){
   if(!isBlank(item.actor_name)) return String(item.actor_name);
   if(!isBlank(item.actor_email)) return String(item.actor_email);
+  if(String(item.entity_type||'')==='user' && !isBlank(item.entity_label)) return String(item.entity_label);
   if(!isBlank(item.actor_id)) return 'Người dùng';
   return 'Hệ thống';
 }

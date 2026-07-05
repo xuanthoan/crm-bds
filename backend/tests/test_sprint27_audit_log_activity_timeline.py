@@ -42,7 +42,7 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
         self.assertIn('def diff_dict', service)
         self.assertIn("'before'", service)
         self.assertIn("'after'", service)
-        for text in ['def _lookup_entity_label', 'contract_code', 'booking_code', 'deal_code', 'property_code', 'commission_code', 'receivable_code', 'entity_display', 'def infer_module_from_action']:
+        for text in ['def _lookup_entity_label', 'contract_code', 'booking_code', 'deal_code', 'property_code', 'commission_code', 'receivable_code', 'entity_display', 'def infer_module_from_action', 'def _lookup_actor_snapshot']:
             self.assertIn(text, service)
 
     def test_api_routes_and_permissions_exist(self):
@@ -56,6 +56,7 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
         self.assertIn('api_router.include_router(audit_logs.router)', router)
         self.assertIn('audit_log_to_dict(i, db)', api)
         self.assertIn('audit_log_to_dict(log, db)', api)
+        self.assertIn('actor_name, actor_email = _lookup_actor_snapshot(db, actor_id)', self.read('backend/app/services/audit_log_service.py'))
         for line in router.splitlines():
             if line.strip().startswith('api_router.include_router('):
                 self.assertNotIn(', audit_logs.router', line)
@@ -111,7 +112,7 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
             self.assertIn(text, page)
         for text in ['auth.login', 'Đăng nhập', 'contracts.create', 'Tạo hợp đồng', 'bookings.status_change', 'Đổi trạng thái booking', 'deals.create_from_booking', 'Tạo giao dịch từ booking', 'inventory.properties.create', 'Tạo bất động sản', 'inferModuleFromAction', 'commissions']:
             self.assertIn(text, constants)
-        for text in ['entity_display', 'displayModule', 'inferModuleFromAction']:
+        for text in ['entity_display', 'displayModule', 'inferModuleFromAction', "String(item.entity_label)"]:
             self.assertIn(text, page + self.read('frontend/src/features/auditLogs/api.ts'))
         for text in ['Không xác định', 'ID hoặc email người thao tác', 'Tìm người thao tác, mô tả, mã đối tượng', 'audit-filter-grid', 'audit-detail-summary', 'audit-changed-list']:
             self.assertIn(text, page + styles)
