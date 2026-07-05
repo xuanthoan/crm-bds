@@ -132,6 +132,7 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
         api = self.read('backend/app/api/v1/audit_logs.py')
         page = self.read('frontend/src/features/auditLogs/AuditLogsPage.tsx')
         api_client = self.read('frontend/src/features/auditLogs/api.ts')
+        styles = self.read('frontend/src/styles.css')
         for text in [
             'def _apply_actor_filter', 'def _lookup_actor_user_ids', 'User.full_name.ilike', 'User.email.ilike',
             'actor_name.ilike', 'actor_email.ilike', 'AuditLog.actor_id.in_(actor_user_ids)',
@@ -151,9 +152,13 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
             'ID, tên hoặc email người thao tác', 'VD: contract, booking, deal, user',
             'VD: HD-000066, BK-000107, DL-000086 hoặc UUID',
             'Tìm theo người thao tác, hành động, module, mã đối tượng, mô tả...',
+            'getPaginationItems', 'paginationItems.map', 'audit-page-number', 'active',
+            "setFilters({...draft,page:'1'})", 'setDraft(initialFilters);setFilters(initialFilters);',
         ]:
             self.assertIn(text, page)
         self.assertIn('/api/v1/audit-logs?', api_client)
+        for text in ['audit-pagination', 'audit-pagination-controls', 'audit-page-number.active', 'audit-page-ellipsis']:
+            self.assertIn(text, styles)
 
 if __name__ == '__main__':
     unittest.main()
