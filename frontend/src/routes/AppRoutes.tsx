@@ -62,6 +62,7 @@ import { CommissionPaymentVoucherDetailPage } from '../features/commissionPaymen
 import { CommissionReconciliationReportPage } from '../features/commissionReconciliationReport/CommissionReconciliationReportPage';
 import { HelpPage } from '../features/help/HelpPage';
 import { GlossaryPage } from '../features/help/GlossaryPage';
+import { AuditLogsPage } from '../features/auditLogs/AuditLogsPage';
 
 export function navigateTo(path: string): void {
   window.history.pushState({}, '', path);
@@ -87,6 +88,7 @@ const protectedPages: Record<string, ProtectedPage> = {
   '/admin/users': { element: <UsersPage />, permission: 'users.view' },
   '/admin/roles': { element: <RolesPage />, permission: 'roles.view' },
   '/admin/permissions': { element: <PermissionsPage />, permission: 'permissions.view' },
+  '/audit-logs': { element: <AuditLogsPage />, permission: 'audit_logs.view' },
   '/admin/departments': { element: <DepartmentsPage />, permission: 'settings.manage_master_data' },
   '/admin/teams': { element: <TeamsPage />, permission: 'settings.manage_master_data' },
   '/admin/memberships': { element: <MembershipsPage />, permission: 'users.update' },

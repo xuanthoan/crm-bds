@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { ActivityTimeline } from '../../components/audit/ActivityTimeline';
 import { navigateTo } from '../../routes/AppRoutes';
 import { can } from '../auth/authStore';
 import { cancelVoucher, getVoucher, markPaidVoucher, PAYMENT_METHOD_LABELS, VOUCHER_STATUS_LABELS, type Voucher } from './api';
@@ -76,6 +77,7 @@ export function CommissionPaymentVoucherDetailPage({ voucherId }: { voucherId: s
           <Field label="Ghi chú">{v.note || '—'}</Field>
         </dl>
       </section>
+      <ActivityTimeline entityType="commission_payment_voucher" entityId={voucherId} title="Lịch sử thao tác hệ thống" />
     </section>
   );
 }
