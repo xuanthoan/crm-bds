@@ -133,12 +133,14 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
         page = self.read('frontend/src/features/auditLogs/AuditLogsPage.tsx')
         api_client = self.read('frontend/src/features/auditLogs/api.ts')
         for text in [
-            'def _apply_actor_filter', 'actor_name.ilike', 'actor_email.ilike',
+            'def _apply_actor_filter', 'def _lookup_actor_user_ids', 'User.full_name.ilike', 'User.email.ilike',
+            'actor_name.ilike', 'actor_email.ilike', 'AuditLog.actor_id.in_(actor_user_ids)',
             'def _apply_entity_type_filter', 'ENTITY_TYPE_ALIASES',
             'def _apply_entity_id_filter', 'def _lookup_entity_ids_by_display',
             'contract_code', 'booking_code', 'deal_code',
             'def _keyword_candidate_query', 'EXTRA_ACTION_LABELS', 'EXTRA_MODULE_LABELS',
             'Đăng nhập', 'Đổi trạng thái hợp đồng', 'Booking / Giữ chỗ',
+            "entity_label.ilike(term)", "entity_type.in_({'user', 'users', 'auth'})",
             'Defensive final pass keeps display-label behavior exact while SQL prefilter avoids enriching the whole table.',
         ]:
             self.assertIn(text, api)

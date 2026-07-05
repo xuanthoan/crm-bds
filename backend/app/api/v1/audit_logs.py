@@ -109,6 +109,29 @@ def _lookup_entity_ids_by_display(db: Session, keyword: str) -> set[str]:
     return ids
 
 
+
+def _lookup_actor_user_ids(db: Session, keyword: str) -> set[UUID]:
+    if not keyword or not keyword.strip():
+        return set()
+    text = keyword.strip()
+    term = f'%{text}%'
+    normalized = _normalize_search_text(text)
+    ids: set[UUID] = set()
+    try:
+        ids.update(
+            user_id for user_id, in db.query(User.id)
+            .filter(or_(User.full_name.ilike(term), User.email.ilike(term)))
+            .limit(200)
+            .all()
+        )
+        if normalized != text.lower():
+            for user_id, full_name, email in db.query(User.id, User.full_name, User.email).limit(2000).all():
+                if normalized in _normalize_search_text(full_name) or normalized in _normalize_search_text(email):
+                    ids.add(user_id)
+    except Exception:
+        return ids
+    return ids
+
 def _matches_enriched_keyword(row: dict, keyword: str) -> bool:
     normalized_keyword = _normalize_search_text(keyword)
     if not normalized_keyword:
@@ -124,7 +147,7 @@ def _matches_enriched_keyword(row: dict, keyword: str) -> bool:
     return normalized_keyword in haystack
 
 
-def _apply_actor_filter(q, value: str | None):
+def _apply_actor_filter(db: Session, q, value: str | None):
     if not value:
         return q
     text = str(value).strip()
@@ -133,7 +156,12 @@ def _apply_actor_filter(q, value: str | None):
         return q.filter(or_(AuditLog.actor_id == actor_uuid, AuditLog.user_id == actor_uuid))
     except (TypeError, ValueError):
         term = f'%{text}%'
-        return q.filter(or_(AuditLog.actor_name.ilike(term), AuditLog.actor_email.ilike(term)))
+        actor_user_ids = _lookup_actor_user_ids(db, text)
+        conditions = [AuditLog.actor_name.ilike(term), AuditLog.actor_email.ilike(term)]
+        if actor_user_ids:
+            conditions.extend([AuditLog.actor_id.in_(actor_user_ids), AuditLog.user_id.in_(actor_user_ids)])
+        conditions.append(or_(AuditLog.entity_type.in_({'user', 'users', 'auth'}), AuditLog.module == 'auth') & AuditLog.entity_label.ilike(term))
+        return q.filter(or_(*conditions))
 
 
 def _apply_entity_type_filter(q, value: str | None):
@@ -168,6 +196,7 @@ def _apply_action_filter(q, value: str | None):
 def _keyword_candidate_query(db: Session, q, keyword: str):
     term = f'%{keyword.strip()}%'
     entity_ids = _lookup_entity_ids_by_display(db, keyword)
+    actor_user_ids = _lookup_actor_user_ids(db, keyword)
     actions = _matching_action_values(keyword)
     modules = _matching_module_values(keyword)
     entity_types = _matching_entity_types(keyword)
@@ -180,6 +209,8 @@ def _keyword_candidate_query(db: Session, q, keyword: str):
         conditions.extend([AuditLog.actor_id == actor_uuid, AuditLog.user_id == actor_uuid])
     except (TypeError, ValueError):
         pass
+    if actor_user_ids:
+        conditions.extend([AuditLog.actor_id.in_(actor_user_ids), AuditLog.user_id.in_(actor_user_ids)])
     if actions:
         conditions.append(AuditLog.action.in_(actions))
     if modules:
@@ -196,7 +227,7 @@ def _list(db, page, page_size, **f):
     q = db.query(AuditLog)
     if f.get('date_from'): q = q.filter(AuditLog.created_at >= f['date_from'])
     if f.get('date_to'): q = q.filter(AuditLog.created_at <= f['date_to'])
-    q = _apply_actor_filter(q, f.get('actor_id'))
+    q = _apply_actor_filter(db, q, f.get('actor_id'))
     q = _apply_module_filter(q, f.get('module'))
     q = _apply_action_filter(q, f.get('action'))
     q = _apply_entity_type_filter(q, f.get('entity_type'))
