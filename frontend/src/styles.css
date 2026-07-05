@@ -1851,3 +1851,13 @@ th .help-label {
 .business-timeline-card { padding: .8rem .9rem; }
 .business-timeline-card header { margin-bottom: .45rem; }
 .business-timeline-change { margin-top: .55rem; }
+
+/* Audit log smart pagination */
+.audit-pagination { align-items: center; display: flex; flex-wrap: wrap; gap: .75rem 1rem; justify-content: space-between; margin-top: 1rem; }
+.audit-pagination-controls { align-items: center; display: flex; flex-wrap: wrap; gap: .35rem; }
+.audit-page-nav, .audit-page-number { border: 1px solid #d0d5dd; font-size: .88rem; min-width: 2.35rem; padding: .48rem .72rem; }
+.audit-page-number.active { background: #3563e9; border-color: #3563e9; color: #fff; opacity: 1; }
+.audit-page-number:disabled { cursor: default; }
+.audit-page-ellipsis { color: #667085; font-weight: 800; padding: 0 .35rem; }
+.audit-pagination-summary { color: #475467; font-weight: 700; white-space: nowrap; }
+@media (max-width: 600px) { .audit-pagination { align-items: stretch; flex-direction: column; } .audit-pagination-controls { justify-content: flex-start; } }

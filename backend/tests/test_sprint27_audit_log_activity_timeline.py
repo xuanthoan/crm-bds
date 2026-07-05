@@ -128,5 +128,46 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
             self.assertIn('components/audit/ActivityTimeline', source)
             self.assertIn('Lịch sử thao tác hệ thống', source)
 
+    def test_audit_log_filter_search_hotfix_source_contract(self):
+        api = self.read('backend/app/api/v1/audit_logs.py')
+        page = self.read('frontend/src/features/auditLogs/AuditLogsPage.tsx')
+        api_client = self.read('frontend/src/features/auditLogs/api.ts')
+        service_client = self.read('frontend/src/services/apiClient.ts')
+        app_layout = self.read('frontend/src/layouts/AppLayout.tsx')
+        styles = self.read('frontend/src/styles.css')
+        for text in [
+            'def _apply_actor_filter', 'def _lookup_actor_user_ids', 'User.full_name.ilike', 'User.email.ilike',
+            'actor_name.ilike', 'actor_email.ilike', 'AuditLog.actor_id.in_(actor_user_ids)',
+            'def _apply_entity_type_filter', 'ENTITY_TYPE_ALIASES',
+            'def _apply_entity_id_filter', 'def _lookup_entity_ids_by_display',
+            'contract_code', 'booking_code', 'deal_code',
+            'def _keyword_candidate_query', 'EXTRA_ACTION_LABELS', 'EXTRA_MODULE_LABELS',
+            'Đăng nhập', 'Đổi trạng thái hợp đồng', 'Booking / Giữ chỗ',
+            "entity_label.ilike(term)", "entity_type.in_({'user', 'users', 'auth'})",
+            'Defensive final pass keeps display-label behavior exact while SQL prefilter avoids enriching the whole table.',
+        ]:
+            self.assertIn(text, api)
+        for text in [
+            "setDraftValue('actor_id'", "setDraftValue('entity_type'", "setDraftValue('entity_id'", "setDraftValue('q'",
+            'listAuditLogs(filters)', '.catch(err=>', '.finally(()=>{if(active)setLoading(false)})',
+            'formatApiError', 'Không tải được lịch sử thao tác.',
+            'ID, tên hoặc email người thao tác', 'VD: contract, booking, deal, user',
+            'VD: HD-000066, BK-000107, DL-000086 hoặc UUID',
+            'Tìm theo người thao tác, hành động, module, mã đối tượng, mô tả...',
+            'getPaginationItems', 'paginationItems.map', 'audit-page-number', 'active',
+            "setFilters({...draft,page:'1'})", 'setDraft(initialFilters);setFilters(initialFilters);',
+        ]:
+            self.assertIn(text, page)
+        self.assertIn('/api/v1/audit-logs?', api_client)
+        for text in [
+            'ACCESS_TOKEN_KEY', 'crm_bds_access_token', "headers.set('Authorization', `Bearer ${token}`)",
+            'SESSION_EXPIRED_MESSAGE', 'NETWORK_ERROR_MESSAGE', 'response.status === 401',
+            'redirectToLogin()', 'throw new ApiRequestError(401', 'throw new ApiRequestError(0',
+        ]:
+            self.assertIn(text, service_client)
+        self.assertIn('unreadCount()', app_layout)
+        for text in ['audit-pagination', 'audit-pagination-controls', 'audit-page-number.active', 'audit-page-ellipsis']:
+            self.assertIn(text, styles)
+
 if __name__ == '__main__':
     unittest.main()
