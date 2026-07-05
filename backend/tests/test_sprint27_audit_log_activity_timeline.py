@@ -100,10 +100,21 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
         page = self.read('frontend/src/features/auditLogs/AuditLogsPage.tsx')
         self.assertIn('/audit-logs', route)
         self.assertIn('Lịch sử thao tác', layout)
+        constants = self.read('frontend/src/features/auditLogs/constants.ts')
+        styles = self.read('frontend/src/styles.css')
+        business_timeline = self.read('frontend/src/components/timeline/BusinessTimeline.tsx')
         for text in ['Thời gian','Người thao tác','Module','Hành động','Đối tượng','Mô tả','Lý do','Xem chi tiết','Dữ liệu trước','Dữ liệu sau']:
             self.assertIn(text, page)
+        for text in ['auth.login', 'Đăng nhập', 'contracts.create', 'Tạo hợp đồng', 'bookings.status_change', 'Đổi trạng thái booking', 'deals.create_from_booking', 'Tạo giao dịch từ booking', 'inventory.properties.create', 'Tạo bất động sản']:
+            self.assertIn(text, constants)
+        for text in ['Không xác định', 'ID hoặc email người thao tác', 'Tìm người thao tác, mô tả, mã đối tượng', 'audit-filter-grid', 'audit-detail-summary', 'audit-changed-list']:
+            self.assertIn(text, page + styles)
+        self.assertIn('business-timeline-card', business_timeline + styles)
+        for path in ['frontend/src/features/deals/components/DealTimeline.tsx','frontend/src/features/contracts/components/ContractTimeline.tsx','frontend/src/features/bookings/components/BookingTimeline.tsx','frontend/src/features/leads/components/LeadTimeline.tsx']:
+            self.assertIn('BusinessTimeline', self.read(path))
         for path in ['frontend/src/features/commissions/CommissionDetailPage.tsx','frontend/src/features/companyCommissions/CompanyCommissionDetailPage.tsx','frontend/src/features/commissionPaymentVouchers/CommissionPaymentVoucherDetailPage.tsx']:
             self.assertIn('ActivityTimeline', self.read(path))
+            self.assertIn('Lịch sử thao tác hệ thống', self.read(path))
 
 if __name__ == '__main__':
     unittest.main()
