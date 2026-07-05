@@ -1846,3 +1846,8 @@ th .help-label {
 .business-timeline-details dd { margin: .2rem 0 0; overflow-wrap: anywhere; }
 @media (max-width: 900px) { .audit-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .audit-detail-summary { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .audit-filter-grid, .business-timeline-details, .audit-changed-list article > div { grid-template-columns: 1fr; } }
+/* Sprint 27.2 - compact timeline content width */
+.business-timeline { max-width: 1000px; }
+.business-timeline-card { padding: .8rem .9rem; }
+.business-timeline-card header { margin-bottom: .45rem; }
+.business-timeline-change { margin-top: .55rem; }

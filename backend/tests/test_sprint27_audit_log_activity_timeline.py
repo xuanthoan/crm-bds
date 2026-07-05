@@ -42,6 +42,8 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
         self.assertIn('def diff_dict', service)
         self.assertIn("'before'", service)
         self.assertIn("'after'", service)
+        for text in ['def _lookup_entity_label', 'contract_code', 'booking_code', 'deal_code', 'property_code', 'commission_code', 'receivable_code', 'entity_display', 'def infer_module_from_action']:
+            self.assertIn(text, service)
 
     def test_api_routes_and_permissions_exist(self):
         api = self.read('backend/app/api/v1/audit_logs.py')
@@ -52,6 +54,8 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
         self.assertIn('audit_logs.view', api)
         self.assertIn('api_router.include_router(settings.router)', router)
         self.assertIn('api_router.include_router(audit_logs.router)', router)
+        self.assertIn('audit_log_to_dict(i, db)', api)
+        self.assertIn('audit_log_to_dict(log, db)', api)
         for line in router.splitlines():
             if line.strip().startswith('api_router.include_router('):
                 self.assertNotIn(', audit_logs.router', line)
@@ -105,11 +109,16 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
         business_timeline = self.read('frontend/src/components/timeline/BusinessTimeline.tsx')
         for text in ['Thời gian','Người thao tác','Module','Hành động','Đối tượng','Mô tả','Lý do','Xem chi tiết','Dữ liệu trước','Dữ liệu sau']:
             self.assertIn(text, page)
-        for text in ['auth.login', 'Đăng nhập', 'contracts.create', 'Tạo hợp đồng', 'bookings.status_change', 'Đổi trạng thái booking', 'deals.create_from_booking', 'Tạo giao dịch từ booking', 'inventory.properties.create', 'Tạo bất động sản']:
+        for text in ['auth.login', 'Đăng nhập', 'contracts.create', 'Tạo hợp đồng', 'bookings.status_change', 'Đổi trạng thái booking', 'deals.create_from_booking', 'Tạo giao dịch từ booking', 'inventory.properties.create', 'Tạo bất động sản', 'inferModuleFromAction', 'commissions']:
             self.assertIn(text, constants)
+        for text in ['entity_display', 'displayModule', 'inferModuleFromAction']:
+            self.assertIn(text, page + self.read('frontend/src/features/auditLogs/api.ts'))
         for text in ['Không xác định', 'ID hoặc email người thao tác', 'Tìm người thao tác, mô tả, mã đối tượng', 'audit-filter-grid', 'audit-detail-summary', 'audit-changed-list']:
             self.assertIn(text, page + styles)
         self.assertIn('business-timeline-card', business_timeline + styles)
+        self.assertIn('max-width: 1000px', styles)
+        self.assertIn('Dòng thời gian chăm sóc', self.read('frontend/src/features/leads/LeadDetailPage.tsx'))
+        self.assertIn('Dòng thời gian chăm sóc', self.read('frontend/src/features/customers/CustomerDetailPage.tsx'))
         for path in ['frontend/src/features/deals/components/DealTimeline.tsx','frontend/src/features/contracts/components/ContractTimeline.tsx','frontend/src/features/bookings/components/BookingTimeline.tsx','frontend/src/features/leads/components/LeadTimeline.tsx']:
             self.assertIn('BusinessTimeline', self.read(path))
         for path in ['frontend/src/features/commissions/CommissionDetailPage.tsx','frontend/src/features/companyCommissions/CompanyCommissionDetailPage.tsx','frontend/src/features/commissionPaymentVouchers/CommissionPaymentVoucherDetailPage.tsx']:

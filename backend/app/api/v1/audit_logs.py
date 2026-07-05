@@ -28,7 +28,7 @@ def _list(db, page, page_size, **f):
         q = q.filter(or_(AuditLog.actor_name.ilike(term), AuditLog.actor_email.ilike(term), AuditLog.module.ilike(term), AuditLog.entity_type.ilike(term), AuditLog.entity_id.ilike(term), AuditLog.entity_label.ilike(term), AuditLog.action.ilike(term), AuditLog.description.ilike(term), AuditLog.reason.ilike(term)))
     total = q.count()
     items = q.order_by(AuditLog.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
-    return {'items': [audit_log_to_dict(i) for i in items], 'total': total, 'page': page, 'page_size': page_size}
+    return {'items': [audit_log_to_dict(i, db) for i in items], 'total': total, 'page': page, 'page_size': page_size}
 
 @router.get('')
 def list_audit_logs(page:int=Query(1,ge=1), page_size:int=Query(20,ge=1,le=100), date_from:datetime|None=None, date_to:datetime|None=None, actor_id:UUID|None=None, module:str|None=None, entity_type:str|None=None, entity_id:str|None=None, action:str|None=None, q:str|None=None, db:Session=Depends(get_db), actor:User=Depends(need)):
@@ -42,4 +42,4 @@ def entity_timeline(entity_type:str, entity_id:str, page:int=Query(1,ge=1), page
 def audit_detail(id:UUID, db:Session=Depends(get_db), actor:User=Depends(need)):
     log = db.query(AuditLog).filter(AuditLog.id == id).first()
     if not log: raise HTTPException(404, 'Không tìm thấy lịch sử thao tác.')
-    return success_response(audit_log_to_dict(log))
+    return success_response(audit_log_to_dict(log, db))

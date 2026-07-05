@@ -65,12 +65,79 @@ def create_audit_log(db: Session, *, actor=None, action: str | None = None, modu
         db.rollback()
     return log
 
-def audit_log_to_dict(log: AuditLog):
+
+
+STALE_MODULE_VALUES = {'audit_log', 'system', 'unknown', None, ''}
+ACTION_MODULE_PREFIXES = {
+    'auth.': 'auth', 'deals.': 'deals', 'bookings.': 'bookings', 'contracts.': 'contracts',
+    'leads.': 'leads', 'customers.': 'customers', 'payments.': 'payments', 'receipts.': 'receipts', 'invoices.': 'invoices',
+    'inventory.properties.': 'inventory.properties', 'property_units.': 'property_units',
+    'sales_commission.': 'sales_commission', 'commissions.': 'sales_commission',
+    'company_commission.': 'company_commission', 'commission_payment_voucher.': 'commission_payment_voucher',
+    'commission_payout_policy.': 'commission_payout_policy',
+}
+
+def infer_module_from_action(module: str | None, action: str | None) -> str:
+    if module not in STALE_MODULE_VALUES:
+        return module or 'system'
+    action_text = action or ''
+    for prefix, inferred in ACTION_MODULE_PREFIXES.items():
+        if action_text.startswith(prefix):
+            return inferred
+    return module or 'system'
+
+def _lookup_entity_label(db: Session | None, entity_type: str | None, entity_id: str | None) -> str | None:
+    if not db or not entity_type or not entity_id or entity_id in {'unknown', 'null', 'undefined'}:
+        return None
+    from app.models.booking import Booking
+    from app.models.commission_payment_voucher import SalesCommissionPaymentVoucher
+    from app.models.company_commission import CompanyCommissionReceivable
+    from app.models.contract import Contract
+    from app.models.deal import Deal
+    from app.models.property_unit import PropertyUnit
+    from app.models.sales_commission import SalesCommission
+    from app.models.user import User
+    normalized = entity_type.strip()
+    lookups = {
+        'contract': (Contract, 'contract_code'), 'contracts': (Contract, 'contract_code'),
+        'booking': (Booking, 'booking_code'), 'bookings': (Booking, 'booking_code'),
+        'deal': (Deal, 'deal_code'), 'deals': (Deal, 'deal_code'),
+        'property_unit': (PropertyUnit, 'property_code'), 'property_units': (PropertyUnit, 'property_code'), 'inventory.properties': (PropertyUnit, 'property_code'),
+        'sales_commission': (SalesCommission, 'commission_code'),
+        'company_commission': (CompanyCommissionReceivable, 'receivable_code'),
+        'commission_payment_voucher': (SalesCommissionPaymentVoucher, 'code'),
+        'user': (User, 'email'), 'auth': (User, 'email'),
+    }
+    target = lookups.get(normalized)
+    if not target:
+        return None
+    model, field_name = target
+    try:
+        item = db.query(model).filter(model.id == entity_id).first()
+    except Exception:
+        return None
+    if not item:
+        return None
+    value = getattr(item, field_name, None)
+    if normalized in {'user', 'auth'}:
+        return value or getattr(item, 'full_name', None)
+    return value
+
+def _has_friendly_label(value: str | None) -> bool:
+    if not value:
+        return False
+    text = str(value).strip().lower()
+    return text not in {'null', 'undefined', 'unknown'}
+
+def audit_log_to_dict(log: AuditLog, db: Session | None = None):
+    display_module = infer_module_from_action(log.module, log.action)
+    entity_label = log.entity_label if _has_friendly_label(log.entity_label) else _lookup_entity_label(db, log.entity_type, log.entity_id)
+    entity_display = entity_label or None
     return {'id': str(log.id), 'actor_id': str(log.actor_id or log.user_id) if (log.actor_id or log.user_id) else None,
             'actor_name': log.actor_name, 'actor_email': log.actor_email, 'action': log.action,
-            'action_label': ACTION_LABELS.get(log.action, log.action), 'module': log.module,
-            'module_label': MODULE_LABELS.get(log.module, log.module), 'entity_type': log.entity_type,
-            'entity_id': log.entity_id, 'entity_label': log.entity_label, 'before_data': log.before_data,
+            'action_label': ACTION_LABELS.get(log.action, log.action), 'module': display_module,
+            'module_label': MODULE_LABELS.get(display_module, display_module), 'entity_type': log.entity_type,
+            'entity_id': log.entity_id, 'entity_label': entity_label, 'entity_display': entity_display, 'before_data': log.before_data,
             'after_data': log.after_data, 'changed_fields': log.changed_fields, 'description': log.description,
             'reason': log.reason, 'ip_address': log.ip_address, 'user_agent': log.user_agent,
             'created_at': log.created_at.isoformat() if log.created_at else None}
