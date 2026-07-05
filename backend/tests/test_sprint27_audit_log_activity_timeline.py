@@ -47,7 +47,11 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
         self.assertIn("prefix='/audit-logs'", api)
         self.assertIn("/entity/{entity_type}/{entity_id}", api)
         self.assertIn('audit_logs.view', api)
-        self.assertIn('audit_logs.router', router)
+        self.assertIn('api_router.include_router(settings.router)', router)
+        self.assertIn('api_router.include_router(audit_logs.router)', router)
+        for line in router.splitlines():
+            if line.strip().startswith('api_router.include_router('):
+                self.assertNotIn(', audit_logs.router', line)
         self.assertIn('audit_logs.view', perms)
 
     def test_labels_and_sensitive_fields(self):
