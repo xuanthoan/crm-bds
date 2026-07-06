@@ -24,6 +24,7 @@ class Sprint28FrontendListStandardizationTests(unittest.TestCase):
     def test_priority_list_pages_use_shared_pagination_or_equivalent_audit_adapter(self):
         pages = [
             "features/leads/LeadsPage.tsx",
+            "features/leads/OverdueLeadsPage.tsx",
             "features/customers/CustomersPage.tsx",
             "features/deals/DealsPage.tsx",
             "features/bookings/BookingsPage.tsx",
@@ -55,6 +56,7 @@ class Sprint28FrontendListStandardizationTests(unittest.TestCase):
 
     def test_filter_actions_reset_to_first_page_and_empty_state_exists(self):
         checked_pages = [
+            "features/leads/OverdueLeadsPage.tsx",
             "features/commissionPaymentVouchers/CommissionPaymentVouchersPage.tsx",
             "features/commissionReconciliationReport/CommissionReconciliationReportPage.tsx",
             "features/commissions/CommissionsPage.tsx",
@@ -81,6 +83,7 @@ class Sprint28FrontendListStandardizationTests(unittest.TestCase):
 
     def test_extended_sprint28_pages_use_shared_pagination_and_safe_empty_states(self):
         pages = [
+            "features/leads/OverdueLeadsPage.tsx",
             "features/payments/PaymentsPage.tsx",
             "features/receipts/ReceiptsPage.tsx",
             "features/invoices/InvoicesPage.tsx",
