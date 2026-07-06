@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { Pagination } from '../../components/common/Pagination';
+import { FormError } from '../../components/FormError';
+import { formatApiError } from '../../services/apiClient';
 import { can } from '../auth/authStore';
 import { listContracts } from './api';
 import { ContractFormModal } from './ContractFormModal';
@@ -13,11 +16,23 @@ export function ContractsPage() {
   const [page, setPage] = useState(1);
   const [meta, setMeta] = useState<Record<string, number>>({});
   const [showCreate, setShowCreate] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
 
   const load = useCallback(async () => {
-    const response = await listContracts({ ...filters, page: String(page), page_size: '20' });
-    setItems(response.data);
-    setMeta(response.meta as Record<string, number>);
+    setLoading(true);
+    try {
+      const response = await listContracts({ ...filters, page: String(page), page_size: '20' });
+      setItems(Array.isArray(response.data) ? response.data : []);
+      setMeta(response.meta as Record<string, number>);
+      setErrors([]);
+    } catch (error) {
+      setItems([]);
+      setMeta({ page, total_pages: 1, total: 0 });
+      setErrors(formatApiError(error, 'Không thể tải danh sách hợp đồng.'));
+    } finally {
+      setLoading(false);
+    }
   }, [filters, page]);
 
   useEffect(() => {
@@ -34,14 +49,11 @@ export function ContractsPage() {
         {can('contracts.create') && <button onClick={() => setShowCreate(true)}>Tạo hợp đồng</button>}
       </header>
       <ContractFilters filters={filters} onChange={(next) => { setPage(1); setFilters(next); }} />
+      <FormError messages={errors} />
+      {loading && <p>Đang tải...</p>}
       <ContractTable items={items} />
-      <div className="pagination-row">
-        <span>Trang {Number(meta.page || page)} / {Number(meta.total_pages || 1)} · Tổng {Number(meta.total || items.length)} hợp đồng</span>
-        <div>
-          <button className="secondary-button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(current - 1, 1))}>Trang trước</button>
-          <button className="secondary-button" disabled={page >= Number(meta.total_pages || 1)} onClick={() => setPage((current) => current + 1)}>Trang sau</button>
-        </div>
-      </div>
+      {!loading && !errors.length && items.length === 0 && <p className="empty-state">Không có dữ liệu phù hợp.</p>}
+      <Pagination currentPage={Number(meta.page || page)} totalPages={Number(meta.total_pages || 1)} totalItems={Number(meta.total || items.length)} itemLabel="hợp đồng" loading={loading} onPageChange={setPage} />
       {showCreate && (
         <ContractFormModal
           onClose={() => setShowCreate(false)}

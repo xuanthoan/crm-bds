@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { FormError } from "../../components/FormError";
+import { Pagination } from "../../components/common/Pagination";
 import { GuideBox } from "../../components/help/GuideBox";
 import { can } from "../auth/authStore";
 import type { AdminUser } from "../admin/users/api";
@@ -269,36 +270,7 @@ export function LeadsPage() {
           </tbody>
         </table>
       </div>
-      <footer className="pagination-row">
-        <span>Tổng {meta.total} lead</span>
-        <div>
-          <button
-            className="secondary-button"
-            disabled={meta.page <= 1}
-            onClick={() => {
-              const next = { ...filters, page: meta.page - 1 };
-              setFilters(next);
-              void load(next);
-            }}
-          >
-            Trước
-          </button>
-          <span className="page-number">
-            Trang {meta.page}/{Math.max(meta.total_pages, 1)}
-          </span>
-          <button
-            className="secondary-button"
-            disabled={meta.page >= meta.total_pages}
-            onClick={() => {
-              const next = { ...filters, page: meta.page + 1 };
-              setFilters(next);
-              void load(next);
-            }}
-          >
-            Sau
-          </button>
-        </div>
-      </footer>
+      <Pagination currentPage={meta.page || filters.page || 1} totalPages={Math.max(meta.total_pages, 1)} totalItems={meta.total} itemLabel="lead" loading={loading} onPageChange={(page) => { const next = { ...filters, page }; setFilters(next); void load(next); }} />
       {editing !== undefined && (
         <LeadFormModal
           lead={editing}

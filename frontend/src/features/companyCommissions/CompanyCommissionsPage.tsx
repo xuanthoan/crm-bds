@@ -6,6 +6,7 @@ import { companyCommissionSummary, exportCompanyCommissionsUrl, listCompanyCommi
 import { ActionModal, CompanyCommissionGuideModal, CreateCompanyCommissionModal } from './CompanyCommissionModals';
 import { COMPANY_COMMISSION_STATUS_LABELS, COMPANY_ROLE_LABELS, COMMISSION_PARTY_LABELS } from './constants';
 import type { CompanyCommission } from './types';
+import { Pagination } from '../../components/common/Pagination';
 import { GuideBox } from '../../components/help/GuideBox';
 import { HelpLabel, HelpTooltip } from '../../components/help/HelpTooltip';
 import { tooltipTexts } from '../help/helpContent';
@@ -16,24 +17,32 @@ const date = (value?: string) => value ? new Date(value).toLocaleDateString('vi-
 export function CompanyCommissionsPage() {
   const [items, setItems] = useState<CompanyCommission[]>([]);
   const [summary, setSummary] = useState<Record<string, number>>({});
-  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [filters, setFilters] = useState<Record<string, string>>({ page: '1', page_size: '20' });
   const [guide, setGuide] = useState(false);
   const [create, setCreate] = useState(false);
   const [action, setAction] = useState<{ type: 'approve' | 'receive' | 'hold' | 'cancel'; item: CompanyCommission } | null>(null);
   const [isFiltering, setIsFiltering] = useState(false);
   const [isClearingFilters, setIsClearingFilters] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [meta, setMeta] = useState({ page: 1, total_pages: 1, total: 0 });
 
   async function load(nextFilters = filters) {
-    const [listResponse, summaryResponse] = await Promise.all([listCompanyCommissions(nextFilters), companyCommissionSummary(nextFilters)]);
-    setItems(listResponse.data.items || []);
-    setSummary(summaryResponse.data || {});
+    setLoading(true); setError('');
+    try {
+      const [listResponse, summaryResponse] = await Promise.all([listCompanyCommissions(nextFilters), companyCommissionSummary(nextFilters)]);
+      const total=Number(listResponse.data?.total||0); const pageSize=Number(nextFilters.page_size||20);
+      setItems(Array.isArray(listResponse.data?.items)?listResponse.data.items:[]);
+      setMeta({page:Number(nextFilters.page||1),total_pages:Math.max(1,Math.ceil(total/pageSize)),total});
+      setSummary(summaryResponse.data || {});
+    } catch { setItems([]); setMeta({page:Number(nextFilters.page||1),total_pages:1,total:0}); setError('Không thể tải danh sách hoa hồng công ty.'); } finally { setLoading(false); }
   }
 
   useEffect(() => { void load(); }, []);
 
   const set = (key: string, value: string) => setFilters((current) => ({ ...current, [key]: value }));
-  const clearFilters = async () => { setIsClearingFilters(true); setFilters({}); try { await load({}); } finally { setIsClearingFilters(false); } };
-  const applyFilters = async () => { setIsFiltering(true); try { await load(); } finally { setIsFiltering(false); } };
+  const clearFilters = async () => { const next={page:'1',page_size:'20'}; setIsClearingFilters(true); setFilters(next); try { await load(next); } finally { setIsClearingFilters(false); } };
+  const applyFilters = async () => { const next={...filters,page:'1'}; setIsFiltering(true); setFilters(next); try { await load(next); } finally { setIsFiltering(false); } };
 
   // Action gating source: i.status==='pending'||i.status==='on_hold'; i.status==='approved'||i.status==='partially_received'; i.status==='pending'||i.status==='approved'; i.status==='pending'||i.status==='approved'||i.status==='on_hold'
   function actions(i: CompanyCommission) {
@@ -75,10 +84,10 @@ export function CompanyCommissionsPage() {
         {[["Chờ duyệt", "pending_count"], ["Đã duyệt", "approved_count"], ["Nhận một phần", "partially_received_count"], ["Đã nhận đủ", "received_count"], ["Tạm giữ", "on_hold_count"], ["Đã hủy", "cancelled_count"]].map(([label, key]) => <article className="summary-card" key={key}><span>{label}</span><strong>{summary[key] || 0}</strong></article>)}
       </div>
 
-      <div className="company-commission-table-wrap"><table className="data-table company-commission-table">
+      {error&&<p className="form-error">{error}</p>}{loading&&<p>Đang tải...</p>}<div className="company-commission-table-wrap"><table className="data-table company-commission-table">
         <thead><tr>{['Mã HH công ty', 'Mã HĐ', 'Khách hàng', 'Sale', 'Vai trò'].map((heading) => <th key={heading}>{heading}</th>)}<th><HelpLabel content={tooltipTexts.commissionPayer}>Bên trả HH</HelpLabel></th>{['Giá trị HĐ', 'Tỷ lệ HH', 'HH dự kiến'].map((heading) => <th key={heading}>{heading}</th>)}<th><HelpLabel content={tooltipTexts.companyConfirmed}>HH xác nhận</HelpLabel></th><th><HelpLabel content={tooltipTexts.companyReceived}>Đã nhận</HelpLabel></th><th><HelpLabel content={tooltipTexts.companyRemaining}>Còn phải thu</HelpLabel></th>{['Trạng thái', 'Ngày dự kiến', 'Ngày nhận đủ', 'Hành động'].map((heading) => <th key={heading}>{heading}</th>)}</tr></thead>
         <tbody>{items.map((item) => <tr key={item.id}><td>{item.receivable_code}</td><td>{item.contract_code}</td><td>{item.customer_name}</td><td>{item.sale_name}</td><td>{COMPANY_ROLE_LABELS[item.company_role] || item.company_role}</td><td>{item.commission_payer_name || COMMISSION_PARTY_LABELS[item.commission_payer_type || ''] || item.commission_payer_type}</td><td>{money(item.contract_value)}</td><td>{item.commission_rate_percent}%</td><td>{money(item.expected_commission_amount)}</td><td>{money(item.confirmed_receivable_amount)}</td><td>{money(item.received_amount)}</td><td>{money(item.remaining_amount)}</td><td>{COMPANY_COMMISSION_STATUS_LABELS[item.status] || item.status}</td><td>{date(item.expected_receive_date)}</td><td>{date(item.received_date)}</td><td className="row-actions company-commission-action-cell">{actions(item)}</td></tr>)}</tbody>
-      </table></div>
+      </table></div>{!loading&&!items.length&&<p className="empty-state">Không có dữ liệu phù hợp.</p>}<Pagination currentPage={meta.page} totalPages={meta.total_pages} totalItems={meta.total} itemLabel="dòng" loading={loading} onPageChange={(page)=>{const next={...filters,page:String(page)};setFilters(next);void load(next);}} />
 
       {guide && <CompanyCommissionGuideModal onClose={() => setGuide(false)} />}
       {create && <CreateCompanyCommissionModal onClose={() => setCreate(false)} onSaved={() => { setCreate(false); void load(); }} />}

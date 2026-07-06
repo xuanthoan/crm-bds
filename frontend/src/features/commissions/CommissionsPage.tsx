@@ -4,6 +4,7 @@ import { navigateTo } from '../../routes/AppRoutes';
 import { approveCommission, cancelCommission, commissionSummary, generateCommission, holdCommission, listCommissions, type Commission } from './api';
 import { createVoucher } from '../commissionPaymentVouchers/api';
 import { ActionModal, GenerateModal, GuideModal } from './CommissionModals';
+import { Pagination } from '../../components/common/Pagination';
 import { GuideBox } from '../../components/help/GuideBox';
 import { HelpLabel, HelpTooltip } from '../../components/help/HelpTooltip';
 import { tooltipTexts } from '../help/helpContent';
@@ -19,11 +20,14 @@ type ActionState = { type: 'approve' | 'hold' | 'cancel' | 'paid'; c: Commission
 export function CommissionsPage() {
   const [items, setItems] = useState<Commission[]>([]);
   const [summary, setSummary] = useState<Record<string, number>>({});
-  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [filters, setFilters] = useState<Record<string, string>>({ page: '1', page_size: '20' });
   const [guide, setGuide] = useState(false);
   const [gen, setGen] = useState(false);
   const [action, setAction] = useState<ActionState | null>(null);
   const [notice, setNotice] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [meta, setMeta] = useState({ page: 1, total_pages: 1, total: 0 });
   const [isFiltering, setIsFiltering] = useState(false);
   const [isClearingFilters, setIsClearingFilters] = useState(false);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
@@ -31,10 +35,15 @@ export function CommissionsPage() {
   const [tableScrollWidth, setTableScrollWidth] = useState(0);
 
   async function load(nextFilters = filters) {
-    setNotice('');
-    const [listResponse, summaryResponse] = await Promise.all([listCommissions(nextFilters), commissionSummary(nextFilters)]);
-    setItems(listResponse.data.items);
-    setSummary(summaryResponse.data);
+    setNotice(''); setError(''); setLoading(true);
+    try {
+      const [listResponse, summaryResponse] = await Promise.all([listCommissions(nextFilters), commissionSummary(nextFilters)]);
+      const total = Number(listResponse.data.total || 0); const pageSize = Number(nextFilters.page_size || 20);
+      setItems(Array.isArray(listResponse.data.items) ? listResponse.data.items : []);
+      setMeta({ page: Number(nextFilters.page || 1), total_pages: Math.max(1, Math.ceil(total / pageSize)), total });
+      setSummary(summaryResponse.data || {});
+    } catch { setItems([]); setMeta({ page: Number(nextFilters.page || 1), total_pages: 1, total: 0 }); setError('Không thể tải danh sách hoa hồng.'); }
+    finally { setLoading(false); }
   }
 
   useEffect(() => { void load(); }, []);
@@ -48,8 +57,8 @@ export function CommissionsPage() {
   }, [items.length]);
 
   const set = (k: string, v: string) => setFilters((current) => ({ ...current, [k]: v }));
-  const clearFilters = async () => { setIsClearingFilters(true); setFilters({}); try { await load({}); } finally { setIsClearingFilters(false); } };
-  const applyFilters = async () => { setIsFiltering(true); try { await load(); } finally { setIsFiltering(false); } };
+  const clearFilters = async () => { const next={page:'1',page_size:'20'}; setIsClearingFilters(true); setFilters(next); try { await load(next); } finally { setIsClearingFilters(false); } };
+  const applyFilters = async () => { const next={...filters,page:'1'}; setIsFiltering(true); setFilters(next); try { await load(next); } finally { setIsFiltering(false); } };
 
   async function submitAction(p: Record<string, unknown>) {
     if (!action) return;
@@ -118,6 +127,7 @@ export function CommissionsPage() {
         {can('commissions.export') && <button onClick={exportCsv}>Xuất CSV</button>}
       </div>
       {notice && <div className="form-warning">{notice}</div>}
+      {error && <div className="form-error">{error}</div>}
       <div className="filter-bar filter-panel commission-filter-panel">
         <label>Từ ngày<input type="date" value={filters.date_from || ''} onChange={(e) => set('date_from', e.target.value)} /></label>
         <label>Đến ngày<input type="date" value={filters.date_to || ''} onChange={(e) => set('date_to', e.target.value)} /></label>
@@ -131,7 +141,9 @@ export function CommissionsPage() {
       <section className="table-card commission-table-card">
         <div className="section-header commission-table-header"><div><h2>Danh sách hoa hồng</h2><p>{items.length ? `Có ${items.length} hoa hồng đang hiển thị.` : 'Chưa có hoa hồng nào.'}</p></div></div>
         <p className="muted-text commission-policy-note">Hoa hồng sale chỉ được chi trong phạm vi hoa hồng công ty đã nhận. Chính sách toàn hệ thống đang áp dụng sẽ quyết định tối đa có thể chi.</p><div className="commission-table-top-scroll" ref={topScrollRef} onScroll={() => syncTableScroll('top')}><div className="commission-table-scroll-spacer" style={{ width: tableScrollWidth }} /></div><div className="responsive-table-wrap commission-table-scroll" ref={tableScrollRef} onScroll={() => syncTableScroll('bottom')}><table className="commission-policy-table"><colgroup><col className="commission-col-code"/><col className="commission-col-contract"/><col className="commission-col-sale"/><col className="commission-col-customer"/><col className="commission-col-company"/><col className="commission-col-money"/><col className="commission-col-money"/><col className="commission-col-rate"/><col className="commission-col-money"/><col className="commission-col-money"/><col className="commission-col-money"/><col className="commission-col-status"/><col className="commission-col-date"/><col className="commission-col-date"/><col className="commission-col-actions"/></colgroup><thead><tr><th>Mã HH</th><th>Mã HĐ</th><th>Sale</th><th>Khách hàng</th><th>HH công ty</th><th>Giá trị HĐ</th><th>Đã thu</th><th>Tỷ lệ HH</th><th><HelpLabel content={tooltipTexts.eligibleCommission}>HH đủ điều kiện</HelpLabel></th><th><HelpLabel content={tooltipTexts.approvedCommission}>HH đã duyệt</HelpLabel></th><th><HelpLabel content={tooltipTexts.paidAmount}>Đã chi trả</HelpLabel></th><th><HelpLabel content={tooltipTexts.commissionStatus}>Trạng thái</HelpLabel></th><th>Ngày duyệt</th><th>Ngày chi trả</th><th>Hành động</th></tr></thead><tbody>{items.map((c) => <tr key={c.id}><td>{c.commission_code}</td><td>{c.contract_code}</td><td>{c.sale_name}</td><td>{c.customer_name}</td><td className="commission-company-column">{renderCompanyCommissionCell(c)}</td><td className="commission-money-cell">{money(c.contract_value)}</td><td className="commission-money-cell">{money(c.total_collected_with_deposit)}</td><td className="commission-nowrap-cell">{c.commission_rate_percent}%</td><td className="commission-money-cell">{money(c.eligible_commission)}</td><td className="commission-money-cell">{money(c.approved_commission)}</td><td className="commission-money-cell">{money(c.paid_amount)}</td><td className="commission-nowrap-cell">{c.status_label}</td><td className="commission-nowrap-cell">{date(c.approved_at)}</td><td className="commission-nowrap-cell">{date(c.paid_at)}</td><td className="commission-actions-column">{renderRowActions(c)}</td></tr>)}</tbody></table></div>
-        {!items.length && <p className="empty-state">Chưa có hoa hồng nào.</p>}
+        {loading && <p>Đang tải...</p>}
+        {!loading && !items.length && <p className="empty-state">Không có dữ liệu phù hợp.</p>}
+        <Pagination currentPage={meta.page} totalPages={meta.total_pages} totalItems={meta.total} itemLabel="hoa hồng" loading={loading} onPageChange={(page)=>{const next={...filters,page:String(page)};setFilters(next);void load(next);}} />
       </section>
       {guide && <GuideModal onClose={() => setGuide(false)} />}
       {gen && <GenerateModal onClose={() => setGen(false)} onSubmit={async (p) => { await generateCommission(p); try { await load(); setNotice('Tạo hoa hồng thành công.'); } catch { setNotice('Đã tạo hoa hồng nhưng chưa tải lại được danh sách. Vui lòng bấm Lọc hoặc tải lại trang.'); } }} />}

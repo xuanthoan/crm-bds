@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { FormError } from "../../components/FormError";
+import { Pagination } from "../../components/common/Pagination";
 import { GuideBox } from "../../components/help/GuideBox";
 import { can } from "../auth/authStore";
 import { formatApiError } from "../../services/apiClient";
@@ -16,22 +17,41 @@ const days = (v: string | null) =>
 export function OverdueLeadsPage() {
   const [items, setItems] = useState<Lead[]>([]),
     [priority, setPriority] = useState(""),
+    [page, setPage] = useState(1),
+    [meta, setMeta] = useState({ page: 1, total: 0, total_pages: 1 }),
     [errors, setErrors] = useState<string[] | null>(null),
     [loading, setLoading] = useState(true);
-  async function load() {
+  async function load(nextPage = page, nextPriority = priority) {
     setLoading(true);
     try {
-      setItems((await listOverdueLeads({ priority })).data);
+      const response = await listOverdueLeads({ page: nextPage, page_size: 20, priority: nextPriority });
+      setItems(Array.isArray(response.data) ? response.data : []);
+      setMeta({
+        page: Number(response.meta.page || nextPage),
+        total: Number(response.meta.total || 0),
+        total_pages: Number(response.meta.total_pages || 1),
+      });
       setErrors(null);
     } catch (e) {
+      setItems([]);
+      setMeta({ page: nextPage, total: 0, total_pages: 1 });
       setErrors(formatApiError(e));
     } finally {
       setLoading(false);
     }
   }
   useEffect(() => {
-    void load();
-  }, []);
+    void load(page, priority);
+  }, [page]);
+  const apply = () => {
+    setPage(1);
+    void load(1, priority);
+  };
+  const reset = () => {
+    setPriority("");
+    setPage(1);
+    void load(1, "");
+  };
   async function reclaim(lead: Lead) {
     const reason = window.prompt(
       "Lý do thu hồi lead",
@@ -74,7 +94,7 @@ export function OverdueLeadsPage() {
             </option>
           ))}
         </select>
-        <button onClick={() => void load()}>Lọc</button>
+        <button onClick={apply}>Lọc</button><button type="button" className="secondary-button" onClick={reset}>Xóa lọc</button>
       </div>
       <FormError messages={errors} />
       <div className="table-card">
@@ -96,6 +116,10 @@ export function OverdueLeadsPage() {
             {loading ? (
               <tr>
                 <td colSpan={9}>Đang tải…</td>
+              </tr>
+            ) : items.length === 0 ? (
+              <tr>
+                <td colSpan={9}>Không có dữ liệu phù hợp.</td>
               </tr>
             ) : (
               items.map((i) => (
@@ -139,6 +163,14 @@ export function OverdueLeadsPage() {
           </tbody>
         </table>
       </div>
+      <Pagination
+        currentPage={meta.page}
+        totalPages={meta.total_pages}
+        totalItems={meta.total}
+        itemLabel="lead quá hạn"
+        loading={loading}
+        onPageChange={setPage}
+      />
     </section>
   );
 }
