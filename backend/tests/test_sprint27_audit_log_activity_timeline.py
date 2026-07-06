@@ -130,6 +130,7 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
 
     def test_audit_log_filter_search_hotfix_source_contract(self):
         api = self.read('backend/app/api/v1/audit_logs.py')
+        aliases = self.read('backend/app/audit_search_aliases.py')
         page = self.read('frontend/src/features/auditLogs/AuditLogsPage.tsx')
         api_client = self.read('frontend/src/features/auditLogs/api.ts')
         service_client = self.read('frontend/src/services/apiClient.ts')
@@ -168,6 +169,36 @@ class Sprint27AuditLogActivityTimelineSourceTest(unittest.TestCase):
         self.assertIn('unreadCount()', app_layout)
         for text in ['audit-pagination', 'audit-pagination-controls', 'audit-page-number.active', 'audit-page-ellipsis']:
             self.assertIn(text, styles)
+        for text in [
+            'def normalize_audit_search_text', 'ENTITY_TYPE_ALIASES', 'ACTION_ALIASES',
+            "'booking': {'booking', 'bookings', 'giữ chỗ', 'giu cho'}",
+            "'bookings': {'booking', 'bookings', 'giữ chỗ', 'giu cho'}",
+            "'contracts.status_change': {'đổi trạng thái hợp đồng', 'doi trang thai hop dong'}",
+        ]:
+            self.assertIn(text, aliases)
+
+    def test_audit_log_keyword_alias_resolver_contract(self):
+        from app.audit_search_aliases import (
+            label_action,
+            label_module,
+            matching_action_values,
+            matching_entity_types,
+            matching_module_values,
+            normalize_audit_search_text,
+        )
+
+        self.assertEqual(normalize_audit_search_text('  Giữ chỗ  '), 'giu cho')
+        self.assertEqual(normalize_audit_search_text('Hợp đồng'), 'hop dong')
+        for keyword in ['Giữ chỗ', 'giu cho', 'Booking']:
+            self.assertGreaterEqual(matching_entity_types(keyword), {'booking', 'bookings'})
+            self.assertIn('bookings', matching_module_values(keyword))
+        for keyword in ['Hợp đồng', 'hop dong']:
+            self.assertGreaterEqual(matching_entity_types(keyword), {'contract', 'contracts'})
+            self.assertIn('contracts', matching_module_values(keyword))
+        self.assertIn('contracts.status_change', matching_action_values('Đổi trạng thái hợp đồng'))
+        self.assertIn('contracts.status_change', matching_action_values('doi trang thai hop dong'))
+        self.assertEqual(label_module('bookings'), 'Booking / Giữ chỗ')
+        self.assertEqual(label_action('contracts.status_change'), 'Đổi trạng thái hợp đồng')
 
 if __name__ == '__main__':
     unittest.main()

@@ -3,7 +3,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 from sqlalchemy.orm import Session
-from app.audit_constants import ACTION_LABELS, MODULE_LABELS
+from app.audit_search_aliases import label_action, label_module
 from app.models.audit_log import AuditLog
 
 SENSITIVE_KEYS = {'password','hashed_password','token','access_token','refresh_token','secret','api_key','otp','reset_token'}
@@ -154,8 +154,8 @@ def audit_log_to_dict(log: AuditLog, db: Session | None = None):
         actor_email = entity_label
     return {'id': str(log.id), 'actor_id': str(actor_id) if actor_id else None,
             'actor_name': actor_name, 'actor_email': actor_email, 'action': log.action,
-            'action_label': ACTION_LABELS.get(log.action, log.action), 'module': display_module,
-            'module_label': MODULE_LABELS.get(display_module, display_module), 'entity_type': log.entity_type,
+            'action_label': label_action(log.action), 'module': display_module,
+            'module_label': label_module(display_module), 'entity_type': log.entity_type,
             'entity_id': log.entity_id, 'entity_label': entity_label, 'entity_display': entity_display, 'before_data': log.before_data,
             'after_data': log.after_data, 'changed_fields': log.changed_fields, 'description': log.description,
             'reason': log.reason, 'ip_address': log.ip_address, 'user_agent': log.user_agent,

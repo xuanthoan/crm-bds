@@ -1,10 +1,20 @@
 from datetime import datetime
 from uuid import UUID
-import unicodedata
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
-from app.audit_constants import ACTION_LABELS, MODULE_LABELS
+from app.audit_search_aliases import (
+    ACTION_ALIASES,
+    ENTITY_TYPE_ALIASES,
+    EXTRA_ACTION_LABELS,
+    EXTRA_MODULE_LABELS,
+    label_action,
+    label_module,
+    matching_action_values,
+    matching_entity_types,
+    matching_module_values,
+    normalize_audit_search_text,
+)
 from app.core.responses import success_response
 from app.db.session import get_db
 from app.models.audit_log import AuditLog
@@ -14,29 +24,8 @@ from app.services.audit_log_service import audit_log_to_dict, infer_module_from_
 
 router = APIRouter(prefix='/audit-logs', tags=['audit-logs'])
 
-EXTRA_ACTION_LABELS = {
-    'auth.login': 'Đăng nhập', 'auth.logout': 'Đăng xuất',
-    'contracts.create': 'Tạo hợp đồng', 'contracts.update': 'Cập nhật hợp đồng', 'contracts.status_change': 'Đổi trạng thái hợp đồng', 'contracts.delete': 'Xóa hợp đồng',
-    'bookings.create': 'Tạo booking', 'bookings.update': 'Cập nhật booking', 'bookings.status_change': 'Đổi trạng thái booking',
-    'deals.create': 'Tạo giao dịch', 'deals.create_from_booking': 'Tạo giao dịch từ booking', 'deals.status_change': 'Đổi trạng thái giao dịch',
-    'inventory.properties.create': 'Tạo bất động sản',
-}
-EXTRA_MODULE_LABELS = {
-    'auth': 'Xác thực', 'audit_log': 'Lịch sử thao tác', 'system': 'Hệ thống',
-    'contracts': 'Hợp đồng', 'contract': 'Hợp đồng', 'bookings': 'Booking / Giữ chỗ', 'booking': 'Booking / Giữ chỗ',
-    'deals': 'Giao dịch', 'deal': 'Giao dịch', 'inventory.properties': 'Bất động sản', 'property_units': 'Bất động sản',
-    'users': 'Người dùng', 'user': 'Người dùng',
-}
-ENTITY_TYPE_ALIASES = {
-    'contract': {'contract', 'contracts', 'hop dong'}, 'contracts': {'contract', 'contracts', 'hop dong'},
-    'booking': {'booking', 'bookings', 'giu cho'}, 'bookings': {'booking', 'bookings', 'giu cho'},
-    'deal': {'deal', 'deals', 'giao dich'}, 'deals': {'deal', 'deals', 'giao dich'},
-    'user': {'user', 'users', 'nguoi dung'}, 'users': {'user', 'users', 'nguoi dung'},
-    'property_unit': {'property', 'property_unit', 'property_units', 'bat dong san'},
-    'property_units': {'property', 'property_unit', 'property_units', 'bat dong san'},
-    'inventory.properties': {'property', 'property_unit', 'property_units', 'inventory.properties', 'bat dong san'},
-}
-
+# Human labels are centralized in app.audit_search_aliases and include Đăng nhập,
+# Đổi trạng thái hợp đồng, and Booking / Giữ chỗ for shared alias resolution.
 
 def need(actor: User = Depends(require_auth)):
     if not (getattr(actor, 'is_superuser', False) or user_has_permission(actor, 'audit_logs.view')):
@@ -45,19 +34,15 @@ def need(actor: User = Depends(require_auth)):
 
 
 def _normalize_search_text(value) -> str:
-    if value is None:
-        return ''
-    text = unicodedata.normalize('NFD', str(value)).lower()
-    text = ''.join(ch for ch in text if unicodedata.category(ch) != 'Mn')
-    return text.replace('đ', 'd').strip()
+    return normalize_audit_search_text(value)
 
 
 def _label_action(value: str | None) -> str | None:
-    return EXTRA_ACTION_LABELS.get(value or '') or ACTION_LABELS.get(value or '') or value
+    return label_action(value)
 
 
 def _label_module(value: str | None) -> str | None:
-    return EXTRA_MODULE_LABELS.get(value or '') or MODULE_LABELS.get(value or '') or value
+    return label_module(value)
 
 
 def _matches_term(value, keyword: str) -> bool:
@@ -65,22 +50,15 @@ def _matches_term(value, keyword: str) -> bool:
 
 
 def _matching_action_values(keyword: str) -> set[str]:
-    normalized = _normalize_search_text(keyword)
-    return {raw for raw, label in {**ACTION_LABELS, **EXTRA_ACTION_LABELS}.items() if normalized in _normalize_search_text(raw) or normalized in _normalize_search_text(label)}
+    return matching_action_values(keyword)
 
 
 def _matching_module_values(keyword: str) -> set[str]:
-    normalized = _normalize_search_text(keyword)
-    return {raw for raw, label in {**MODULE_LABELS, **EXTRA_MODULE_LABELS}.items() if normalized in _normalize_search_text(raw) or normalized in _normalize_search_text(label)}
+    return matching_module_values(keyword)
 
 
 def _matching_entity_types(keyword: str) -> set[str]:
-    normalized = _normalize_search_text(keyword)
-    matches = set()
-    for raw, aliases in ENTITY_TYPE_ALIASES.items():
-        if any(normalized in _normalize_search_text(alias) for alias in aliases):
-            matches.add(raw)
-    return matches or {keyword.strip()}
+    return matching_entity_types(keyword)
 
 
 def _lookup_entity_ids_by_display(db: Session, keyword: str) -> set[str]:
@@ -143,6 +121,11 @@ def _matches_enriched_keyword(row: dict, keyword: str) -> bool:
         row.get('entity_type'), row.get('entity_id'), row.get('entity_label'), row.get('entity_display'), row.get('_raw_entity_label'),
         row.get('description'), row.get('reason'),
     ]
+    fields.extend(_matching_module_values(keyword))
+    fields.extend(_matching_action_values(keyword))
+    fields.extend(_matching_entity_types(keyword))
+    fields.extend(alias for raw in _matching_action_values(keyword) for alias in ACTION_ALIASES.get(raw, set()))
+    fields.extend(alias for raw in _matching_entity_types(keyword) for alias in ENTITY_TYPE_ALIASES.get(raw, set()))
     haystack = ' '.join(_normalize_search_text(v) for v in fields if v is not None)
     return normalized_keyword in haystack
 
