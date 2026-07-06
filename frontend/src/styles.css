@@ -1861,3 +1861,13 @@ th .help-label {
 .audit-page-ellipsis { color: #667085; font-weight: 800; padding: 0 .35rem; }
 .audit-pagination-summary { color: #475467; font-weight: 700; white-space: nowrap; }
 @media (max-width: 600px) { .audit-pagination { align-items: stretch; flex-direction: column; } .audit-pagination-controls { justify-content: flex-start; } }
+
+/* Sprint 28 shared pagination */
+.pagination { align-items: center; display: flex; flex-wrap: wrap; gap: .75rem 1rem; justify-content: space-between; margin-top: 1rem; }
+.pagination-controls { align-items: center; display: flex; flex-wrap: wrap; gap: .35rem; }
+.pagination-nav, .pagination-page { border: 1px solid #d0d5dd; font-size: .88rem; min-width: 2.35rem; padding: .48rem .72rem; }
+.pagination-page.active { background: #3563e9; border-color: #3563e9; color: #fff; opacity: 1; }
+.pagination-page:disabled { cursor: default; }
+.pagination-ellipsis { color: #667085; font-weight: 800; padding: 0 .35rem; }
+.pagination-summary { color: #475467; font-weight: 700; white-space: nowrap; }
+@media (max-width: 600px) { .pagination { align-items: stretch; flex-direction: column; } .pagination-controls { justify-content: flex-start; } }
