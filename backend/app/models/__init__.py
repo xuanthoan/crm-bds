@@ -31,9 +31,9 @@ from app.models.team import Team
 from app.models.user import User
 from app.models.user_organization_membership import UserOrganizationMembership
 
-__all__ = ["Contract", "ContractPayment", "ContractActivity", "PaymentSchedule", "PaymentReceipt", "PaymentInvoice", "SalesCommission", "SalesCommissionEvent", "SalesCommissionPaymentVoucher", "CompanyCommissionReceivable", "CompanyCommissionEvent", "Booking", "BookingActivity", "AuditLog", "Customer", "CustomerActivity", "CustomerRelatedPerson", "Deal", "DealActivity", "Department", "Lead", "LeadActivity", "LeadAppointment", "LeadTask", "Permission", "Project", "PropertyUnit", "PropertyPriceHistory", "PropertyStatusHistory", "RefreshToken", "Role", "Team", "User", "UserOrganizationMembership", "Task", "TaskActivity", "Notification", "SystemSetting"]
+__all__ = ["Contract", "ContractPayment", "ContractActivity", "PaymentSchedule", "PaymentReceipt", "PaymentInvoice", "SalesCommission", "SalesCommissionEvent", "SalesCommissionPaymentVoucher", "CompanyCommissionReceivable", "CompanyCommissionEvent", "Booking", "BookingActivity", "AuditLog", "Customer", "CustomerActivity", "CustomerRelatedPerson", "Deal", "DealActivity", "Department", "Lead", "LeadActivity", "LeadAppointment", "LeadTask", "Permission", "Project", "PropertyUnit", "PropertyPriceHistory", "PropertyStatusHistory", "RefreshToken", "Role", "Team", "User", "UserOrganizationMembership", "Task", "TaskAssignee", "TaskWatcher", "TaskActivity", "Notification", "SystemSetting"]
 
-from app.models.task import Task
+from app.models.task import Task, TaskAssignee, TaskWatcher
 from app.models.task_activity import TaskActivity
 from app.models.notification import Notification
 from app.models.system_setting import SystemSetting
