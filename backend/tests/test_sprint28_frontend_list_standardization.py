@@ -33,6 +33,19 @@ class Sprint28FrontendListStandardizationTests(unittest.TestCase):
             "features/commissionPaymentVouchers/CommissionPaymentVouchersPage.tsx",
             "features/commissionReconciliationReport/CommissionReconciliationReportPage.tsx",
             "features/auditLogs/AuditLogsPage.tsx",
+            "features/payments/PaymentsPage.tsx",
+            "features/receipts/ReceiptsPage.tsx",
+            "features/invoices/InvoicesPage.tsx",
+            "features/reports/FinanceReportsPage.tsx",
+            "features/reports/CommissionRevenueReportsPage.tsx",
+            "features/tasks/TasksPage.tsx",
+            "features/appointments/AppointmentsPage.tsx",
+            "features/projects/ProjectsPage.tsx",
+            "features/properties/PropertiesPage.tsx",
+            "features/admin/users/UsersPage.tsx",
+            "features/organization/DepartmentsPage.tsx",
+            "features/organization/TeamsPage.tsx",
+            "features/organization/MembershipsPage.tsx",
         ]
         for page in pages:
             with self.subTest(page=page):
@@ -47,13 +60,47 @@ class Sprint28FrontendListStandardizationTests(unittest.TestCase):
             "features/commissions/CommissionsPage.tsx",
             "features/companyCommissions/CompanyCommissionsPage.tsx",
             "features/auditLogs/AuditLogsPage.tsx",
+            "features/payments/PaymentsPage.tsx",
+            "features/receipts/ReceiptsPage.tsx",
+            "features/invoices/InvoicesPage.tsx",
+            "features/reports/FinanceReportsPage.tsx",
+            "features/reports/CommissionRevenueReportsPage.tsx",
         ]
         for page in checked_pages:
             with self.subTest(page=page):
                 source = self.read(page)
-                self.assertIn("page:'1'", source.replace(" ", ""))
+                self.assertRegex(source.replace(" ", ""), r"page:'1'|setPage\(1\)")
                 self.assertIn("Xóa lọc", source)
                 self.assertRegex(source, r"Không có dữ liệu phù hợp|Chưa có dữ liệu")
+
+
+    def test_no_duplicate_pagination_component_was_added(self):
+        pagination_files = sorted(FRONTEND.glob("**/*Pagination*.tsx"))
+        relative = [path.relative_to(FRONTEND).as_posix() for path in pagination_files]
+        self.assertEqual(relative, ["components/common/Pagination.tsx"])
+
+    def test_extended_sprint28_pages_use_shared_pagination_and_safe_empty_states(self):
+        pages = [
+            "features/payments/PaymentsPage.tsx",
+            "features/receipts/ReceiptsPage.tsx",
+            "features/invoices/InvoicesPage.tsx",
+            "features/reports/FinanceReportsPage.tsx",
+            "features/reports/CommissionRevenueReportsPage.tsx",
+            "features/tasks/TasksPage.tsx",
+            "features/appointments/AppointmentsPage.tsx",
+            "features/projects/ProjectsPage.tsx",
+            "features/properties/PropertiesPage.tsx",
+            "features/admin/users/UsersPage.tsx",
+            "features/organization/DepartmentsPage.tsx",
+            "features/organization/TeamsPage.tsx",
+            "features/organization/MembershipsPage.tsx",
+        ]
+        for page in pages:
+            with self.subTest(page=page):
+                source = self.read(page)
+                self.assertIn("Pagination", source)
+                self.assertRegex(source, r"Không có dữ liệu phù hợp|Đang tải")
+                self.assertNotRegex(source, r"undefined\.map")
 
     def test_pagination_css_wraps_on_small_screens(self):
         css = self.read("../styles.css") if False else (FRONTEND / "styles.css").read_text(encoding="utf-8")

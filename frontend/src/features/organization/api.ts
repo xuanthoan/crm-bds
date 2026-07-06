@@ -1,14 +1,15 @@
 import { apiRequest } from '../../services/apiClient';
 import type { Department, DepartmentPayload, Membership, MembershipPayload, Team, TeamPayload } from './types';
-export const listDepartments = () => apiRequest<Department[]>('/api/v1/departments?page_size=100');
+const orgQuery=(params:Record<string,unknown>={})=>new URLSearchParams(Object.entries(params).filter(([,v])=>v!==undefined&&v!==null&&v!=='').map(([k,v])=>[k,String(v)])).toString();
+export const listDepartments = (params:Record<string,unknown>={page_size:100}) => apiRequest<Department[]>(`/api/v1/departments?${orgQuery(params)}`);
 export const createDepartment = (p: DepartmentPayload) => apiRequest<Department>('/api/v1/departments',{method:'POST',body:JSON.stringify(p)});
 export const updateDepartment = (id:string,p:DepartmentPayload) => apiRequest<Department>(`/api/v1/departments/${id}`,{method:'PUT',body:JSON.stringify(p)});
 export const deleteDepartment = (id:string) => apiRequest<null>(`/api/v1/departments/${id}`,{method:'DELETE'});
-export const listTeams = (departmentId?:string) => apiRequest<Team[]>(`/api/v1/teams?page_size=100${departmentId?`&department_id=${departmentId}`:''}`);
+export const listTeams = (departmentIdOrParams?:string|Record<string,unknown>) => { const params=typeof departmentIdOrParams==='string'?{page_size:100,department_id:departmentIdOrParams}:(departmentIdOrParams||{page_size:100}); return apiRequest<Team[]>(`/api/v1/teams?${orgQuery(params)}`); };
 export const createTeam = (p:TeamPayload) => apiRequest<Team>('/api/v1/teams',{method:'POST',body:JSON.stringify(p)});
 export const updateTeam = (id:string,p:TeamPayload) => apiRequest<Team>(`/api/v1/teams/${id}`,{method:'PUT',body:JSON.stringify(p)});
 export const deleteTeam = (id:string) => apiRequest<null>(`/api/v1/teams/${id}`,{method:'DELETE'});
-export const listMemberships = () => apiRequest<Membership[]>('/api/v1/organization/memberships?page_size=100');
+export const listMemberships = (params:Record<string,unknown>={page_size:100}) => apiRequest<Membership[]>(`/api/v1/organization/memberships?${orgQuery(params)}`);
 export const createMembership = (p:MembershipPayload) => apiRequest<Membership>('/api/v1/organization/memberships',{method:'POST',body:JSON.stringify(p)});
 export const updateMembership = (id:string,p:MembershipPayload) => apiRequest<Membership>(`/api/v1/organization/memberships/${id}`,{method:'PUT',body:JSON.stringify(p)});
 export const deleteMembership = (id:string) => apiRequest<null>(`/api/v1/organization/memberships/${id}`,{method:'DELETE'});

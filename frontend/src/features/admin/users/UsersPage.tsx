@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Badge } from '../../../components/Badge';
 import { ConfirmDialog } from '../../../components/ConfirmDialog';
 import { FormError } from '../../../components/FormError';
+import { Pagination } from '../../../components/common/Pagination';
 import { formatApiError } from '../../../services/apiClient';
 import { listRoles, type RoleSummary } from '../roles/api';
 import { createUser, deactivateUser, listUsers, resetUserPassword, updateUser, type AdminUser, type UserListMeta } from './api';
@@ -137,19 +138,13 @@ export function UsersPage() {
             ))}
             {!users.length && (
               <tr>
-                <td colSpan={7}>{isLoading ? 'Đang tải…' : 'Không có người dùng.'}</td>
+                <td colSpan={7}>{isLoading ? 'Đang tải...' : 'Không có dữ liệu phù hợp.'}</td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
-      <footer className="pagination-row">
-        <span>Trang {meta.page} / {meta.total_pages || 1} · Tổng {meta.total}</span>
-        <div>
-          <button type="button" className="secondary-button" disabled={meta.page <= 1} onClick={() => void loadData(meta.page - 1)}>Trước</button>
-          <button type="button" className="secondary-button" disabled={meta.page >= meta.total_pages} onClick={() => void loadData(meta.page + 1)}>Sau</button>
-        </div>
-      </footer>
+      <Pagination currentPage={meta.page} totalPages={meta.total_pages || 1} totalItems={meta.total} itemLabel="người dùng" loading={isLoading} onPageChange={(page) => void loadData(page)} />
       {isCreating && (
         <UserFormModal
           roles={roles}
