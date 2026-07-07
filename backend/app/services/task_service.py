@@ -158,6 +158,7 @@ def list_tasks(db,actor,page=1,page_size=20,**f):
         cond.append(or_(Task.task_code.ilike(term),Task.title.ilike(term),Task.task_type.ilike(term),User.full_name.ilike(term),User.email.ilike(term),Booking.booking_code.ilike(term),Deal.deal_code.ilike(term),Contract.contract_code.ilike(term),Customer.customer_code.ilike(term),Customer.full_name.ilike(term),Customer.primary_phone.ilike(term),Lead.code.ilike(term),Lead.full_name.ilike(term),Lead.phone_primary.ilike(term),PropertyUnit.property_code.ilike(term),PropertyUnit.title.ilike(term)))
     if f.get("due_from"): cond.append(Task.due_at>=f["due_from"])
     if f.get("due_to"): cond.append(Task.due_at<=f["due_to"])
+    if f.get("due_before"): cond.append(Task.due_at<f["due_before"])
     total=db.scalar(query.with_only_columns(func.count(func.distinct(Task.id))).where(*cond)) or 0
     items=list(db.scalars(query.options(*_task_list_load_options()).where(*cond).order_by(Task.due_at.asc().nullslast(),Task.created_at.desc()).offset((page-1)*page_size).limit(page_size)).unique())
     return items,{"page":page,"page_size":page_size,"total":total,"total_pages":ceil(total/page_size) if total else 0}
@@ -238,12 +239,17 @@ def auto_reassign_deal_tasks(db,deal,old_assignee_id,actor):
         _act(db,t,"assigned","Tự động chuyển công việc",content,old,str(deal.owner_id),actor)
         create_task_notification(db,t,"Bạn được giao công việc")
 
+def _today_bounds():
+    start_of_today=datetime.combine(_now().date(),time.min,tzinfo=timezone.utc)
+    start_of_tomorrow=start_of_today+timedelta(days=1)
+    return start_of_today,start_of_tomorrow
 def get_today_tasks(db,actor):
-    start=datetime.combine(_now().date(),time.min,tzinfo=timezone.utc); end=start+timedelta(days=1)
-    items=list_tasks(db,actor,page=1,page_size=200,due_to=end)[0]
+    start_of_today,start_of_tomorrow=_today_bounds()
+    items=list_tasks(db,actor,page=1,page_size=200,due_from=start_of_today,due_before=start_of_tomorrow)[0]
     return [t for t in items if t.status in {"open","in_progress"}]
 def get_overdue_tasks(db,actor):
-    items=list_tasks(db,actor,page=1,page_size=200,due_to=_now())[0]
+    start_of_today,_=_today_bounds()
+    items=list_tasks(db,actor,page=1,page_size=200,due_before=start_of_today)[0]
     return [t for t in items if t.status in {"open","in_progress"}]
 
 def auto_task_for_booking_created(db,booking,actor):

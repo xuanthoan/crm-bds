@@ -74,6 +74,19 @@ class Sprint29TaskCollaborationSourceTests(unittest.TestCase):
         self.assertIn("today:true", self.read_frontend("features/tasks/TodayTasksPage.tsx"))
         self.assertIn("overdue:true", self.read_frontend("features/tasks/OverdueTasksPage.tsx"))
 
+    def test_today_and_overdue_use_exclusive_date_boundaries(self):
+        service = self.read_backend("app/services/task_service.py")
+        self.assertIn("def _today_bounds", service)
+        self.assertIn("start_of_today=datetime.combine", service)
+        self.assertIn("start_of_tomorrow=start_of_today+timedelta(days=1)", service)
+        self.assertIn("due_from=start_of_today,due_before=start_of_tomorrow", service)
+        self.assertIn("due_before=start_of_today", service)
+        self.assertNotIn("list_tasks(db,actor,page=1,page_size=200,due_to=end)", service)
+        self.assertNotIn("list_tasks(db,actor,page=1,page_size=200,due_to=_now())", service)
+        self.assertIn('Task.due_at<f["due_before"]', service)
+        self.assertIn("Task.task_assignees.any(TaskAssignee.user_id==actor.id)", service)
+        self.assertIn("Task.task_watchers.any(TaskWatcher.user_id==actor.id)", service)
+
 
 if __name__ == "__main__":
     unittest.main()
