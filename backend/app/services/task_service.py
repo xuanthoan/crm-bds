@@ -12,9 +12,10 @@ from app.models.lead import Lead
 from app.models.property_unit import PropertyUnit
 from app.models.task import Task, TaskAssignee, TaskWatcher
 from app.models.task_activity import TaskActivity
+from app.models.task_collaboration import TaskComment, TaskRelatedLink
 from app.models.user import User
 from app.permissions.dependencies import get_user_permissions
-from app.services.notification_service import create_task_notification
+from app.services.notification_service import create_notification, create_task_notification
 
 STATUSES={"open","in_progress","done","cancelled"}; PRIORITIES={"low","medium","high","urgent"}; TYPES={"call_customer","follow_up","booking_expiry","contract_signing","payment_due","general"}
 
@@ -87,8 +88,10 @@ def _next_code(db):
     codes=db.scalars(select(Task.task_code).where(Task.task_code.like("TASK-%")))
     nums=[int(c.split("-")[-1]) for c in codes if c.split("-")[-1].isdigit()]
     return f"TASK-{max(nums,default=0)+1:06d}"
+def _event_type(typ):
+    return typ if typ.startswith("task.") else f"task.{typ}"
 def _act(db,task,typ,title=None,content=None,old=None,new=None,actor=None):
-    db.add(TaskActivity(task_id=task.id,activity_type=typ,title=title or typ,content=content,old_value=old,new_value=new,actor_id=getattr(actor,"id",None)))
+    db.add(TaskActivity(task_id=task.id,activity_type=_event_type(typ),title=title or typ,content=content,old_value=old,new_value=new,actor_id=getattr(actor,"id",None)))
 def _has_view_all(user): return user.is_superuser or "tasks.view_all" in set(get_user_permissions(user)) or "tasks.view.all" in set(get_user_permissions(user))
 def _can_access(user,task): return _has_view_all(user) or task.assigned_user_id==user.id or task.created_by_id==user.id or user.id in set(_collab_ids(task, "task_assignees")) or user.id in set(_collab_ids(task, "task_watchers"))
 def _get(db,id):
@@ -184,10 +187,13 @@ def update_task(db,id,payload,actor):
     _validate(data); old_assignee=t.assigned_user_id
     if "assigned_user_id" in data:
         data["assigned_user_id"] = _validate_assignee(db, actor, data.get("assigned_user_id"))
+    old_status=t.status; old_due=t.due_at
     for k,v in data.items(): setattr(t,k,v)
+    if "status" in data and data["status"] != old_status: _act(db,t,"completed" if data["status"]=="done" else "cancelled" if data["status"]=="cancelled" else "status_changed","Đổi trạng thái",old=old_status,new=data["status"],actor=actor)
+    if "due_at" in data and data["due_at"] != old_due: _act(db,t,"due_date_changed","Đổi hạn xử lý",old=str(old_due) if old_due else None,new=str(data["due_at"]) if data["due_at"] else None,actor=actor)
     if t.status=="done": t.completed_at=t.completed_at or _now()
     elif t.status=="cancelled": t.cancelled_at=t.cancelled_at or _now()
-    if "assigned_user_id" in data and data["assigned_user_id"] != old_assignee: _act(db,t,"assigned","Giao công việc",old=str(old_assignee),new=str(data["assigned_user_id"]),actor=actor); create_task_notification(db,t,"Bạn được giao công việc")
+    if "assigned_user_id" in data and data["assigned_user_id"] != old_assignee: _act(db,t,"primary_assignee_changed","Đổi người phụ trách chính",old=str(old_assignee),new=str(data["assigned_user_id"]),actor=actor); create_task_notification(db,t,"Bạn được giao công việc")
     _sync_collaboration(db,t,assignee_ids=assignee_ids,watcher_ids=watcher_ids,actor=actor,reject_missing_primary=True)
     db.commit(); db.refresh(t); return t
 
@@ -290,3 +296,49 @@ def list_task_assignees(db, actor: User):
     if not _can_assign_tasks(actor):
         query = query.where(User.id == actor.id)
     return list(db.scalars(query.order_by(User.full_name)).unique())
+
+
+def _notify_task_participants(db, task, actor, title, notification_type):
+    recipients = {task.created_by_id, task.assigned_user_id, *_collab_ids(task, "task_assignees"), *_collab_ids(task, "task_watchers")}
+    recipients.discard(None); recipients.discard(getattr(actor, "id", None))
+    for uid in recipients:
+        create_notification(db, recipient_user_id=uid, title=title, content=task.title, notification_type=notification_type, related_task_id=task.id, related_booking_id=task.related_booking_id, related_deal_id=task.related_deal_id, related_contract_id=task.related_contract_id, related_customer_id=task.related_customer_id, related_property_unit_id=task.related_property_unit_id)
+
+def _comment_dict(c):
+    return {"id":c.id,"task_id":c.task_id,"content":c.content,"author":_user_brief(c.author),"created_at":c.created_at,"updated_at":c.updated_at,"is_deleted":c.is_deleted}
+
+def _link_dict(x):
+    return {"id":x.id,"task_id":x.task_id,"title":x.title,"url":x.url,"note":x.note,"created_by":_user_brief(x.created_by),"created_at":x.created_at,"updated_at":x.updated_at}
+
+def list_task_comments(db, task_id, actor):
+    task=get_task_detail(db, task_id, actor)
+    return [_comment_dict(c) for c in db.scalars(select(TaskComment).where(TaskComment.task_id==task.id, TaskComment.is_deleted.is_(False)).order_by(TaskComment.created_at.asc()))]
+
+def create_task_comment(db, task_id, payload, actor):
+    task=get_task_detail(db, task_id, actor); content=payload.content.strip()
+    c=TaskComment(task_id=task.id, author_id=actor.id, content=content); db.add(c); db.flush()
+    _act(db, task, "comment_added", "Thêm bình luận", content=(content[:180] + "…") if len(content)>180 else content, actor=actor)
+    _notify_task_participants(db, task, actor, "Có bình luận mới trong công việc", "task_comment_added")
+    db.commit(); db.refresh(c); return _comment_dict(c)
+
+def list_task_links(db, task_id, actor):
+    task=get_task_detail(db, task_id, actor)
+    return [_link_dict(x) for x in db.scalars(select(TaskRelatedLink).where(TaskRelatedLink.task_id==task.id, TaskRelatedLink.is_deleted.is_(False)).order_by(TaskRelatedLink.created_at.desc()))]
+
+def create_task_link(db, task_id, payload, actor):
+    task=get_task_detail(db, task_id, actor); title=payload.title.strip(); url=payload.url.strip(); note=payload.note.strip() if payload.note else None
+    if not (url.startswith("http://") or url.startswith("https://")): raise HTTPException(400,"URL phải bắt đầu bằng http:// hoặc https://")
+    x=TaskRelatedLink(task_id=task.id, title=title, url=url, note=note, created_by_id=actor.id); db.add(x); db.flush()
+    _act(db, task, "link_added", "Thêm link liên quan", content=title, actor=actor)
+    _notify_task_participants(db, task, actor, "Có link liên quan mới trong công việc", "task_link_added")
+    db.commit(); db.refresh(x); return _link_dict(x)
+
+def delete_task_link(db, task_id, link_id, actor):
+    task=get_task_detail(db, task_id, actor)
+    x=db.scalar(select(TaskRelatedLink).where(TaskRelatedLink.id==link_id, TaskRelatedLink.task_id==task.id, TaskRelatedLink.is_deleted.is_(False)))
+    if not x: raise HTTPException(404,"Link liên quan không tồn tại")
+    x.is_deleted=True; _act(db, task, "link_deleted", "Xóa link liên quan", content=x.title, actor=actor); db.commit(); return {"deleted": True}
+
+def list_task_timeline(db, task_id, actor):
+    task=get_task_detail(db, task_id, actor)
+    return [{"id":a.id,"task_id":a.task_id,"event_type":a.activity_type,"title":a.title,"description":a.content,"actor":{"id":a.actor.id,"full_name":a.actor.full_name,"email":a.actor.email} if a.actor else None,"old_value":a.old_value,"new_value":a.new_value,"created_at":a.created_at} for a in db.scalars(select(TaskActivity).where(TaskActivity.task_id==task.id).order_by(TaskActivity.created_at.desc()))]
