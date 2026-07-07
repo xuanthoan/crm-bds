@@ -3,7 +3,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 
 class TaskBase(BaseModel):
-    @field_validator("assigned_user_id", mode="before")
+    @field_validator("assigned_user_id", "primary_assignee_id", "assigned_to_id", mode="before")
     @classmethod
     def blank_assignee_to_none(cls, value):
         if value == "" or value is None:
@@ -16,6 +16,10 @@ class TaskBase(BaseModel):
     priority: str | None = "medium"
     due_at: datetime | None = None
     assigned_user_id: UUID | None = None
+    primary_assignee_id: UUID | None = None
+    assigned_to_id: UUID | None = None
+    assignee_ids: list[UUID] | None = None
+    watcher_ids: list[UUID] | None = None
     related_customer_id: UUID | None = None
     related_lead_id: UUID | None = None
     related_booking_id: UUID | None = None

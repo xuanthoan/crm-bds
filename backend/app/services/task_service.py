@@ -10,13 +10,77 @@ from app.models.customer import Customer
 from app.models.deal import Deal
 from app.models.lead import Lead
 from app.models.property_unit import PropertyUnit
-from app.models.task import Task
+from app.models.task import Task, TaskAssignee, TaskWatcher
 from app.models.task_activity import TaskActivity
 from app.models.user import User
 from app.permissions.dependencies import get_user_permissions
 from app.services.notification_service import create_task_notification
 
 STATUSES={"open","in_progress","done","cancelled"}; PRIORITIES={"low","medium","high","urgent"}; TYPES={"call_customer","follow_up","booking_expiry","contract_signing","payment_due","general"}
+
+
+def _user_brief(u):
+    return {"id": u.id, "full_name": u.full_name, "email": u.email} if u else None
+
+def _ids(values):
+    result=[]
+    for value in values or []:
+        if value and value not in result:
+            result.append(value)
+    return result
+
+def _collab_users(task, rel):
+    rows = getattr(task, rel, []) or []
+    return [_user_brief(row.user) for row in rows if row.user and getattr(row.user, "deleted_at", None) is None]
+
+def _collab_ids(task, rel):
+    return [row.user_id for row in (getattr(task, rel, []) or [])]
+
+def _validate_user_ids(db, ids, label):
+    ids=_ids(ids)
+    if not ids:
+        return []
+    found=set(db.scalars(select(User.id).where(User.id.in_(ids), User.status == "active", User.deleted_at.is_(None))))
+    missing=[str(i) for i in ids if i not in found]
+    if missing:
+        raise HTTPException(400, f"{label} không tồn tại hoặc không hoạt động.")
+    return ids
+
+def _sync_collaboration(db, task, *, assignee_ids=None, watcher_ids=None, actor=None, reject_missing_primary=False):
+    primary_id = task.assigned_user_id
+    if primary_id and assignee_ids is None and not task.task_assignees:
+        assignee_ids = [primary_id]
+    if assignee_ids is not None:
+        assignee_ids = _validate_user_ids(db, assignee_ids, "Người cùng thực hiện")
+        if primary_id and primary_id not in assignee_ids:
+            if reject_missing_primary:
+                raise HTTPException(400, "Người phụ trách chính phải nằm trong danh sách người cùng thực hiện.")
+            assignee_ids = [primary_id, *assignee_ids]
+        old=set(_collab_ids(task, "task_assignees")); new=set(assignee_ids)
+        for row in list(task.task_assignees):
+            if row.user_id not in new:
+                db.delete(row)
+        for uid in assignee_ids:
+            if uid not in old:
+                task.task_assignees.append(TaskAssignee(user_id=uid, created_by_id=getattr(actor, "id", None)))
+        if old != new:
+            _act(db, task, "assignees_changed", "Cập nhật người cùng thực hiện", old=",".join(map(str, old)), new=",".join(map(str, new)), actor=actor)
+    current_assignee_ids=set(assignee_ids if assignee_ids is not None else _collab_ids(task, "task_assignees"))
+    if watcher_ids is not None:
+        watcher_ids = [uid for uid in _validate_user_ids(db, watcher_ids, "Người quan sát") if uid not in current_assignee_ids]
+    elif getattr(actor, "id", None) and actor.id not in current_assignee_ids and not any(r.user_id == actor.id for r in task.task_watchers):
+        watcher_ids = [*_collab_ids(task, "task_watchers"), actor.id]
+    if watcher_ids is not None:
+        watcher_ids = [uid for uid in _ids(watcher_ids) if uid not in current_assignee_ids]
+        old=set(_collab_ids(task, "task_watchers")); new=set(watcher_ids)
+        for row in list(task.task_watchers):
+            if row.user_id not in new:
+                db.delete(row)
+        for uid in watcher_ids:
+            if uid not in old:
+                task.task_watchers.append(TaskWatcher(user_id=uid, created_by_id=getattr(actor, "id", None)))
+        if old != new:
+            _act(db, task, "watchers_changed", "Cập nhật người quan sát", old=",".join(map(str, old)), new=",".join(map(str, new)), actor=actor)
 
 def _now(): return datetime.now(timezone.utc)
 def _next_code(db):
@@ -26,7 +90,7 @@ def _next_code(db):
 def _act(db,task,typ,title=None,content=None,old=None,new=None,actor=None):
     db.add(TaskActivity(task_id=task.id,activity_type=typ,title=title or typ,content=content,old_value=old,new_value=new,actor_id=getattr(actor,"id",None)))
 def _has_view_all(user): return user.is_superuser or "tasks.view_all" in set(get_user_permissions(user)) or "tasks.view.all" in set(get_user_permissions(user))
-def _can_access(user,task): return _has_view_all(user) or task.assigned_user_id==user.id or task.created_by_id==user.id
+def _can_access(user,task): return _has_view_all(user) or task.assigned_user_id==user.id or task.created_by_id==user.id or user.id in set(_collab_ids(task, "task_assignees")) or user.id in set(_collab_ids(task, "task_watchers"))
 def _get(db,id):
     t=db.scalar(select(Task).where(Task.id==id,Task.deleted_at.is_(None)))
     if not t: raise HTTPException(404,"Công việc không tồn tại")
@@ -53,7 +117,12 @@ def _validate(data):
     if "task_type" in data and data["task_type"] and data["task_type"] not in TYPES: raise HTTPException(400,"Loại công việc không hợp lệ")
 
 def serialize_task(t,detail=False):
-    d={"id":t.id,"task_code":t.task_code,"title":t.title,"description":t.description,"task_type":t.task_type,"priority":t.priority,"status":t.status,"due_at":t.due_at,"completed_at":t.completed_at,"cancelled_at":t.cancelled_at,"assigned_user_id":t.assigned_user_id,"assigned_user":{"id":t.assigned_user.id,"full_name":t.assigned_user.full_name,"email":t.assigned_user.email} if t.assigned_user else None,"created_by_id":t.created_by_id,"related_customer_id":t.related_customer_id,"related_lead_id":t.related_lead_id,"related_booking_id":t.related_booking_id,"related_deal_id":t.related_deal_id,"related_contract_id":t.related_contract_id,"related_property_unit_id":t.related_property_unit_id,"related_customer":{"id":t.related_customer.id,"customer_code":t.related_customer.customer_code,"full_name":t.related_customer.full_name,"primary_phone":t.related_customer.primary_phone} if t.related_customer else None,"related_lead":{"id":t.related_lead.id,"code":t.related_lead.code,"full_name":t.related_lead.full_name,"phone_primary":t.related_lead.phone_primary} if t.related_lead else None,"related_booking":{"id":t.related_booking.id,"booking_code":t.related_booking.booking_code} if t.related_booking else None,"related_deal":{"id":t.related_deal.id,"deal_code":t.related_deal.deal_code,"title":t.related_deal.title} if t.related_deal else None,"related_contract":{"id":t.related_contract.id,"contract_code":t.related_contract.contract_code} if t.related_contract else None,"related_property_unit":{"id":t.related_property_unit.id,"property_code":t.related_property_unit.property_code,"title":t.related_property_unit.title} if t.related_property_unit else None,"auto_generated":t.auto_generated,"source_event":t.source_event,"note":t.note,"created_at":t.created_at,"updated_at":t.updated_at}
+    primary = _user_brief(t.assigned_user)
+    assignees = _collab_users(t, "task_assignees")
+    if primary and t.assigned_user_id not in [a["id"] for a in assignees]:
+        assignees = [primary, *assignees]
+    watchers = [w for w in _collab_users(t, "task_watchers") if w["id"] not in [a["id"] for a in assignees]]
+    d={"id":t.id,"task_code":t.task_code,"title":t.title,"description":t.description,"task_type":t.task_type,"priority":t.priority,"status":t.status,"due_at":t.due_at,"completed_at":t.completed_at,"cancelled_at":t.cancelled_at,"assigned_user_id":t.assigned_user_id,"primary_assignee_id":t.assigned_user_id,"assigned_to_id":t.assigned_user_id,"assigned_user":primary,"assigned_to":primary,"primary_assignee":primary,"assignee_ids":[a["id"] for a in assignees],"assignees":assignees,"watcher_ids":[w["id"] for w in watchers],"watchers":watchers,"created_by_id":t.created_by_id,"creator":_user_brief(t.creator),"created_by":_user_brief(t.creator),"related_customer_id":t.related_customer_id,"related_lead_id":t.related_lead_id,"related_booking_id":t.related_booking_id,"related_deal_id":t.related_deal_id,"related_contract_id":t.related_contract_id,"related_property_unit_id":t.related_property_unit_id,"related_customer":{"id":t.related_customer.id,"customer_code":t.related_customer.customer_code,"full_name":t.related_customer.full_name,"primary_phone":t.related_customer.primary_phone} if t.related_customer else None,"related_lead":{"id":t.related_lead.id,"code":t.related_lead.code,"full_name":t.related_lead.full_name,"phone_primary":t.related_lead.phone_primary} if t.related_lead else None,"related_booking":{"id":t.related_booking.id,"booking_code":t.related_booking.booking_code} if t.related_booking else None,"related_deal":{"id":t.related_deal.id,"deal_code":t.related_deal.deal_code,"title":t.related_deal.title} if t.related_deal else None,"related_contract":{"id":t.related_contract.id,"contract_code":t.related_contract.contract_code} if t.related_contract else None,"related_property_unit":{"id":t.related_property_unit.id,"property_code":t.related_property_unit.property_code,"title":t.related_property_unit.title} if t.related_property_unit else None,"auto_generated":t.auto_generated,"source_event":t.source_event,"note":t.note,"created_at":t.created_at,"updated_at":t.updated_at}
     if detail: d["activities"]=[{"id":a.id,"activity_type":a.activity_type,"title":a.title,"content":a.content,"old_value":a.old_value,"new_value":a.new_value,"actor":{"id":a.actor.id,"full_name":a.actor.full_name} if a.actor else None,"created_at":a.created_at} for a in t.activities]
     return d
 
@@ -62,7 +131,10 @@ def _task_list_load_options():
     # prevent nested joined relationships from related CRM models.
     return (
         selectinload(Task.assigned_user).load_only(User.id, User.full_name, User.email),
-        lazyload(Task.creator),
+        selectinload(Task.creator).load_only(User.id, User.full_name, User.email),
+        selectinload(Task.task_assignees).selectinload(TaskAssignee.user).load_only(User.id, User.full_name, User.email),
+        selectinload(Task.task_watchers).selectinload(TaskWatcher.user).load_only(User.id, User.full_name, User.email),
+
         selectinload(Task.related_booking).load_only(Booking.id, Booking.booking_code).lazyload("*"),
         selectinload(Task.related_deal).load_only(Deal.id, Deal.deal_code, Deal.title).lazyload("*"),
         selectinload(Task.related_contract).load_only(Contract.id, Contract.contract_code).lazyload("*"),
@@ -73,15 +145,20 @@ def _task_list_load_options():
 
 def list_tasks(db,actor,page=1,page_size=20,**f):
     cond=[Task.deleted_at.is_(None)]
-    if not _has_view_all(actor): cond.append(or_(Task.assigned_user_id==actor.id,Task.created_by_id==actor.id))
+    if not _has_view_all(actor): cond.append(or_(Task.assigned_user_id==actor.id,Task.created_by_id==actor.id,Task.task_assignees.any(TaskAssignee.user_id==actor.id),Task.task_watchers.any(TaskWatcher.user_id==actor.id)))
     for name,col in (("status",Task.status),("priority",Task.priority),("task_type",Task.task_type),("assigned_user_id",Task.assigned_user_id),("related_customer_id",Task.related_customer_id),("related_booking_id",Task.related_booking_id),("related_deal_id",Task.related_deal_id),("related_contract_id",Task.related_contract_id)):
-        if f.get(name) is not None: cond.append(col==f[name])
+        if f.get(name) is not None:
+            if name=="assigned_user_id":
+                cond.append(or_(Task.assigned_user_id==f[name], Task.task_assignees.any(TaskAssignee.user_id==f[name])))
+            else:
+                cond.append(col==f[name])
     query=select(Task).outerjoin(Task.assigned_user).outerjoin(Task.related_booking).outerjoin(Task.related_deal).outerjoin(Task.related_contract).outerjoin(Task.related_customer).outerjoin(Task.related_lead).outerjoin(Task.related_property_unit)
     if f.get("q"):
         term=f"%{f['q'].strip()}%"
         cond.append(or_(Task.task_code.ilike(term),Task.title.ilike(term),Task.task_type.ilike(term),User.full_name.ilike(term),User.email.ilike(term),Booking.booking_code.ilike(term),Deal.deal_code.ilike(term),Contract.contract_code.ilike(term),Customer.customer_code.ilike(term),Customer.full_name.ilike(term),Customer.primary_phone.ilike(term),Lead.code.ilike(term),Lead.full_name.ilike(term),Lead.phone_primary.ilike(term),PropertyUnit.property_code.ilike(term),PropertyUnit.title.ilike(term)))
     if f.get("due_from"): cond.append(Task.due_at>=f["due_from"])
     if f.get("due_to"): cond.append(Task.due_at<=f["due_to"])
+    if f.get("due_before"): cond.append(Task.due_at<f["due_before"])
     total=db.scalar(query.with_only_columns(func.count(func.distinct(Task.id))).where(*cond)) or 0
     items=list(db.scalars(query.options(*_task_list_load_options()).where(*cond).order_by(Task.due_at.asc().nullslast(),Task.created_at.desc()).offset((page-1)*page_size).limit(page_size)).unique())
     return items,{"page":page,"page_size":page_size,"total":total,"total_pages":ceil(total/page_size) if total else 0}
@@ -92,22 +169,26 @@ def get_task_detail(db,id,actor):
     return t
 
 def create_task(db,payload,actor,auto=False,source_event=None,notify_type="task_assigned"):
-    data=payload if isinstance(payload,dict) else payload.model_dump(exclude_unset=True); _validate(data)
+    data=payload if isinstance(payload,dict) else payload.model_dump(exclude_unset=True); assignee_ids=data.pop("assignee_ids", None); watcher_ids=data.pop("watcher_ids", None); data["assigned_user_id"] = data.get("primary_assignee_id") or data.get("assigned_to_id") or data.get("assigned_user_id"); data.pop("primary_assignee_id", None); data.pop("assigned_to_id", None); _validate(data)
     if not data.get("title"): raise HTTPException(400,"Tiêu đề là bắt buộc")
     data.pop("source_event", None)
     if not auto:
         data["assigned_user_id"] = _validate_assignee(db, actor, data.get("assigned_user_id"))
     t=Task(**data,task_code=_next_code(db),created_by_id=getattr(actor,"id",None),auto_generated=auto,source_event=source_event)
-    db.add(t); db.flush(); _act(db,t,"created","Tạo công việc",actor=actor); create_task_notification(db,t,notification_type=notify_type); db.commit(); db.refresh(t); return t
+    db.add(t); db.flush(); _act(db,t,"created","Tạo công việc",actor=actor); _sync_collaboration(db,t,assignee_ids=assignee_ids,watcher_ids=watcher_ids,actor=actor); create_task_notification(db,t,notification_type=notify_type); db.commit(); db.refresh(t); return t
 
 def update_task(db,id,payload,actor):
-    t=get_task_detail(db,id,actor); data=payload.model_dump(exclude_unset=True); _validate(data); old_assignee=t.assigned_user_id
+    t=get_task_detail(db,id,actor); data=payload.model_dump(exclude_unset=True); assignee_ids=data.pop("assignee_ids", None); watcher_ids=data.pop("watcher_ids", None); primary_payload=data.pop("primary_assignee_id", None); assigned_to_payload=data.pop("assigned_to_id", None);
+    if primary_payload is not None or assigned_to_payload is not None or "assigned_user_id" in data:
+        data["assigned_user_id"] = primary_payload or assigned_to_payload or data.get("assigned_user_id")
+    _validate(data); old_assignee=t.assigned_user_id
     if "assigned_user_id" in data:
         data["assigned_user_id"] = _validate_assignee(db, actor, data.get("assigned_user_id"))
     for k,v in data.items(): setattr(t,k,v)
     if t.status=="done": t.completed_at=t.completed_at or _now()
     elif t.status=="cancelled": t.cancelled_at=t.cancelled_at or _now()
     if "assigned_user_id" in data and data["assigned_user_id"] != old_assignee: _act(db,t,"assigned","Giao công việc",old=str(old_assignee),new=str(data["assigned_user_id"]),actor=actor); create_task_notification(db,t,"Bạn được giao công việc")
+    _sync_collaboration(db,t,assignee_ids=assignee_ids,watcher_ids=watcher_ids,actor=actor,reject_missing_primary=True)
     db.commit(); db.refresh(t); return t
 
 def change_task_status(db,id,status,note,actor):
@@ -158,12 +239,17 @@ def auto_reassign_deal_tasks(db,deal,old_assignee_id,actor):
         _act(db,t,"assigned","Tự động chuyển công việc",content,old,str(deal.owner_id),actor)
         create_task_notification(db,t,"Bạn được giao công việc")
 
+def _today_bounds():
+    start_of_today=datetime.combine(_now().date(),time.min,tzinfo=timezone.utc)
+    start_of_tomorrow=start_of_today+timedelta(days=1)
+    return start_of_today,start_of_tomorrow
 def get_today_tasks(db,actor):
-    start=datetime.combine(_now().date(),time.min,tzinfo=timezone.utc); end=start+timedelta(days=1)
-    items=list_tasks(db,actor,page=1,page_size=200,due_to=end)[0]
+    start_of_today,start_of_tomorrow=_today_bounds()
+    items=list_tasks(db,actor,page=1,page_size=200,due_from=start_of_today,due_before=start_of_tomorrow)[0]
     return [t for t in items if t.status in {"open","in_progress"}]
 def get_overdue_tasks(db,actor):
-    items=list_tasks(db,actor,page=1,page_size=200,due_to=_now())[0]
+    start_of_today,_=_today_bounds()
+    items=list_tasks(db,actor,page=1,page_size=200,due_before=start_of_today)[0]
     return [t for t in items if t.status in {"open","in_progress"}]
 
 def auto_task_for_booking_created(db,booking,actor):
