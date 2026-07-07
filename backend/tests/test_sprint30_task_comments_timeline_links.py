@@ -54,6 +54,14 @@ class Sprint30TaskCommentsTimelineLinksSourceTests(unittest.TestCase):
         self.assertIn("startsWith('http://')||v.startsWith('https://')", panel)
         self.assertIn("Array.isArray", panel)
         self.assertNotRegex(panel, r"undefined\.map")
+        for cls in ("task-collaboration-panel", "task-tabs", "task-tab-panel", "task-comment-card", "task-link-card", "task-timeline-item"):
+            self.assertIn(cls, panel)
+        self.assertIn("prettyValue", panel)
+        self.assertIn("uuidLike", panel)
+        self.assertNotIn("JSON.stringify", panel)
+        styles = self.f("styles.css")
+        for cls in (".task-tabs", ".task-comment-card", ".task-link-card", ".task-timeline-item", ".task-empty-state"):
+            self.assertIn(cls, styles)
         self.assertIn("TaskCollaborationPanel", modal)
         for fn in ("listTaskComments", "createTaskComment", "listTaskLinks", "createTaskLink", "listTaskTimeline"):
             self.assertIn(fn, api)
