@@ -20,7 +20,8 @@ def assignees(db:Session=Depends(get_db),actor:User=Depends(require_auth)):
 @router.get("/today")
 def today(db:Session=Depends(get_db),actor:User=Depends(require_auth)): return success_response([serialize_task(i) for i in get_today_tasks(db,actor)])
 @router.get("/overdue")
-def overdue(db:Session=Depends(get_db),actor:User=Depends(require_auth)): return success_response([serialize_task(i) for i in get_overdue_tasks(db,actor)])
+def overdue(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),q:str|None=None,db:Session=Depends(get_db),actor:User=Depends(require_auth)):
+    items,meta=get_overdue_tasks(db,actor,page=page,page_size=page_size,q=q,with_meta=True); return success_response([serialize_task(i) for i in items],meta=meta)
 
 @router.get("/{task_id}/comments")
 def comments(task_id:UUID,db:Session=Depends(get_db),actor:User=Depends(require_auth)): return success_response(list_task_comments(db,task_id,actor))

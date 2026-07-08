@@ -40,6 +40,10 @@ class Sprint30TaskCommentsTimelineLinksSourceTests(unittest.TestCase):
         self.assertNotIn('new=",".join(map(str, new))', service)
         self.assertIn("recipients.discard(getattr(actor", service)
         self.assertIn("_can_access", service)
+        self.assertIn("def get_overdue_tasks(db,actor,page=1,page_size=200,q=None,with_meta=False)", service)
+        self.assertIn("q=q,due_before=start_of_today", service)
+        self.assertIn('status in {"open","in_progress"}', service)
+        self.assertIn("total_pages", service)
 
     def test_frontend_linkify_and_task_sections(self):
         linkified = self.f("components/common/LinkifiedText.tsx")
@@ -80,6 +84,16 @@ class Sprint30TaskCommentsTimelineLinksSourceTests(unittest.TestCase):
         self.assertIn("task.watchers_changed", panel)
         self.assertIn(".task-timeline-description a", styles)
         self.assertIn("TaskCollaborationPanel", modal)
+        tasks_page = self.f("features/tasks/TasksPage.tsx")
+        overdue_page = self.f("features/tasks/OverdueTasksPage.tsx")
+        self.assertIn("overdue-search", tasks_page)
+        self.assertIn("Tìm mã task, tiêu đề, booking, hợp đồng...", tasks_page)
+        self.assertIn("q:e.target.value,page:1", tasks_page)
+        self.assertIn("Không có công việc quá hạn phù hợp.", tasks_page)
+        self.assertIn("totalItems={meta.total}", tasks_page)
+        self.assertIn("Quá hạn", self.f("features/tasks/components/TaskFilters.tsx"))
+        self.assertIn("overdue:true", overdue_page)
+        self.assertIn("/api/v1/tasks/overdue?${qs(filters)}", api)
         for fn in ("listTaskComments", "createTaskComment", "listTaskLinks", "createTaskLink", "listTaskTimeline"):
             self.assertIn(fn, api)
         for typ in ("TaskComment", "TaskRelatedLink", "TaskTimelineEvent"):
