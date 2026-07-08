@@ -176,7 +176,7 @@ def _task_list_load_options():
 def list_tasks(db,actor,page=1,page_size=20,**f):
     cond=[Task.deleted_at.is_(None)]
     if not _has_view_all(actor): cond.append(or_(Task.assigned_user_id==actor.id,Task.created_by_id==actor.id,Task.task_assignees.any(TaskAssignee.user_id==actor.id),Task.task_watchers.any(TaskWatcher.user_id==actor.id)))
-    for name,col in (("status",Task.status),("priority",Task.priority),("task_type",Task.task_type),("assigned_user_id",Task.assigned_user_id),("related_customer_id",Task.related_customer_id),("related_booking_id",Task.related_booking_id),("related_deal_id",Task.related_deal_id),("related_contract_id",Task.related_contract_id)):
+    for name,col in (("status",Task.status),("priority",Task.priority),("task_type",Task.task_type),("assigned_user_id",Task.assigned_user_id),("related_lead_id",Task.related_lead_id),("lead_id",Task.related_lead_id),("related_customer_id",Task.related_customer_id),("related_booking_id",Task.related_booking_id),("related_deal_id",Task.related_deal_id),("related_contract_id",Task.related_contract_id)):
         if f.get(name) is not None:
             if name=="assigned_user_id":
                 cond.append(or_(Task.assigned_user_id==f[name], Task.task_assignees.any(TaskAssignee.user_id==f[name])))

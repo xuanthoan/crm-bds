@@ -55,6 +55,10 @@ class Sprint31DuplicateLeadOwnershipSourceTests(unittest.TestCase):
         self.assertIn("first_upload_note", service)
         self.assertNotIn("_ensure_phone_unique(db, primary, secondary)\n    owner_id", service)
         self.assertIn("duplicate_info", service)
+        audit = self.b("app/services/audit_service.py")
+        self.assertIn("json_safe", audit)
+        self.assertIn("before_data=json_safe(before_data)", audit)
+        self.assertIn("after_data=json_safe(after_data)", audit)
         self.assertIn("Lead mới đã được liên kết vào hồ sơ khách hàng chung", service)
 
     def test_customer_profile_visibility_and_team_scoped_journey_privacy(self):
@@ -76,6 +80,34 @@ class Sprint31DuplicateLeadOwnershipSourceTests(unittest.TestCase):
         for snippet in ("duplicate_visibility", "Khách trùng / Có nhiều hành trình", "Ghi chú upload ban đầu", "Khách có hành trình khác ngoài phạm vi quyền của bạn"):
             self.assertIn(snippet, detail + types)
         self.assertNotIn("team khác được xem toàn bộ journey", detail.lower())
+
+
+    def test_audit_json_safe_for_nested_uuid_datetime_decimal(self):
+        audit = self.b("app/services/audit_service.py")
+        for snippet in ("def json_safe", "isinstance(value, UUID)", "isinstance(value, (datetime, date))", "isinstance(value, Decimal)", "if isinstance(value, dict)", "if isinstance(value, (list, tuple, set))"):
+            self.assertIn(snippet, audit)
+        self.assertIn("before_data=json_safe(before_data)", audit)
+        self.assertIn("after_data=json_safe(after_data)", audit)
+
+    def test_task_lead_id_filter_contract(self):
+        api = self.b("app/api/v1/tasks.py")
+        service = self.b("app/services/task_service.py")
+        frontend_api = self.f("features/tasks/api.ts")
+        lead_detail = self.f("features/leads/LeadDetailPage.tsx")
+        self.assertIn('lead_id:UUID|None=Query(None,alias="lead_id")', api)
+        self.assertIn("related_lead_id=lead_filter", api)
+        self.assertIn('("lead_id",Task.related_lead_id)', service)
+        self.assertIn('("related_lead_id",Task.related_lead_id)', service)
+        self.assertIn("lead_id?:string", frontend_api)
+        self.assertIn("listTasks({lead_id:leadId,page_size:10})", lead_detail)
+        self.assertIn("Chưa có công việc nào cho lead này.", lead_detail)
+
+    def test_api_client_distinguishes_http_500_from_network_error(self):
+        api_client = self.f("services/apiClient.ts")
+        self.assertIn("SERVER_ERROR_MESSAGE", api_client)
+        self.assertIn("response.status >= 500", api_client)
+        self.assertIn("Không kết nối được máy chủ", api_client)
+        self.assertIn("Có lỗi máy chủ khi xử lý yêu cầu", api_client)
 
     def test_revenue_rule_documented_and_not_first_touch_commission(self):
         docs = self.d("BUSINESS_RULES.md")
