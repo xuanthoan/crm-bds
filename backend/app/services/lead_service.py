@@ -1,4 +1,3 @@
-import re
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from math import ceil
@@ -18,12 +17,15 @@ from app.leads.constants import (
     VIEW_PERMISSIONS,
 )
 from app.models.lead import Lead
+from app.models.customer import Customer
 from app.models.role import Role
 from app.models.user import User
 from app.permissions.dependencies import get_user_permissions
 from app.schemas.lead import LeadAssign, LeadCreate, LeadStatusUpdate, LeadUpdate
 from app.services.audit_service import write_audit_log
+from app.services.duplicate_lead_service import detect_duplicate_customer
 from app.services.lead_activity_service import create_activity_record, serialize_activity
+from app.services.phone_service import normalize_phone
 from app.services.user_service import get_user_by_id, user_role_code_set
 
 
@@ -120,13 +122,6 @@ def _validate_target_owner_scope(db: Session, actor: User, owner: User) -> None:
     if "leads.assign.team" not in permissions or owner.id not in get_accessible_user_ids_for_lead_scope(db, actor, "team"):
         raise HTTPException(status_code=403, detail="Người phụ trách không nằm trong phạm vi bạn được phân công")
 
-def normalize_phone(value: str | None) -> str | None:
-    if value is None:
-        return None
-    normalized = re.sub(r"\D", "", value)
-    return normalized or None
-
-
 def _validate_ranges(budget_min: Decimal | None, budget_max: Decimal | None, area_min: Decimal | None, area_max: Decimal | None) -> None:
     if budget_min is not None and budget_max is not None and budget_min > budget_max:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ngân sách tối thiểu không được lớn hơn ngân sách tối đa")
@@ -153,6 +148,12 @@ def _ensure_phone_unique(db: Session, phone_primary: str, phone_secondary: str |
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Số điện thoại đã tồn tại trong hệ thống")
 
 
+def _next_customer_code(db: Session) -> str:
+    codes = db.scalars(select(Customer.customer_code).where(Customer.customer_code.like("CUS-%")))
+    numbers = [int(code.removeprefix("CUS-")) for code in codes if code.removeprefix("CUS-").isdigit()]
+    return f"CUS-{max(numbers, default=0) + 1:06d}"
+
+
 def _next_lead_code(db: Session) -> str:
     latest = db.scalar(select(Lead.code).order_by(Lead.code.desc()).limit(1))
     number = int(latest.split("-")[-1]) + 1 if latest and latest.startswith("LD-") else 1
@@ -171,6 +172,9 @@ def _audit_snapshot(lead: Lead) -> dict:
         "full_name": lead.full_name,
         "phone_primary": lead.phone_primary,
         "phone_secondary": lead.phone_secondary,
+        "customer_id": str(lead.customer_id) if lead.customer_id else None,
+        "duplicate_detected": lead.duplicate_detected,
+        "duplicate_match_reason": lead.duplicate_match_reason,
         "status": lead.status,
         "priority": lead.priority,
         "owner_id": str(lead.owner_id) if lead.owner_id else None,
@@ -212,6 +216,18 @@ def serialize_lead(lead: Lead, *, detail: bool = False, db: Session | None = Non
             "assigned_at": lead.assigned_at,
             "last_contact_at": lead.last_contact_at,
             "converted_customer_id": lead.converted_customer_id,
+            "customer_id": lead.customer_id,
+            "duplicate_detected": lead.duplicate_detected,
+            "duplicate_of_customer_id": lead.duplicate_of_customer_id,
+            "duplicate_match_reason": lead.duplicate_match_reason,
+            "duplicate_info": {
+                "is_duplicate": lead.duplicate_detected,
+                "customer_id": lead.customer_id or lead.duplicate_of_customer_id,
+                "matched_phone": lead.duplicate_match_reason,
+                "message": "Lead/khách hàng này đã tồn tại trong hệ thống. Lead mới đã được liên kết vào hồ sơ khách hàng chung." if lead.duplicate_detected else None,
+                "can_view_common_profile": True,
+                "can_view_other_journeys": False,
+            },
             "converted_customer": {"id": lead.converted_customer.id, "customer_code": lead.converted_customer.customer_code, "full_name": lead.converted_customer.full_name} if lead.converted_customer else None,
             "converted_at": lead.converted_at,
             "converted_by": _serialize_user(lead.converted_by),
@@ -297,24 +313,74 @@ def create_lead(db: Session, payload: LeadCreate, actor: User) -> Lead:
     secondary = normalize_phone(payload.phone_secondary)
     if not primary:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Số điện thoại chính là bắt buộc")
-    _ensure_phone_unique(db, primary, secondary)
+    duplicate = detect_duplicate_customer(db, primary, secondary, current_user=actor)
     owner_id = actor.id
     assigned_owner = None
     if payload.owner_id and payload.owner_id != actor.id and _has_any(actor, ASSIGN_PERMISSIONS):
         assigned_owner = _eligible_owner(db, payload.owner_id)
         _validate_target_owner_scope(db, actor, assigned_owner)
         owner_id = assigned_owner.id
-    lead = Lead(**payload.model_dump(exclude={"owner_id", "phone_primary", "phone_secondary"}), code=_next_lead_code(db), phone_primary=primary, phone_secondary=secondary, status="new", owner_id=owner_id, created_by_id=actor.id)
+    customer = None
+    now = datetime.now(timezone.utc)
+    if duplicate.is_duplicate and duplicate.matched_customer_id:
+        customer = db.get(Customer, duplicate.matched_customer_id)
+    if customer is None:
+        customer = Customer(
+            customer_code=_next_customer_code(db),
+            full_name=payload.full_name.strip(),
+            primary_phone=primary,
+            secondary_phone=secondary,
+            phone_primary_normalized=primary,
+            phone_secondary_normalized=secondary,
+            email=payload.email,
+            zalo=payload.zalo,
+            facebook=payload.facebook,
+            address=payload.address,
+            source=payload.source,
+            source_note=payload.note,
+            interested_project=payload.project_interest,
+            interested_area=payload.location_interest,
+            budget_min=payload.budget_min,
+            budget_max=payload.budget_max,
+            bedroom_count=payload.bedroom_need,
+            area_min=payload.area_min,
+            area_max=payload.area_max,
+            owner_id=owner_id,
+            created_by_id=actor.id,
+            first_touch_user_id=actor.id,
+            first_touch_source=payload.source,
+            first_uploaded_at=now,
+            first_upload_note=payload.note,
+            first_contact_at=now,
+            next_follow_up_at=payload.next_follow_up_at,
+            note=payload.note,
+            buying_timeline="unknown",
+            financial_rating="unknown",
+        )
+        db.add(customer)
+        db.flush()
+    else:
+        customer.is_duplicate_profile = True
+    lead = Lead(**payload.model_dump(exclude={"owner_id", "phone_primary", "phone_secondary"}), code=_next_lead_code(db), phone_primary=primary, phone_secondary=secondary, phone_primary_normalized=primary, phone_secondary_normalized=secondary, status="new", owner_id=owner_id, created_by_id=actor.id, customer_id=customer.id, duplicate_detected=duplicate.is_duplicate, duplicate_of_customer_id=customer.id if duplicate.is_duplicate else None, duplicate_match_reason=duplicate.match_reason)
     if owner_id != actor.id:
         lead.assigned_by_id = actor.id
         lead.assigned_at = datetime.now(timezone.utc)
     db.add(lead)
     db.flush()
+    if customer.source_lead_id is None:
+        customer.source_lead_id = lead.id
+    if customer.first_lead_id is None:
+        customer.first_lead_id = lead.id
     if lead.note and lead.note.strip():
         create_activity_record(db, lead=lead, actor=actor, activity_type="note", title="Ghi chú ban đầu", content=lead.note.strip())
     if assigned_owner is not None:
         create_activity_record(db, lead=lead, actor=actor, activity_type="assignment", content="Phân công lead khi tạo", old_value=actor.full_name, new_value=assigned_owner.full_name)
     write_audit_log(db, action="leads.create", user_id=actor.id, entity_type="leads", entity_id=str(lead.id), after_data=_audit_snapshot(lead))
+    if duplicate.is_duplicate:
+        create_activity_record(db, lead=lead, actor=actor, activity_type="other", title="Phát hiện khách hàng trùng", content=f"Match {duplicate.match_reason} theo số {duplicate.matched_phone}; lead mới gắn vào Customer Profile chung {customer.customer_code}")
+        write_audit_log(db, action="leads.duplicate_detected", user_id=actor.id, entity_type="leads", entity_id=str(lead.id), after_data=duplicate.to_dict())
+    else:
+        write_audit_log(db, action="customers.create", user_id=actor.id, entity_type="customers", entity_id=str(customer.id), after_data={"source_lead_id": str(lead.id), "first_touch_user_id": str(actor.id)})
     db.commit()
     db.refresh(lead)
     return lead

@@ -320,3 +320,14 @@ Sprint 21 chưa thay đổi công thức hoa hồng sale của Sprint 20 và ch�
 - Số tiền chi hoa hồng sale không được vượt số hoa hồng công ty đã nhận còn lại, đồng thời vẫn không được vượt số hoa hồng sale đã duyệt.
 - Sprint 22 chưa hỗ trợ boss override, tạm ứng hoa hồng sale khi công ty chưa nhận tiền, hoặc cấu hình policy động theo từng công ty/dự án.
 - Backlog sau Sprint 22: cấu hình policy theo công ty, boss override, tạm ứng hoa hồng sale, và tùy chọn tính hoa hồng sale trực tiếp từ company commission.
+
+## Sprint 31 — Duplicate Lead Ownership & Customer Journey Rules
+
+- **Một database chung:** CRM BĐS không tách database theo team/phòng. Phạm vi xem/sửa được xác định bằng `owner_id`, lead journey, team/phòng từ permission hiện tại và quyền cấp cao.
+- **Customer Profile chung:** `customers` là hồ sơ khách hàng thật của công ty. Team/sale có journey lead gắn với customer trùng được xem thông tin chung: liên hệ, quan tâm, hồ sơ cá nhân, hồ sơ tài chính, nhu cầu & tiêu chí, người liên quan, điểm khách hàng và ghi chú/ngày/người upload ban đầu.
+- **Team-scoped Journey:** `leads` là journey theo sale/team/phòng. Lead/journey/booking/deal/contract notes, comment, related links, activity và timeline riêng của team nào chỉ được team đó và cấp quản lý có quyền tương ứng xem; Admin/Giám đốc hoặc quyền `*.view.all` xem toàn bộ.
+- **Duplicate rule:** Sprint 31 chỉ coi trùng chắc chắn theo số điện thoại chính/phụ sau chuẩn hóa. Các cặp match hợp lệ gồm primary-primary, primary-secondary, secondary-primary, secondary-secondary. Email, Zalo ID, Facebook link không được dùng làm điều kiện trùng chắc chắn.
+- **Hành vi tạo lead trùng:** API tạo lead không fail mặc định khi trùng phone. Hệ thống tạo lead/journey mới thuộc owner/team/phòng của người upload sau, gắn vào Customer Profile chung đã tồn tại, đánh dấu duplicate và ghi audit/timeline lý do match.
+- **Visibility rule:** Sale/user thường xem Customer Profile chung nếu họ có lead/journey thuộc customer đó, nhưng chỉ xem journey trong phạm vi permission hiện tại. Team Leader/Trưởng phòng xem profile và journey thuộc team/phòng mình. Admin/Giám đốc xem toàn bộ journey/team history.
+- **Revenue/commission rule:** Doanh số và hoa hồng tính cho sale/team/phòng chốt hợp đồng có hiệu lực (contract/deal winning owner hoặc owner hiện có của deal/contract). First uploader không mặc định được chia doanh số/hoa hồng nếu không chốt hợp đồng.
+- **Chưa làm trong Sprint 31:** Không làm dashboard lớn, co-sale/chia hoa hồng phức tạp, release policy tự động phức tạp, tách database theo team/phòng hoặc reset/xóa dữ liệu cũ.

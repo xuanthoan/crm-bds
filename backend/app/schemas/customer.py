@@ -5,6 +5,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
+from app.services.phone_service import normalize_phone
 
 from app.customers.constants import (
     BUYING_PURPOSE_LABELS, BUYING_TIMELINE_LABELS, FINANCIAL_RATING_LABELS,
@@ -19,17 +20,7 @@ EMAIL_PATTERN = re.compile(r"^[A-Za-z0-9_%+-]+(?:\.[A-Za-z0-9_%+-]+)*@[A-Za-z0-9
 
 
 def normalize_customer_phone(value: str | None) -> str | None:
-    if value is None or not value.strip():
-        return None
-    value = value.strip()
-    if not PHONE_PATTERN.fullmatch(value):
-        raise ValueError("Số điện thoại không hợp lệ")
-    digits = re.sub(r"\D", "", value)
-    if len(digits) == 11 and digits.startswith("84"):
-        digits = f"0{digits[2:]}"
-    if len(digits) != 10 or not digits.startswith("0"):
-        raise ValueError("Số điện thoại không hợp lệ")
-    return digits
+    return normalize_phone(value)
 
 
 class CustomerFields(BaseModel):

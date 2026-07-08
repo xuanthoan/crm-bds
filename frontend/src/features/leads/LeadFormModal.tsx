@@ -29,6 +29,7 @@ export function LeadFormModal({ lead, owners, canAssign, onClose, onSubmit }: { 
   }
   return <Modal title={lead ? 'Cập nhật lead' : 'Tạo lead'} onClose={onClose}><form className="admin-form lead-form" onSubmit={submit}>
     <fieldset><legend>Thông tin khách hàng</legend><div className="form-grid">
+      {!lead&&<p className="form-hint full-span">Số điện thoại này đã tồn tại trong hệ thống. Lead mới sẽ được liên kết với hồ sơ khách hàng chung nếu backend phát hiện trùng theo số điện thoại chính/phụ.</p>}
       <label>Họ tên *<input value={form.full_name} onChange={(e: any) => set('full_name', e.target.value)} required /></label><label>Số điện thoại chính *<input value={form.phone_primary} onChange={(e: any) => set('phone_primary', e.target.value)} required /></label>
       <label>Số điện thoại phụ<input value={form.phone_secondary} onChange={(e: any) => set('phone_secondary', e.target.value)} /></label><label>Zalo<input value={form.zalo} onChange={(e: any) => set('zalo', e.target.value)} /></label>
       <label>Facebook<input value={form.facebook} onChange={(e: any) => set('facebook', e.target.value)} /></label><label>Email<input type="email" value={form.email} onChange={(e: any) => set('email', e.target.value)} /></label>

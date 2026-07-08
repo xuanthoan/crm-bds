@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -21,6 +21,8 @@ class Lead(Base):
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     phone_primary: Mapped[str] = mapped_column(String(50), index=True, nullable=False)
     phone_secondary: Mapped[str | None] = mapped_column(String(50), index=True, nullable=True)
+    phone_primary_normalized: Mapped[str | None] = mapped_column(String(50), index=True, nullable=True)
+    phone_secondary_normalized: Mapped[str | None] = mapped_column(String(50), index=True, nullable=True)
     zalo: Mapped[str | None] = mapped_column(String(255), nullable=True)
     facebook: Mapped[str | None] = mapped_column(String(500), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -43,6 +45,10 @@ class Lead(Base):
     last_contact_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     next_follow_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True, nullable=True)
     converted_customer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("customers.id"), nullable=True)
+    customer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("customers.id"), index=True, nullable=True)
+    duplicate_of_customer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("customers.id"), index=True, nullable=True)
+    duplicate_detected: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    duplicate_match_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     converted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     converted_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     lost_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -56,6 +62,7 @@ class Lead(Base):
     assigned_by = relationship("User", foreign_keys=[assigned_by_id], lazy="joined")
     converted_by = relationship("User", foreign_keys=[converted_by_id], lazy="joined")
     converted_customer = relationship("Customer", foreign_keys=[converted_customer_id], lazy="joined")
+    customer = relationship("Customer", foreign_keys=[customer_id], back_populates="journey_leads", lazy="joined")
     deals = relationship("Deal", back_populates="source_lead", lazy="select")
     source_customer = relationship("Customer", foreign_keys="Customer.source_lead_id", back_populates="source_lead", uselist=False)
     activities = relationship("LeadActivity", back_populates="lead", cascade="all, delete-orphan", order_by="LeadActivity.created_at.desc()")

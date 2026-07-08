@@ -108,7 +108,7 @@ export function LeadsPage() {
   }, []);
   async function save(payload: LeadPayload) {
     if (editing) await updateLead(editing.id, payload);
-    else await createLead(payload);
+    else { const response=await createLead(payload); if ((response.data as any).duplicate_info?.is_duplicate) window.alert((response.data as any).duplicate_info.message || 'Số điện thoại này đã tồn tại trong hệ thống. Lead mới sẽ được liên kết với hồ sơ khách hàng chung.'); }
     setEditing(undefined);
     await load();
   }
