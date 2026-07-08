@@ -34,6 +34,10 @@ class Sprint30TaskCommentsTimelineLinksSourceTests(unittest.TestCase):
             self.assertNotIn(f"startswith(\"{bad}\")", schema)
         for event_type in ("comment_added", "link_added", "link_deleted", "status_changed", "due_date_changed", "primary_assignee_changed", "assignees_changed", "watchers_changed"):
             self.assertIn(event_type, service)
+        for snippet in ("_user_label", "_collab_change_content", "Đã thêm: ", "Đã bỏ: ", "old=_join_labels(db", "new=_join_labels(db", "old != new"):
+            self.assertIn(snippet, service)
+        self.assertNotIn('old=",".join(map(str, old))', service)
+        self.assertNotIn('new=",".join(map(str, new))', service)
         self.assertIn("recipients.discard(getattr(actor", service)
         self.assertIn("_can_access", service)
 
@@ -43,6 +47,7 @@ class Sprint30TaskCommentsTimelineLinksSourceTests(unittest.TestCase):
         modal = self.f("features/tasks/TaskFormModal.tsx")
         api = self.f("features/tasks/api.ts")
         types = self.f("features/tasks/types.ts")
+        service = self.b("app/services/task_service.py")
         self.assertNotIn("dangerouslySetInnerHTML", linkified + panel)
         self.assertIn('target="_blank"', linkified)
         self.assertIn('rel="noopener noreferrer"', linkified)
@@ -67,6 +72,12 @@ class Sprint30TaskCommentsTimelineLinksSourceTests(unittest.TestCase):
         self.assertIn("font-weight: 400", styles)
         self.assertNotIn("body .task-comment", styles)
         self.assertIn("<LinkifiedText text={e.description}/>", panel)
+        for label in ("Từ:", "Sang:"):
+            self.assertIn(label, panel)
+        for label in ("Đã thêm: ", "Đã bỏ: "):
+            self.assertIn(label, service)
+        self.assertIn("task.assignees_changed", panel)
+        self.assertIn("task.watchers_changed", panel)
         self.assertIn(".task-timeline-description a", styles)
         self.assertIn("TaskCollaborationPanel", modal)
         for fn in ("listTaskComments", "createTaskComment", "listTaskLinks", "createTaskLink", "listTaskTimeline"):

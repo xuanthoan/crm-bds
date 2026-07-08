@@ -23,6 +23,33 @@ STATUSES={"open","in_progress","done","cancelled"}; PRIORITIES={"low","medium","
 def _user_brief(u):
     return {"id": u.id, "full_name": u.full_name, "email": u.email} if u else None
 
+def _user_label(u):
+    return (getattr(u, "full_name", None) or getattr(u, "email", None) or getattr(u, "username", None) or "Không xác định") if u else "Không xác định"
+
+def _user_labels_by_ids(db, ids):
+    ids=_ids(list(ids or []))
+    if not ids:
+        return {}
+    users=list(db.scalars(select(User).where(User.id.in_(ids))))
+    return {u.id: _user_label(u) for u in users}
+
+def _labels_for_ids(db, ids):
+    labels=_user_labels_by_ids(db, ids)
+    return [labels.get(uid, "Không xác định") for uid in _ids(list(ids or []))]
+
+def _collab_change_content(db, old, new):
+    added=[x for x in _ids(list(new)) if x not in old]
+    removed=[x for x in _ids(list(old)) if x not in new]
+    lines=[]
+    if added:
+        lines.append("Đã thêm: " + ", ".join(_labels_for_ids(db, added)))
+    if removed:
+        lines.append("Đã bỏ: " + ", ".join(_labels_for_ids(db, removed)))
+    return "\n".join(lines) or None
+
+def _join_labels(db, ids):
+    return ", ".join(_labels_for_ids(db, ids))
+
 def _ids(values):
     result=[]
     for value in values or []:
@@ -65,7 +92,7 @@ def _sync_collaboration(db, task, *, assignee_ids=None, watcher_ids=None, actor=
             if uid not in old:
                 task.task_assignees.append(TaskAssignee(user_id=uid, created_by_id=getattr(actor, "id", None)))
         if old != new:
-            _act(db, task, "assignees_changed", "Cập nhật người cùng thực hiện", old=",".join(map(str, old)), new=",".join(map(str, new)), actor=actor)
+            _act(db, task, "assignees_changed", "Cập nhật người cùng thực hiện", content=_collab_change_content(db, old, new), old=_join_labels(db, old), new=_join_labels(db, new), actor=actor)
     current_assignee_ids=set(assignee_ids if assignee_ids is not None else _collab_ids(task, "task_assignees"))
     if watcher_ids is not None:
         watcher_ids = [uid for uid in _validate_user_ids(db, watcher_ids, "Người quan sát") if uid not in current_assignee_ids]
@@ -81,7 +108,7 @@ def _sync_collaboration(db, task, *, assignee_ids=None, watcher_ids=None, actor=
             if uid not in old:
                 task.task_watchers.append(TaskWatcher(user_id=uid, created_by_id=getattr(actor, "id", None)))
         if old != new:
-            _act(db, task, "watchers_changed", "Cập nhật người quan sát", old=",".join(map(str, old)), new=",".join(map(str, new)), actor=actor)
+            _act(db, task, "watchers_changed", "Cập nhật người quan sát", content=_collab_change_content(db, old, new), old=_join_labels(db, old), new=_join_labels(db, new), actor=actor)
 
 def _now(): return datetime.now(timezone.utc)
 def _next_code(db):
@@ -193,7 +220,7 @@ def update_task(db,id,payload,actor):
     if "due_at" in data and data["due_at"] != old_due: _act(db,t,"due_date_changed","Đổi hạn xử lý",old=str(old_due) if old_due else None,new=str(data["due_at"]) if data["due_at"] else None,actor=actor)
     if t.status=="done": t.completed_at=t.completed_at or _now()
     elif t.status=="cancelled": t.cancelled_at=t.cancelled_at or _now()
-    if "assigned_user_id" in data and data["assigned_user_id"] != old_assignee: _act(db,t,"primary_assignee_changed","Đổi người phụ trách chính",old=str(old_assignee),new=str(data["assigned_user_id"]),actor=actor); create_task_notification(db,t,"Bạn được giao công việc")
+    if "assigned_user_id" in data and data["assigned_user_id"] != old_assignee: _act(db,t,"primary_assignee_changed","Đổi người phụ trách chính",old=_join_labels(db,[old_assignee]) if old_assignee else "Không xác định",new=_join_labels(db,[data["assigned_user_id"]]) if data["assigned_user_id"] else "Không xác định",actor=actor); create_task_notification(db,t,"Bạn được giao công việc")
     _sync_collaboration(db,t,assignee_ids=assignee_ids,watcher_ids=watcher_ids,actor=actor,reject_missing_primary=True)
     db.commit(); db.refresh(t); return t
 

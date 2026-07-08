@@ -11,7 +11,7 @@ const isHttp=(v:string)=>v.startsWith('http://')||v.startsWith('https://');
 const initials=(name?:string|null)=>{const parts=(name||'ND').trim().split(/\s+/).slice(-2);return parts.map(x=>x[0]?.toUpperCase()).join('')||'ND'};
 const uuidLike=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const prettyValue=(value?:string|null)=>{if(!value||uuidLike.test(value)||value.includes('{')||value.includes('['))return '';if(value.includes(',')){const parts=value.split(',').map(x=>x.trim()).filter(x=>x&&!uuidLike.test(x));return parts.length?parts.join(', '):''}return value};
-function ValueChange({event}:{event:TaskTimelineEvent}){const oldValue=prettyValue(event.old_value);const newValue=prettyValue(event.new_value);if(!oldValue&&!newValue)return null;return <div className="task-timeline-change">{oldValue&&<span><b>Từ:</b> {oldValue}</span>}{newValue&&<span><b>Sang:</b> {newValue}</span>}</div>}
+function ValueChange({event}:{event:TaskTimelineEvent}){if(["task.assignees_changed","task.watchers_changed"].includes(event.event_type))return null;const oldValue=prettyValue(event.old_value);const newValue=prettyValue(event.new_value);if(!oldValue&&!newValue)return null;return <div className="task-timeline-change">{oldValue&&<span><b>Từ:</b> {oldValue}</span>}{newValue&&<span><b>Sang:</b> {newValue}</span>}</div>}
 
 export function TaskCollaborationPanel({task}:{task:LeadTask}){
   const [activeTab,setActiveTab]=useState<TabKey>('comments');
