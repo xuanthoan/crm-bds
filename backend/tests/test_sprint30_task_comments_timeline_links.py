@@ -86,8 +86,22 @@ class Sprint30TaskCommentsTimelineLinksSourceTests(unittest.TestCase):
         self.assertIn("task.watchers_changed", panel)
         self.assertIn(".task-timeline-description a", styles)
         self.assertIn("TaskCollaborationPanel", modal)
+        layout = self.f("layouts/AppLayout.tsx")
+        routes = self.f("routes/AppRoutes.tsx")
         tasks_page = self.f("features/tasks/TasksPage.tsx")
         overdue_page = self.f("features/tasks/OverdueTasksPage.tsx")
+        self.assertIn("renderLink('Công việc', '/tasks')", layout)
+        self.assertNotIn("renderLink('Việc hôm nay', '/tasks/today')", layout)
+        self.assertNotIn("renderLink('Việc quá hạn', '/tasks/overdue')", layout)
+        for route in ("'/tasks'", "'/tasks/today'", "'/tasks/overdue'"):
+            self.assertIn(route, routes)
+        order = [tasks_page.index("label:'Việc hôm nay'"), tasks_page.index("label:'Việc quá hạn'"), tasks_page.index("label:'Tất cả công việc'")]
+        self.assertEqual(order, sorted(order))
+        for path in ("path:'/tasks/today'", "path:'/tasks/overdue'", "path:'/tasks'"):
+            self.assertIn(path, tasks_page)
+        self.assertIn("task-view-switcher", tasks_page)
+        self.assertIn("task-view-button", tasks_page)
+        self.assertIn("aria-current={active?'page':undefined}", tasks_page)
         self.assertIn("today-search", tasks_page)
         self.assertIn("overdue-search", tasks_page)
         self.assertIn("Tìm mã task, tiêu đề, booking, hợp đồng...", tasks_page)
@@ -105,5 +119,8 @@ class Sprint30TaskCommentsTimelineLinksSourceTests(unittest.TestCase):
         for typ in ("TaskComment", "TaskRelatedLink", "TaskTimelineEvent"):
             self.assertIn(typ, types)
         self.assertIn("Pagination", self.f("features/tasks/TasksPage.tsx"))
+        styles = self.f("styles.css")
+        self.assertIn(".task-view-switcher", styles)
+        self.assertIn(".task-view-button.active", styles)
         self.assertIn("today:true", self.f("features/tasks/TodayTasksPage.tsx"))
         self.assertIn("overdue:true", self.f("features/tasks/OverdueTasksPage.tsx"))

@@ -104,7 +104,7 @@ export function AppLayout({ children, currentPath }: AppLayoutProps) {
               {canViewCommissionPaymentVouchers && <div>{renderLink('Phiếu chi hoa hồng', '/commission-payment-vouchers')}</div>}
               {canViewCommissionReconciliation && <div>{renderLink('Đối soát hoa hồng', '/commission-reconciliation-report')}</div>}
               {canViewCommissionReports && <div>{renderLink('Báo cáo hoa hồng', '/reports/commissions')}</div>}
-              {(can('tasks.view') || can('tasks.view_all')) && <><div>{renderLink('Công việc', '/tasks')}</div><div>{renderLink('Việc hôm nay', '/tasks/today')}</div><div>{renderLink('Việc quá hạn', '/tasks/overdue')}</div></>}
+              {(can('tasks.view') || can('tasks.view_all')) && <div>{renderLink('Công việc', '/tasks')}</div>}
               {(can('lead_appointments.view.own') || can('lead_appointments.view.team') || can('lead_appointments.view.all')) && <><div>{renderLink('Lịch hẹn', '/appointments')}</div><div>{renderLink('Lịch hẹn hôm nay', '/appointments/today')}</div></>}
             </div>
           )}
