@@ -67,3 +67,5 @@ class Task(Base):
     activities = relationship("TaskActivity", back_populates="task", order_by="TaskActivity.created_at.desc()", cascade="all, delete-orphan")
     task_assignees = relationship("TaskAssignee", back_populates="task", cascade="all, delete-orphan", lazy="selectin")
     task_watchers = relationship("TaskWatcher", back_populates="task", cascade="all, delete-orphan", lazy="selectin")
+    comments = relationship("TaskComment", back_populates="task", cascade="all, delete-orphan", lazy="selectin")
+    related_links = relationship("TaskRelatedLink", back_populates="task", cascade="all, delete-orphan", lazy="selectin")

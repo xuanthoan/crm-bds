@@ -41,3 +41,29 @@ class TaskCancel(BaseModel):
     reason: str | None = None
 class TaskNote(BaseModel):
     note: str = Field(..., min_length=1)
+
+
+class TaskCommentCreate(BaseModel):
+    content: str = Field(..., min_length=1, max_length=5000)
+    @field_validator("content")
+    @classmethod
+    def trim_content(cls, value):
+        value = value.strip()
+        if not value:
+            raise ValueError("Nội dung bình luận là bắt buộc")
+        return value
+
+class TaskRelatedLinkCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    url: str = Field(..., min_length=1, max_length=2048)
+    note: str | None = Field(None, max_length=2000)
+    @field_validator("title", "url", mode="before")
+    @classmethod
+    def trim_required(cls, value):
+        return value.strip() if isinstance(value, str) else value
+    @field_validator("url")
+    @classmethod
+    def http_only(cls, value):
+        if not (value.startswith("http://") or value.startswith("https://")):
+            raise ValueError("URL phải bắt đầu bằng http:// hoặc https://")
+        return value
