@@ -48,7 +48,7 @@ export function TaskCollaborationPanel({task}:{task:LeadTask}){
     </div>}
     {activeTab==='timeline'&&<div className="task-tab-panel" role="tabpanel">
       <header className="task-section-heading"><div><h3>Dòng thời gian</h3><p>Theo dõi các mốc nghiệp vụ quan trọng của công việc.</p></div></header>
-      <div className="task-timeline-list">{timeline.length?timeline.map(e=><article key={e.id} className="task-timeline-item"><div className="task-timeline-dot"/><div className="task-timeline-card"><strong>{e.title}</strong><small>{e.actor?.full_name??'Hệ thống'} · {dt(e.created_at)}</small>{e.description&&!uuidLike.test(e.description)&&<p>{e.description}</p>}<ValueChange event={e}/></div></article>):<div className="task-empty-state">Chưa có hoạt động nào.</div>}</div>
+      <div className="task-timeline-list">{timeline.length?timeline.map(e=><article key={e.id} className="task-timeline-item"><div className="task-timeline-dot"/><div className="task-timeline-card"><strong>{e.title}</strong><small className="task-timeline-meta"><span className="task-timeline-actor">{e.actor?.full_name??'Hệ thống'}</span><span>{dt(e.created_at)}</span></small>{e.description&&!uuidLike.test(e.description)&&<p className="task-timeline-description"><LinkifiedText text={e.description}/></p>}<ValueChange event={e}/></div></article>):<div className="task-empty-state">Chưa có hoạt động nào.</div>}</div>
     </div>}
   </section>
 }

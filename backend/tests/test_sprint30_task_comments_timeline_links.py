@@ -54,18 +54,20 @@ class Sprint30TaskCommentsTimelineLinksSourceTests(unittest.TestCase):
         self.assertIn("startsWith('http://')||v.startsWith('https://')", panel)
         self.assertIn("Array.isArray", panel)
         self.assertNotRegex(panel, r"undefined\.map")
-        for cls in ("task-collaboration-panel", "task-tabs", "task-tab-panel", "task-comment-card", "task-comment-author", "task-comment-meta", "task-comment-content", "task-link-card", "task-timeline-item"):
+        for cls in ("task-collaboration-panel", "task-tabs", "task-tab-panel", "task-comment-card", "task-comment-author", "task-comment-meta", "task-comment-content", "task-link-card", "task-timeline-item", "task-timeline-actor", "task-timeline-meta", "task-timeline-description"):
             self.assertIn(cls, panel)
         self.assertIn("prettyValue", panel)
         self.assertIn("uuidLike", panel)
         self.assertNotIn("JSON.stringify", panel)
         styles = self.f("styles.css")
-        for cls in (".task-tabs", ".task-comment-card", ".task-comment-author", ".task-comment-meta", ".task-comment-content", ".task-link-card", ".task-timeline-item", ".task-empty-state"):
+        for cls in (".task-tabs", ".task-comment-card", ".task-comment-author", ".task-comment-meta", ".task-comment-content", ".task-link-card", ".task-timeline-item", ".task-timeline-actor", ".task-timeline-meta", ".task-timeline-description", ".task-empty-state"):
             self.assertIn(cls, styles)
         self.assertIn("color: #3157d5", styles)
         self.assertIn("font-size: 0.92rem", styles)
         self.assertIn("font-weight: 400", styles)
         self.assertNotIn("body .task-comment", styles)
+        self.assertIn("<LinkifiedText text={e.description}/>", panel)
+        self.assertIn(".task-timeline-description a", styles)
         self.assertIn("TaskCollaborationPanel", modal)
         for fn in ("listTaskComments", "createTaskComment", "listTaskLinks", "createTaskLink", "listTaskTimeline"):
             self.assertIn(fn, api)

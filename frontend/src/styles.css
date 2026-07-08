@@ -2054,8 +2054,7 @@ th .help-label {
   font-weight: 500;
 }
 
-.task-link-main small,
-.task-timeline-card small {
+.task-link-main small {
   color: #667085;
   font-size: 0.8rem;
 }
@@ -2071,7 +2070,8 @@ th .help-label {
 }
 
 .linkified-text a,
-.task-link-main a {
+.task-link-main a,
+.task-timeline-description a {
   color: #3157d5;
   font-weight: 700;
   overflow-wrap: anywhere;
@@ -2220,7 +2220,28 @@ th .help-label {
   padding: 0.9rem 1rem;
 }
 
-.task-timeline-card p {
+.task-timeline-meta {
+  align-items: center;
+  color: #667085;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  gap: 0.35rem;
+}
+
+.task-timeline-actor {
+  color: #3157d5;
+  font-weight: 700;
+}
+
+.task-timeline-actor::after {
+  color: #98a2b3;
+  content: '·';
+  font-weight: 500;
+  margin-left: 0.35rem;
+}
+
+.task-timeline-description {
   color: #475467;
   line-height: 1.55;
   margin: 0.2rem 0 0;
