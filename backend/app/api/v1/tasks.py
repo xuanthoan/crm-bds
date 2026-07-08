@@ -18,7 +18,8 @@ def post_task(payload:TaskCreate,db:Session=Depends(get_db),actor:User=Depends(r
 def assignees(db:Session=Depends(get_db),actor:User=Depends(require_auth)):
     return success_response([{"id":u.id,"full_name":u.full_name,"email":u.email} for u in list_task_assignees(db,actor)])
 @router.get("/today")
-def today(db:Session=Depends(get_db),actor:User=Depends(require_auth)): return success_response([serialize_task(i) for i in get_today_tasks(db,actor)])
+def today(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),q:str|None=None,db:Session=Depends(get_db),actor:User=Depends(require_auth)):
+    items,meta=get_today_tasks(db,actor,page=page,page_size=page_size,q=q,with_meta=True); return success_response([serialize_task(i) for i in items],meta=meta)
 @router.get("/overdue")
 def overdue(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),q:str|None=None,db:Session=Depends(get_db),actor:User=Depends(require_auth)):
     items,meta=get_overdue_tasks(db,actor,page=page,page_size=page_size,q=q,with_meta=True); return success_response([serialize_task(i) for i in items],meta=meta)

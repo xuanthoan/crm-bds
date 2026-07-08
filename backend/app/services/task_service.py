@@ -276,10 +276,14 @@ def _today_bounds():
     start_of_today=datetime.combine(_now().date(),time.min,tzinfo=timezone.utc)
     start_of_tomorrow=start_of_today+timedelta(days=1)
     return start_of_today,start_of_tomorrow
-def get_today_tasks(db,actor):
+def get_today_tasks(db,actor,page=1,page_size=200,q=None,with_meta=False):
     start_of_today,start_of_tomorrow=_today_bounds()
-    items=list_tasks(db,actor,page=1,page_size=200,due_from=start_of_today,due_before=start_of_tomorrow)[0]
-    return [t for t in items if t.status in {"open","in_progress"}]
+    all_items=list_tasks(db,actor,page=1,page_size=10000,q=q,due_from=start_of_today,due_before=start_of_tomorrow)[0]
+    active=[t for t in all_items if t.status in {"open","in_progress"}]
+    if not with_meta:
+        return active[:page_size]
+    total=len(active); start=(page-1)*page_size; end=start+page_size
+    return active[start:end],{"page":page,"page_size":page_size,"total":total,"total_pages":ceil(total/page_size) if total else 0}
 def get_overdue_tasks(db,actor,page=1,page_size=200,q=None,with_meta=False):
     start_of_today,_=_today_bounds()
     # Keep overdue semantics fixed while allowing search/pagination for the dedicated page.
