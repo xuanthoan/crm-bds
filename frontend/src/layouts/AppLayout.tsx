@@ -88,7 +88,7 @@ export function AppLayout({ children, currentPath }: AppLayoutProps) {
       <aside className="sidebar">
         <div className="brand">CRM BDS</div>
         <nav>
-          <div className="nav-section"><span>Dashboard</span>{can('dashboard.view.own') || can('dashboard.view.team') || can('dashboard.view.all') ? <div>{renderLink('Tổng quan của tôi', '/dashboard/my-work')}</div> : null}{can('dashboard.view.team') || can('dashboard.view.all') ? <div>{renderLink('Tổng quan team', '/dashboard/team-work')}</div> : null}</div>
+          <div className="nav-section"><span>Dashboard</span>{can('dashboard.view.own') || can('dashboard.view.team') || can('dashboard.view.all') ? <div>{renderLink('Tổng quan của tôi', '/dashboard/my-work')}</div> : null}{can('dashboard.view.team') || can('dashboard.view.all') ? <div>{renderLink('Tổng quan team', '/dashboard/team-work')}</div> : null}{can('dashboard.boss.view') || can('dashboard.view.all') || can('reports.view.ceo_dashboard') ? <div>{renderLink('Tổng quan giám đốc', '/dashboard/boss')}</div> : null}</div>
           {(canViewLeads || canViewCustomers || canViewDeals || canViewBookings || canViewContracts || canViewPayments || canViewFinanceReports || canViewCommissionReports || canViewCommissions || canViewCompanyCommissions || canViewCommissionPaymentVouchers || can('tasks.view') || can('tasks.view_all')) && (
             <div className="nav-section">
               <span>Giao dịch CRM</span>

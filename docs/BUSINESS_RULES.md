@@ -331,3 +331,16 @@ Sprint 21 chưa thay đổi công thức hoa hồng sale của Sprint 20 và ch�
 - **Visibility rule:** Sale/user thường xem Customer Profile chung nếu họ có lead/journey thuộc customer đó, nhưng chỉ xem journey trong phạm vi permission hiện tại. Team Leader/Trưởng phòng xem profile và journey thuộc team/phòng mình. Admin/Giám đốc xem toàn bộ journey/team history.
 - **Revenue/commission rule:** Doanh số và hoa hồng tính cho sale/team/phòng chốt hợp đồng có hiệu lực (contract/deal winning owner hoặc owner hiện có của deal/contract). First uploader không mặc định được chia doanh số/hoa hồng nếu không chốt hợp đồng.
 - **Chưa làm trong Sprint 31:** Không làm dashboard lớn, co-sale/chia hoa hồng phức tạp, release policy tự động phức tạp, tách database theo team/phòng hoặc reset/xóa dữ liệu cũ.
+
+## Sprint 32 — Dashboard Foundation & Revenue Attribution Verification
+
+Sprint 32 bổ sung nền tảng Dashboard Foundation cho Boss/Giám đốc và khóa lại quy tắc Revenue Attribution kế thừa Sprint 31.
+
+- API Boss Dashboard v1: `GET /api/v1/dashboard/boss` với quyền `dashboard.boss.view`, `dashboard.view.all` hoặc `reports.view.ceo_dashboard`.
+- Date range presets dùng chung: `today`, `last_7_days`, `last_30_days` (mặc định), `this_month`, `last_month`, `custom`. Khoảng ngày được resolve từ 00:00 ngày bắt đầu đến trước 00:00 ngày kế tiếp của ngày kết thúc để tránh lỗi off-by-one.
+- Metrics v1 gồm lead mới, lead chuyển khách hàng, booking, khách đã cọc, deal, hợp đồng ký, doanh số, hoa hồng công ty, hoa hồng sale, chi phí quảng cáo, ROI, funnel, time series theo ngày, breakdown nguồn/dự án và ranking top sale/team/project/source.
+- Revenue attribution: doanh số tính theo hợp đồng hợp lệ `signed`/`effective`/`active`/`completed`/`won`, lấy giá trị `contracts.contract_value` và sale chốt từ owner của deal/contract hiện có. Doanh số không theo first_touch, không theo người upload lead đầu tiên, không theo lead creator và không tính cho team upload lead nếu team đó không chốt hợp đồng.
+- Commission attribution: hoa hồng sale lấy từ `sales_commissions`; hoa hồng công ty lấy từ `company_commission_receivables`. Cả hai không dùng first_touch lead để phân bổ.
+- Duplicate re-engagement không tính là lead mới vì Sprint 31 không tạo lead row mới khi trùng số điện thoại; dashboard có thể hiển thị `duplicate_reengagement_count` riêng nếu có activity tương ứng.
+- ROI v1 dùng `roi_ratio = revenue_total / ads_cost_total` và `roi_profit_ratio = (revenue_total - ads_cost_total) / ads_cost_total`; nếu ads cost bằng 0 thì trả `null`, không chia cho 0.
+- Chưa làm trong Sprint 32: dashboard trưởng phòng/team leader/kế toán/admin điều phối, export Excel/PDF dashboard, realtime dashboard phức tạp, multi-touch marketing attribution.
