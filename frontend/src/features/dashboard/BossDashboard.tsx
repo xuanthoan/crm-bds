@@ -1,5 +1,214 @@
-import {useEffect,useMemo,useState} from 'react';import {DashboardDateRangeFilter} from './DashboardDateRangeFilter';import {getBossDashboard} from './api';import type {BossDashboard as BossDashboardData,DashboardPreset} from './types';
-const money=(v:number|null|undefined)=>v==null?'—':new Intl.NumberFormat('vi-VN',{style:'currency',currency:'VND',maximumFractionDigits:0}).format(v);const num=(v:number|null|undefined)=>v==null?'—':new Intl.NumberFormat('vi-VN').format(v);const pct=(v:number|null|undefined)=>v==null?'—':`${(v*100).toFixed(1)}%`;
-function MiniBars({rows,valueKey,labelKey}:{rows:any[];valueKey:string;labelKey:string}){const max=Math.max(1,...rows.map(r=>Number(r[valueKey]||0)));return <div className="mini-bars">{rows.length===0?<p>Chưa có dữ liệu trong khoảng thời gian này.</p>:rows.slice(0,8).map((r,i)=><div className="mini-bar" key={i}><span>{r[labelKey]||'Chưa xác định'}</span><div><b style={{width:`${Math.max(3,Number(r[valueKey]||0)*100/max)}%`}}/></div><em>{valueKey.includes('revenue')?money(r[valueKey]):num(r[valueKey])}</em></div>)}</div>}
-function Ranking({title,rows,type}:{title:string;rows:any[];type:'sale'|'team'|'project'|'source'}){return <section className="card ranking-card"><h3>{title}</h3><table><thead><tr><th>Tên</th><th>Doanh số</th><th>HĐ/Lead</th></tr></thead><tbody>{rows.length===0?<tr><td colSpan={3}>Chưa có dữ liệu trong khoảng thời gian này.</td></tr>:rows.slice(0,10).map((r,i)=><tr key={i}><td>{r.sale_name||r.team_name||r.project_name||r.source||'Chưa xác định'}{r.team_name&&type==='sale'?<small>{r.team_name}</small>:null}</td><td>{money(r.revenue)}</td><td>{num(r.contract_count??r.lead_count)}</td></tr>)}</tbody></table></section>}
-export function BossDashboard(){const today=new Date().toISOString().slice(0,10);const [preset,setPreset]=useState<DashboardPreset>('last_30_days');const [fromDate,setFromDate]=useState(today);const [toDate,setToDate]=useState(today);const [data,setData]=useState<BossDashboardData|null>(null);const [loading,setLoading]=useState(true);const [error,setError]=useState('');useEffect(()=>{let alive=true;setLoading(true);setError('');getBossDashboard({preset,fromDate,toDate}).then(r=>{if(alive)setData(r.data)}).catch(()=>{if(alive)setError('Không tải được dữ liệu dashboard. Vui lòng thử lại sau.')}).finally(()=>{if(alive)setLoading(false)});return()=>{alive=false}},[preset,fromDate,toDate]);const cards=useMemo(()=>data?[['Lead mới',num(data.summary.lead_new_count)],['Lead chuyển khách hàng',num(data.summary.lead_converted_to_customer_count)],['Booking',num(data.summary.booking_count)],['Khách đã cọc',num(data.summary.deposit_count)],['Deal',num(data.summary.deal_count)],['Hợp đồng ký',num(data.summary.contract_signed_count)],['Doanh số',money(data.summary.revenue_total)],['Hoa hồng công ty',money(data.summary.company_commission_total)],['Hoa hồng sale',money(data.summary.sales_commission_total)],['Chi phí quảng cáo',money(data.summary.ads_cost_total)],['ROI doanh thu/ads',pct(data.summary.roi_ratio)]]:[],[data]);return <div className="page boss-dashboard"><header className="page-header"><div><h1>Tổng quan giám đốc</h1><p>Theo dõi toàn cảnh lead, giao dịch, doanh số, hoa hồng và hiệu quả nguồn.</p></div></header><DashboardDateRangeFilter preset={preset} fromDate={fromDate} toDate={toDate} onChange={n=>{setPreset(n.preset);setFromDate(n.fromDate);setToDate(n.toDate)}}/>{loading&&<div className="card">Đang tải dashboard...</div>}{error&&<div className="card error-state">{error}</div>}{!loading&&!error&&data&&<><p className="muted">Khoảng dữ liệu: {data.range.label}</p><section className="summary-grid">{cards.map(([label,value])=><article className="card summary-card" key={label}><span>{label}</span><strong>{value}</strong></article>)}</section><section className="dashboard-grid"><div className="card"><h3>Lead mới theo ngày</h3><MiniBars rows={data.time_series.leads_by_day} valueKey="count" labelKey="date"/></div><div className="card"><h3>Doanh số theo ngày</h3><MiniBars rows={data.time_series.revenue_by_day} valueKey="amount" labelKey="date"/></div><div className="card"><h3>Lead theo nguồn</h3><MiniBars rows={data.breakdowns.lead_by_source} valueKey="count" labelKey="source"/></div><div className="card"><h3>Funnel Lead → Customer → Booking → Cọc → Deal → Hợp đồng</h3><div className="funnel-row">{['leads','customers','bookings','deposits','deals','contracts'].map(k=><div key={k}><strong>{num(data.funnel[k])}</strong><span>{({leads:'Lead',customers:'Customer',bookings:'Booking',deposits:'Cọc',deals:'Deal',contracts:'Hợp đồng'} as any)[k]}</span></div>)}</div><p>Lead → Customer: {pct(data.funnel.lead_to_customer_rate)} · Booking → Hợp đồng: {pct(data.funnel.booking_to_contract_rate)}</p></div></section><section className="ranking-grid"><Ranking title="Top sale 7 ngày qua" rows={data.rankings.top_sales_7_days} type="sale"/><Ranking title="Top sale 30 ngày qua" rows={data.rankings.top_sales_30_days} type="sale"/><Ranking title="Top team 7 ngày qua" rows={data.rankings.top_teams_7_days} type="team"/><Ranking title="Top team 30 ngày qua" rows={data.rankings.top_teams_30_days} type="team"/><Ranking title="Top dự án" rows={data.rankings.top_projects} type="project"/><Ranking title="Top nguồn lead" rows={data.rankings.top_sources} type="source"/></section></>}</div>}
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+
+import { DashboardDateRangeFilter } from './DashboardDateRangeFilter';
+import { getBossDashboard } from './api';
+import type { BossDashboard as BossDashboardData, DashboardPreset } from './types';
+
+const EMPTY_TEXT = 'Chưa có dữ liệu trong khoảng thời gian này.';
+
+const money = (value: number | null | undefined) => (
+  value == null ? '—' : new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(value)
+);
+const number = (value: number | null | undefined) => (value == null ? '—' : new Intl.NumberFormat('vi-VN').format(value));
+const percent = (value: number | null | undefined) => (value == null ? '—' : `${(value * 100).toFixed(1)}%`);
+const safeLabel = (value: unknown, fallback: string) => (typeof value === 'string' && value.trim() && value !== 'unknown' ? value : fallback);
+
+type ChartRow = { label: string; value: number; meta?: string };
+
+type BarChartProps = {
+  title: string;
+  rows: ChartRow[];
+  valueType?: 'count' | 'money';
+  horizontal?: boolean;
+};
+
+function ChartEmptyState() {
+  return <div className="chart-empty-state">{EMPTY_TEXT}</div>;
+}
+
+function BarChartCard({ title, rows, valueType = 'count', horizontal = false }: BarChartProps) {
+  const visibleRows = rows.filter((row) => row.value > 0).slice(0, 10);
+  const max = Math.max(1, ...visibleRows.map((row) => row.value));
+  const format = valueType === 'money' ? money : number;
+
+  return (
+    <section className="card dashboard-chart-card">
+      <h3>{title}</h3>
+      {visibleRows.length === 0 ? <ChartEmptyState /> : (
+        <div className={horizontal ? 'dashboard-hbar-chart' : 'dashboard-column-chart'}>
+          {visibleRows.map((row) => {
+            const size = Math.max(6, (row.value / max) * 100);
+            return (
+              <div className="dashboard-chart-item" key={`${title}-${row.label}`}>
+                {horizontal ? (
+                  <>
+                    <div className="chart-item-label"><strong>{row.label}</strong>{row.meta ? <span>{row.meta}</span> : null}</div>
+                    <div className="chart-item-track"><span style={{ width: `${size}%` }} /></div>
+                    <em>{format(row.value)}</em>
+                  </>
+                ) : (
+                  <>
+                    <div className="column-bar-wrap"><span style={{ height: `${size}%` }} /></div>
+                    <strong>{format(row.value)}</strong>
+                    <em>{row.label}</em>
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function FunnelStep({ label, value, rate }: { label: string; value: number | null | undefined; rate?: string }) {
+  return (
+    <div className="dashboard-funnel-step">
+      <span>{label}</span>
+      <strong>{number(value)}</strong>
+      {rate ? <em>{rate}</em> : null}
+    </div>
+  );
+}
+
+function FunnelCard({ title, children, note }: { title: string; children: ReactNode; note: string }) {
+  return (
+    <section className="card dashboard-funnel-card">
+      <h3>{title}</h3>
+      <div className="dashboard-funnel-flow">{children}</div>
+      <p>{note}</p>
+    </section>
+  );
+}
+
+function DetailTable({ title, rows, type }: { title: string; rows: any[]; type: 'sale' | 'team' | 'project' | 'source' }) {
+  return (
+    <section className="card ranking-card">
+      <h3>{title}</h3>
+      <div className="table-scroll-wrapper">
+        <table>
+          <thead><tr><th>Tên</th><th>Doanh số</th><th>Hợp đồng/Lead</th></tr></thead>
+          <tbody>
+            {rows.length === 0 ? <tr><td colSpan={3}>{EMPTY_TEXT}</td></tr> : rows.slice(0, 10).map((row, index) => (
+              <tr key={`${title}-${index}`}>
+                <td>{safeLabel(row.sale_name || row.team_name || row.project_name || row.source, type === 'project' ? 'Chưa có dự án' : type === 'sale' ? 'Chưa có sale' : type === 'team' ? 'Chưa có team' : 'Chưa xác định')}{row.team_name && type === 'sale' ? <small>{safeLabel(row.team_name, 'Chưa có team')}</small> : null}</td>
+                <td>{money(row.revenue)}</td>
+                <td>{number(row.contract_count ?? row.lead_count)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+export function BossDashboard() {
+  const today = new Date().toISOString().slice(0, 10);
+  const [preset, setPreset] = useState<DashboardPreset>('last_30_days');
+  const [fromDate, setFromDate] = useState(today);
+  const [toDate, setToDate] = useState(today);
+  const [data, setData] = useState<BossDashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setError('');
+    getBossDashboard({ preset, fromDate, toDate })
+      .then((response) => { if (alive) setData(response.data); })
+      .catch(() => { if (alive) setError('Không tải được dữ liệu dashboard. Vui lòng thử lại sau.'); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [preset, fromDate, toDate]);
+
+  const cards = useMemo(() => data ? [
+    ['Lead mới', number(data.summary.lead_new_count)],
+    ['Lead chuyển khách hàng', number(data.summary.lead_converted_to_customer_count)],
+    ['Booking', number(data.summary.booking_count)],
+    ['Khách đã cọc', number(data.summary.deposit_count)],
+    ['Deal', number(data.summary.deal_count)],
+    ['Hợp đồng ký', number(data.summary.contract_signed_count)],
+    ['Doanh số', money(data.summary.revenue_total)],
+    ['Hoa hồng công ty', money(data.summary.company_commission_total)],
+    ['Hoa hồng sale', money(data.summary.sales_commission_total)],
+    ['Chi phí quảng cáo', money(data.summary.ads_cost_total)],
+    ['ROI doanh thu/ads', percent(data.summary.roi_ratio)],
+  ] : [], [data]);
+
+  const leadRows: ChartRow[] = (data?.time_series.leads_by_day ?? []).map((row) => ({ label: row.date.slice(5), value: row.count }));
+  const revenueRows: ChartRow[] = (data?.time_series.revenue_by_day ?? []).map((row) => ({ label: row.date.slice(5), value: row.amount }));
+  const sourceRows: ChartRow[] = (data?.breakdowns.lead_by_source ?? []).map((row) => ({ label: safeLabel(row.source, 'Chưa xác định'), value: row.count }));
+  const topSourceRows: ChartRow[] = (data?.rankings.top_sources ?? []).map((row) => ({ label: safeLabel(row.source, 'Chưa xác định'), value: row.lead_count ?? 0, meta: `${number(row.contract_count ?? 0)} hợp đồng` }));
+  const sale7Rows: ChartRow[] = (data?.rankings.top_sales_7_days ?? []).map((row) => ({ label: safeLabel(row.sale_name, 'Chưa có sale'), value: row.revenue ?? 0, meta: `${number(row.contract_count)} hợp đồng` }));
+  const sale30Rows: ChartRow[] = (data?.rankings.top_sales_30_days ?? []).map((row) => ({ label: safeLabel(row.sale_name, 'Chưa có sale'), value: row.revenue ?? 0, meta: `${number(row.contract_count)} hợp đồng` }));
+  const team7Rows: ChartRow[] = (data?.rankings.top_teams_7_days ?? []).map((row) => ({ label: safeLabel(row.team_name, 'Chưa có team'), value: row.revenue ?? 0, meta: `${number(row.contract_count)} hợp đồng` }));
+  const team30Rows: ChartRow[] = (data?.rankings.top_teams_30_days ?? []).map((row) => ({ label: safeLabel(row.team_name, 'Chưa có team'), value: row.revenue ?? 0, meta: `${number(row.contract_count)} hợp đồng` }));
+  const projectRows: ChartRow[] = (data?.rankings.top_projects ?? []).map((row) => ({ label: safeLabel(row.project_name, 'Chưa có dự án'), value: row.revenue ?? 0, meta: `${number(row.contract_count)} hợp đồng` }));
+
+  return (
+    <div className="page dashboard-page boss-dashboard">
+      <div className="dashboard-content">
+        <header className="page-header dashboard-header">
+          <div>
+            <h1>Tổng quan giám đốc</h1>
+            <p>Theo dõi toàn cảnh lead, giao dịch, doanh số, hoa hồng và hiệu quả nguồn.</p>
+          </div>
+        </header>
+
+        <DashboardDateRangeFilter preset={preset} fromDate={fromDate} toDate={toDate} onChange={(next) => { setPreset(next.preset); setFromDate(next.fromDate); setToDate(next.toDate); }} />
+
+        {loading && <div className="card dashboard-state-card">Đang tải dashboard...</div>}
+        {error && <div className="card error-state dashboard-state-card">{error}</div>}
+
+        {!loading && !error && data && (
+          <>
+            <p className="muted">Khoảng dữ liệu: {data.range.label}</p>
+            <section className="summary-grid dashboard-section-grid">
+              {cards.map(([label, value]) => <article className="card summary-card" key={label}><span>{label}</span><strong>{value}</strong></article>)}
+            </section>
+
+            <section className="dashboard-grid dashboard-section-grid">
+              <BarChartCard title="Lead mới theo ngày" rows={leadRows} />
+              <BarChartCard title="Doanh số theo ngày" rows={revenueRows} valueType="money" />
+              <BarChartCard title="Lead theo nguồn" rows={sourceRows} horizontal />
+              <BarChartCard title="Top nguồn lead" rows={topSourceRows} horizontal />
+            </section>
+
+            <section className="dashboard-funnel-grid dashboard-section-grid">
+              <FunnelCard title="Funnel Lead → Customer" note={`Tỷ lệ chuyển đổi Lead → Customer: ${percent(data.funnel.lead_to_customer_rate)}`}>
+                <FunnelStep label="Lead" value={data.funnel.leads} />
+                <FunnelStep label="Customer" value={data.funnel.customers} rate={percent(data.funnel.lead_to_customer_rate)} />
+              </FunnelCard>
+              <FunnelCard title="Funnel Booking → Cọc → Deal → Hợp đồng" note={`Tỷ lệ Booking → Hợp đồng: ${percent(data.funnel.booking_to_contract_rate)}`}>
+                <FunnelStep label="Booking" value={data.funnel.bookings} />
+                <FunnelStep label="Cọc" value={data.funnel.deposits} />
+                <FunnelStep label="Deal" value={data.funnel.deals} />
+                <FunnelStep label="Hợp đồng" value={data.funnel.contracts} rate={percent(data.funnel.booking_to_contract_rate)} />
+              </FunnelCard>
+            </section>
+
+            <section className="dashboard-grid dashboard-section-grid">
+              <BarChartCard title="Top sale 7 ngày qua" rows={sale7Rows} valueType="money" horizontal />
+              <BarChartCard title="Top sale 30 ngày qua" rows={sale30Rows} valueType="money" horizontal />
+              <BarChartCard title="Top team 7 ngày qua" rows={team7Rows} valueType="money" horizontal />
+              <BarChartCard title="Top team 30 ngày qua" rows={team30Rows} valueType="money" horizontal />
+              <BarChartCard title="Top dự án" rows={projectRows} valueType="money" horizontal />
+            </section>
+
+            <section className="ranking-grid dashboard-section-grid">
+              <DetailTable title="Chi tiết top sale 7 ngày qua" rows={data.rankings.top_sales_7_days} type="sale" />
+              <DetailTable title="Chi tiết top sale 30 ngày qua" rows={data.rankings.top_sales_30_days} type="sale" />
+              <DetailTable title="Chi tiết top team 7 ngày qua" rows={data.rankings.top_teams_7_days} type="team" />
+              <DetailTable title="Chi tiết top team 30 ngày qua" rows={data.rankings.top_teams_30_days} type="team" />
+              <DetailTable title="Chi tiết top dự án" rows={data.rankings.top_projects} type="project" />
+              <DetailTable title="Chi tiết top nguồn lead" rows={data.rankings.top_sources} type="source" />
+            </section>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

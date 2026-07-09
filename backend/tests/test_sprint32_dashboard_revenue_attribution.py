@@ -82,17 +82,46 @@ class Sprint32DashboardRevenueAttributionSourceTests(unittest.TestCase):
         api = self.f("features/dashboard/api.ts")
         routes = self.f("routes/AppRoutes.tsx")
         layout = self.f("layouts/AppLayout.tsx")
-        for label in ("Tổng quan giám đốc", "Lead mới", "Lead chuyển khách hàng", "Booking", "Khách đã cọc", "Deal", "Hợp đồng ký", "Doanh số", "Hoa hồng công ty", "Hoa hồng sale", "Chi phí quảng cáo", "ROI"):
+        css = self.f("styles.css")
+        for label in ("Tổng quan giám đốc", "Lead mới", "Lead chuyển khách hàng", "Booking", "Khách đã cọc", "Deal", "Hợp đồng ký", "Doanh số", "Hoa hồng công ty", "Hoa hồng sale", "Chi phí quảng cáo", "ROI doanh thu/ads"):
             self.assertIn(label, page)
+        for label in ("Hôm nay", "7 ngày qua", "30 ngày qua", "Tháng này", "Tháng trước", "Tùy chọn"):
+            self.assertIn(label, filter_component)
         for preset in ("today", "last_7_days", "last_30_days", "this_month", "last_month", "custom"):
             self.assertIn(preset, filter_component + page)
+        for label in ("Lead mới theo ngày", "Doanh số theo ngày", "Lead theo nguồn", "Top sale 7 ngày qua", "Top sale 30 ngày qua", "Top team 7 ngày qua", "Top team 30 ngày qua", "Top dự án", "Top nguồn lead", "Funnel Lead → Customer", "Funnel Booking → Cọc → Deal → Hợp đồng"):
+            self.assertIn(label, page)
         self.assertIn("/api/v1/dashboard/boss", api)
         self.assertIn("/dashboard/boss", routes + layout)
         self.assertIn("Đang tải dashboard", page)
         self.assertIn("Không tải được dữ liệu dashboard", page)
         self.assertIn("Chưa có dữ liệu trong khoảng thời gian này", page)
-        self.assertIn("Lead → Customer → Booking → Cọc → Deal → Hợp đồng", page)
+        self.assertIn("Chưa xác định", page)
+        self.assertIn("Chưa có dự án", page)
+        self.assertIn("Chưa có team", page)
+        self.assertIn("Chưa có sale", page)
+        self.assertIn("table-scroll-wrapper", page + css)
         self.assertNotIn("lead đầu tiên", page.lower())
+        self.assertNotIn("lead_new_count</", page)
+        self.assertNotIn("revenue_total</", page)
+
+    def test_frontend_boss_dashboard_css_prevents_white_filter_text_and_page_overflow(self):
+        css = self.f("styles.css")
+        dashboard_css = css.split(".dashboard-page", 1)[1]
+        self.assertIn("overflow-x: hidden", dashboard_css)
+        self.assertIn("max-width: 100%", dashboard_css)
+        self.assertIn("min-width: 0", dashboard_css)
+        self.assertIn(".filter-pills button", dashboard_css)
+        self.assertIn("color: #1f2937", dashboard_css)
+        self.assertIn(".filter-pills button.active", dashboard_css)
+        self.assertIn("color: #ffffff", dashboard_css)
+        self.assertIn("grid-template-columns: repeat(auto-fit, minmax(180px, 1fr))", dashboard_css)
+        self.assertIn("grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr))", dashboard_css)
+        self.assertIn("flex-wrap: wrap", dashboard_css)
+        self.assertIn("overflow-x: auto", dashboard_css)
+        self.assertNotIn("width: 100vw", dashboard_css)
+        self.assertNotIn("min-width: 1200px", dashboard_css)
+        self.assertNotIn("grid-template-columns: repeat(6, 1fr)", dashboard_css)
 
     def test_docs_capture_sprint32_rules_and_non_scope(self):
         docs = self.d("BUSINESS_RULES.md") + self.d("PROJECT_HANDOFF.md") + self.d("DEVELOPMENT_ROADMAP.md")
