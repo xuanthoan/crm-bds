@@ -2318,3 +2318,5 @@ th .help-label {
   color: #ffffff;
   box-shadow: 0 8px 18px rgb(53 99 233 / 18%);
 }
+.duplicate-journey-banner{display:flex;gap:0.75rem;align-items:center;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:12px;padding:0.85rem 1rem;margin:1rem 0}.duplicate-journey-banner strong{font-weight:700}.duplicate-journey-banner span{font-size:0.95rem}.form-hint{color:#64748b;font-size:0.9rem;margin:0.25rem 0 0.75rem}.full-span{grid-column:1/-1}
+.duplicate-lead-modal{padding:0 1.25rem 1.25rem}.duplicate-lead-modal .info-grid{margin:1rem 0}.duplicate-lead-modal .modal-actions{margin-top:1rem}

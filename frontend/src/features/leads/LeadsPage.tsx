@@ -107,10 +107,17 @@ export function LeadsPage() {
       });
   }, []);
   async function save(payload: LeadPayload) {
-    if (editing) await updateLead(editing.id, payload);
-    else await createLead(payload);
+    if (editing) {
+      const response = await updateLead(editing.id, payload);
+      setEditing(undefined);
+      await load();
+      return response;
+    }
+    const response = await createLead(payload);
+    if ((response.data as any).duplicate_info?.is_duplicate) return response;
     setEditing(undefined);
     await load();
+    return response;
   }
   async function remove() {
     if (!deleting) return;

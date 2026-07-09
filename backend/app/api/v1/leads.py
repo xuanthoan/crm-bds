@@ -19,6 +19,7 @@ from app.services.lead_service import (
     assign_lead,
     can_view_lead,
     change_lead_status,
+    check_lead_duplicate,
     create_lead,
     delete_lead,
     get_lead_by_id,
@@ -73,7 +74,15 @@ def get_overdue_leads(page: int = Query(1, ge=1), page_size: int = Query(20, ge=
 
 @router.post("")
 def post_lead(payload: LeadCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission("leads.create"))):
-    return success_response(data=serialize_lead(create_lead(db, payload, current_user), detail=True, db=db), message="Lead created")
+    result = create_lead(db, payload, current_user)
+    if isinstance(result, dict) and result.get("duplicate_info", {}).get("is_duplicate"):
+        return success_response(data=result, message="Duplicate lead re-engagement handled")
+    return success_response(data=serialize_lead(result, detail=True, db=db), message="Lead created")
+
+
+@router.get("/duplicate-check")
+def duplicate_check(phone: str = Query(..., min_length=1), db: Session = Depends(get_db), current_user: User = Depends(require_auth)):
+    return success_response(data=check_lead_duplicate(db, phone, current_user), message="Duplicate check completed")
 
 
 @router.get("/{lead_id}")

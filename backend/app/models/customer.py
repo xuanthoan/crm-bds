@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import Date as SQLDate, DateTime, ForeignKey, Index, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, Date as SQLDate, DateTime, ForeignKey, Index, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -21,6 +21,8 @@ class Customer(Base):
         Index("ix_customers_owner_score_label", "owner_id", "score_label"),
         Index("ix_customers_owner_buying_timeline", "owner_id", "buying_timeline"),
         Index("ix_customers_owner_financial_rating", "owner_id", "financial_rating"),
+        Index("ix_customers_phone_primary_normalized", "phone_primary_normalized"),
+        Index("ix_customers_phone_secondary_normalized", "phone_secondary_normalized"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -30,6 +32,8 @@ class Customer(Base):
     status: Mapped[str] = mapped_column(String(30), index=True, default="active", nullable=False)
     primary_phone: Mapped[str] = mapped_column(String(50), index=True, nullable=False)
     secondary_phone: Mapped[str | None] = mapped_column(String(50), index=True, nullable=True)
+    phone_primary_normalized: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    phone_secondary_normalized: Mapped[str | None] = mapped_column(String(50), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), index=True, nullable=True)
     zalo: Mapped[str | None] = mapped_column(String(255), nullable=True)
     facebook: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -60,6 +64,12 @@ class Customer(Base):
     score_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     source: Mapped[str | None] = mapped_column(String(80), nullable=True)
     source_lead_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("leads.id"), index=True, nullable=True)
+    first_lead_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("leads.id"), index=True, nullable=True)
+    first_touch_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), index=True, nullable=True)
+    first_touch_source: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    first_uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    first_upload_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_duplicate_profile: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     source_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     interested_project: Mapped[str | None] = mapped_column(String(255), nullable=True)
     interested_area: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -86,6 +96,9 @@ class Customer(Base):
     created_by = relationship("User", foreign_keys=[created_by_id], lazy="joined")
     updated_by = relationship("User", foreign_keys=[updated_by_id], lazy="joined")
     source_lead = relationship("Lead", foreign_keys=[source_lead_id], back_populates="source_customer", lazy="joined")
+    first_lead = relationship("Lead", foreign_keys=[first_lead_id], lazy="joined")
+    first_touch_user = relationship("User", foreign_keys=[first_touch_user_id], lazy="joined")
+    journey_leads = relationship("Lead", foreign_keys="Lead.customer_id", back_populates="customer", lazy="select")
     contracts = relationship("Contract", back_populates="customer", lazy="select")
     contract_payments = relationship("ContractPayment", back_populates="customer", lazy="select")
     deals = relationship("Deal", back_populates="customer", lazy="select")

@@ -13,10 +13,11 @@ from app.models.customer_related_person import CustomerRelatedPerson
 from app.models.lead import Lead
 from app.models.user import User
 from app.permissions.dependencies import get_user_permissions
-from app.schemas.customer import CustomerActivityCreate, CustomerCreate, CustomerOwnerUpdate, CustomerRelatedPersonCreate, CustomerRelatedPersonUpdate, CustomerStatusUpdate, CustomerUpdate, LeadConvertRequest, normalize_customer_phone
+from app.schemas.customer import CustomerActivityCreate, CustomerCreate, CustomerOwnerUpdate, CustomerRelatedPersonCreate, CustomerRelatedPersonUpdate, CustomerStatusUpdate, CustomerUpdate, LeadConvertRequest
 from app.services.audit_service import write_audit_log
 from app.services.lead_activity_service import create_activity_record, serialize_activity as serialize_lead_activity
 from app.services.lead_service import can_view_lead, get_lead_by_id, serialize_lead
+from app.services.phone_service import normalize_phone as normalize_shared_phone
 from app.services.organization_service import get_accessible_user_ids_for_lead_scope
 from app.services.user_service import get_user_by_id
 
@@ -91,7 +92,16 @@ def _ids(db: Session, user: User, scope: str) -> set[UUID]:
 
 def _can_access(db: Session, user: User, customer: Customer, prefix: str) -> bool:
     scope = _scope(user, prefix)
-    return bool(scope and (scope == "all" or customer.owner_id in _ids(db, user, scope)))
+    if not scope:
+        return False
+    if scope == "all":
+        return True
+    ids = _ids(db, user, scope)
+    if customer.owner_id in ids:
+        return True
+    if prefix == "customers.view":
+        return bool(db.scalar(select(Lead.id).where(Lead.deleted_at.is_(None), Lead.customer_id == customer.id, or_(Lead.owner_id.in_(ids), Lead.created_by_id.in_(ids))).limit(1)))
+    return False
 
 
 def _require_view(db: Session, user: User, customer: Customer) -> None:
@@ -105,10 +115,7 @@ def _require_update(db: Session, user: User, customer: Customer) -> None:
 
 
 def normalize_phone(value: str | None) -> str | None:
-    try:
-        return normalize_customer_phone(value)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail="Số điện thoại không hợp lệ") from exc
+    return normalize_shared_phone(value)
 
 
 def _validate_phone(db: Session, primary: str | None, secondary: str | None, exclude_id: UUID | None = None) -> tuple[str, str | None]:
@@ -155,8 +162,23 @@ def _appointment_summary(item) -> dict:
     return {"id": item.id, "title": item.title, "status": item.status, "appointment_type": item.appointment_type, "start_at": item.start_at, "location": item.location, "assigned_to": _user_summary(item.assigned_to)}
 
 
-def serialize_customer(customer: Customer, *, detail: bool = False) -> dict:
+def _can_view_all_journeys(actor: User | None) -> bool:
+    return bool(actor and (actor.is_superuser or "customers.view.all" in _permissions(actor) or "leads.view.all" in _permissions(actor)))
+
+
+def _visible_journey_leads(db: Session | None, actor: User | None, customer: Customer) -> list[Lead]:
+    leads = [lead for lead in customer.journey_leads if lead.deleted_at is None]
+    if db is None or actor is None or _can_view_all_journeys(actor):
+        return leads
+    return [lead for lead in leads if can_view_lead(db, actor, lead)]
+
+
+def serialize_customer(customer: Customer, *, detail: bool = False, db: Session | None = None, actor: User | None = None) -> dict:
     lead = customer.source_lead
+    visible_leads = _visible_journey_leads(db, actor, customer) if detail else []
+    if detail and lead and db is not None and actor is not None and not _can_view_all_journeys(actor) and not can_view_lead(db, actor, lead):
+        lead = visible_leads[0] if visible_leads else None
+    has_multiple_journeys = len([item for item in customer.journey_leads if item.deleted_at is None]) > 1
     data = {
         "id": customer.id, "customer_code": customer.customer_code, "full_name": customer.full_name,
         "customer_type": customer.customer_type, "status": customer.status, "primary_phone": customer.primary_phone,
@@ -172,6 +194,9 @@ def serialize_customer(customer: Customer, *, detail: bool = False) -> dict:
         "score_total": customer.score_total, "score_label": customer.score_label, "score_updated_at": customer.score_updated_at, "score_note": customer.score_note,
         "source": customer.source,
         "source_lead_id": customer.source_lead_id, "source_note": customer.source_note,
+        "first_lead_id": customer.first_lead_id, "first_upload_note": customer.first_upload_note,
+        "first_uploaded_at": customer.first_uploaded_at, "first_touch_user": _user_summary(customer.first_touch_user),
+        "is_duplicate_profile": customer.is_duplicate_profile or has_multiple_journeys,
         "interested_project": customer.interested_project, "interested_area": customer.interested_area,
         "budget_min": customer.budget_min, "budget_max": customer.budget_max, "bedroom_count": customer.bedroom_count,
         "area_min": customer.area_min, "area_max": customer.area_max, "purpose": customer.purpose,
@@ -183,10 +208,12 @@ def serialize_customer(customer: Customer, *, detail: bool = False) -> dict:
     }
     if detail:
         data.update({
+            "duplicate_visibility": {"has_multiple_journeys": has_multiple_journeys, "can_view_all_journeys": _can_view_all_journeys(actor), "message": "Bạn đang xem toàn bộ hành trình của khách hàng này." if _can_view_all_journeys(actor) else "Khách hàng này có nhiều hành trình/lead trong hệ thống. Bạn chỉ thấy chi tiết hành trình thuộc phạm vi quyền của mình."},
+            "journey_leads": [{"id": item.id, "code": item.code, "full_name": item.full_name, "owner": _user_summary(item.owner), "status": item.status, "duplicate_detected": item.duplicate_detected} for item in visible_leads],
             "activities": [serialize_customer_activity(item) for item in customer.activities],
-            "lead_activities": [serialize_lead_activity(item) for item in lead.activities] if lead else [],
-            "related_tasks": [_task_summary(item) for item in lead.tasks if item.deleted_at is None] if lead else [],
-            "related_appointments": [_appointment_summary(item) for item in lead.appointments if item.deleted_at is None] if lead else [],
+            "lead_activities": [serialize_lead_activity(activity) for item in visible_leads for activity in item.activities],
+            "related_tasks": [_task_summary(task) for item in visible_leads for task in item.tasks if task.deleted_at is None],
+            "related_appointments": [_appointment_summary(appt) for item in visible_leads for appt in item.appointments if appt.deleted_at is None],
             "related_people": [serialize_related_person(item) for item in customer.related_people if item.deleted_at is None],
             "contracts": [{"id": c.id, "contract_code": c.contract_code, "status": c.status, "contract_value": c.contract_value, "total_paid": sum((p.amount for p in c.payments if p.deleted_at is None and p.status == "paid"), 0), "property": {"id": c.property_unit.id, "property_code": c.property_unit.property_code}} for c in customer.contracts if c.deleted_at is None],
         })
@@ -210,7 +237,10 @@ def list_customers(db: Session, actor: User, *, page: int, page_size: int, searc
     if not scope:
         raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập khách hàng này")
     conditions = [Customer.deleted_at.is_(None)]
-    if scope != "all": conditions.append(Customer.owner_id.in_(_ids(db, actor, scope)))
+    if scope != "all":
+        ids = _ids(db, actor, scope)
+        accessible_customer_ids = select(Lead.customer_id).where(Lead.deleted_at.is_(None), Lead.customer_id.is_not(None), or_(Lead.owner_id.in_(ids), Lead.created_by_id.in_(ids)))
+        conditions.append(or_(Customer.owner_id.in_(ids), Customer.id.in_(accessible_customer_ids)))
     if search:
         term = f"%{search.strip()}%"
         conditions.append(or_(Customer.customer_code.ilike(term), Customer.full_name.ilike(term), Customer.primary_phone.ilike(term), Customer.secondary_phone.ilike(term), Customer.email.ilike(term)))
@@ -292,7 +322,9 @@ def create_customer(db: Session, payload: CustomerCreate, actor: User) -> Custom
     _validate_ranges(data)
     owner_id = data.pop("owner_id") or actor.id
     _validate_owner(db, actor, owner_id)
-    customer = Customer(**data, owner_id=owner_id, customer_code=_next_code(db), created_by_id=actor.id)
+    data["phone_primary_normalized"] = data["primary_phone"]
+    data["phone_secondary_normalized"] = data.get("secondary_phone")
+    customer = Customer(**data, owner_id=owner_id, customer_code=_next_code(db), created_by_id=actor.id, first_touch_user_id=actor.id, first_touch_source=data.get("source"), first_uploaded_at=datetime.now(timezone.utc), first_upload_note=data.get("note"))
     _refresh_score(customer)
     db.add(customer); db.flush()
     _activity(db, customer, actor, "other", "Tạo khách hàng", "Khách hàng được tạo thủ công")
@@ -311,6 +343,8 @@ def update_customer(db: Session, customer: Customer, payload: CustomerUpdate, ac
     primary = data.get("primary_phone", customer.primary_phone); secondary = data.get("secondary_phone", customer.secondary_phone)
     if "primary_phone" in data or "secondary_phone" in data:
         data["primary_phone"], data["secondary_phone"] = _validate_phone(db, primary, secondary, customer.id)
+        data["phone_primary_normalized"] = data["primary_phone"]
+        data["phone_secondary_normalized"] = data["secondary_phone"]
     merged = {"budget_min": data.get("budget_min", customer.budget_min), "budget_max": data.get("budget_max", customer.budget_max), "area_min": data.get("area_min", customer.area_min), "area_max": data.get("area_max", customer.area_max)}
     _validate_ranges(merged)
     old_score = (customer.score_total, customer.score_label)
@@ -381,6 +415,7 @@ def convert_lead_to_customer(db: Session, lead_id: UUID, payload: LeadConvertReq
     now = datetime.now(timezone.utc)
     customer = Customer(customer_code=_next_code(db), full_name=lead.full_name, customer_type=payload.customer_type, status=payload.status,
         primary_phone=primary, secondary_phone=secondary, email=lead.email, zalo=lead.zalo, facebook=lead.facebook, address=lead.address,
+        phone_primary_normalized=primary, phone_secondary_normalized=secondary,
         source=lead.source, source_lead_id=lead.id, source_note=lead.note, interested_project=lead.project_interest,
         interested_area=lead.location_interest, budget_min=lead.budget_min, budget_max=lead.budget_max, bedroom_count=lead.bedroom_need,
         area_min=lead.area_min, area_max=lead.area_max, owner_id=owner_id, created_by_id=actor.id,

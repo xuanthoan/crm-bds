@@ -27,7 +27,7 @@ def get_assignees(db: Session = Depends(get_db), current_user: User = Depends(re
 
 @router.post("")
 def post_customer(payload: CustomerCreate, db: Session = Depends(get_db), current_user: User = Depends(require_auth)):
-    return success_response(data=serialize_customer(create_customer(db, payload, current_user), detail=True), message="Customer created")
+    return success_response(data=serialize_customer(create_customer(db, payload, current_user), detail=True, db=db, actor=current_user), message="Customer created")
 
 
 @router.get("/{customer_id}/related-people")
@@ -53,25 +53,25 @@ def remove_related_person(customer_id: UUID, person_id: UUID, db: Session = Depe
 
 @router.get("/{customer_id}")
 def get_customer(customer_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(require_auth)):
-    return success_response(data=serialize_customer(get_customer_detail(db, customer_id, current_user), detail=True), message="Customer retrieved")
+    return success_response(data=serialize_customer(get_customer_detail(db, customer_id, current_user), detail=True, db=db, actor=current_user), message="Customer retrieved")
 
 
 @router.put("/{customer_id}")
 def put_customer(customer_id: UUID, payload: CustomerUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_auth)):
     customer = get_customer_detail(db, customer_id, current_user)
-    return success_response(data=serialize_customer(update_customer(db, customer, payload, current_user), detail=True), message="Customer updated")
+    return success_response(data=serialize_customer(update_customer(db, customer, payload, current_user), detail=True, db=db, actor=current_user), message="Customer updated")
 
 
 @router.post("/{customer_id}/status")
 def post_status(customer_id: UUID, payload: CustomerStatusUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_auth)):
     customer = get_customer_detail(db, customer_id, current_user)
-    return success_response(data=serialize_customer(update_customer_status(db, customer, payload, current_user), detail=True), message="Customer status updated")
+    return success_response(data=serialize_customer(update_customer_status(db, customer, payload, current_user), detail=True, db=db, actor=current_user), message="Customer status updated")
 
 
 @router.post("/{customer_id}/owner")
 def post_owner(customer_id: UUID, payload: CustomerOwnerUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_auth)):
     customer = get_customer_detail(db, customer_id, current_user)
-    return success_response(data=serialize_customer(update_customer_owner(db, customer, payload, current_user), detail=True), message="Customer owner updated")
+    return success_response(data=serialize_customer(update_customer_owner(db, customer, payload, current_user), detail=True, db=db, actor=current_user), message="Customer owner updated")
 
 
 @router.post("/{customer_id}/activities")
