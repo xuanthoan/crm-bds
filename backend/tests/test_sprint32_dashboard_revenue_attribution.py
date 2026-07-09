@@ -62,6 +62,10 @@ class Sprint32DashboardRevenueAttributionSourceTests(unittest.TestCase):
         self.assertIn("top_teams_7_days", service)
         self.assertIn("top_teams_30_days", service)
         self.assertIn("top_projects", service)
+        self.assertIn("limit=10", service)
+        self.assertIn("reverse=True)[:limit]", service)
+        self.assertIn(".order_by(func.count().desc())", service)
+        self.assertIn(".limit(10)", service)
         self.assertIn("Contract.status.in_(VALID_CONTRACT_REVENUE_STATUSES)", service)
         self.assertNotIn('"draft"', service.split("VALID_CONTRACT_REVENUE_STATUSES", 1)[1].split("}\n", 1)[0])
         self.assertNotIn('"cancelled"', service.split("VALID_CONTRACT_REVENUE_STATUSES", 1)[1].split("}\n", 1)[0])
@@ -89,7 +93,7 @@ class Sprint32DashboardRevenueAttributionSourceTests(unittest.TestCase):
             self.assertIn(label, filter_component)
         for preset in ("today", "last_7_days", "last_30_days", "this_month", "last_month", "custom"):
             self.assertIn(preset, filter_component + page)
-        for label in ("Lead mới theo ngày", "Doanh số theo ngày", "Lead theo nguồn", "Top sale 7 ngày qua", "Top sale 30 ngày qua", "Top team 7 ngày qua", "Top team 30 ngày qua", "Top dự án", "Top nguồn lead", "Funnel Lead → Customer", "Funnel Booking → Cọc → Deal → Hợp đồng"):
+        for label in ("Lead mới theo ngày", "Doanh số theo ngày", "Lead theo nguồn", "Top sale 7 ngày qua", "Top sale 30 ngày qua", "Top team 7 ngày qua", "Top team 30 ngày qua", "Top dự án theo doanh số", "Top nguồn lead", "Funnel Lead → Customer", "Funnel Booking → Cọc → Deal → Hợp đồng"):
             self.assertIn(label, page)
         self.assertIn("/api/v1/dashboard/boss", api)
         self.assertIn("/dashboard/boss", routes + layout)
@@ -100,6 +104,11 @@ class Sprint32DashboardRevenueAttributionSourceTests(unittest.TestCase):
         self.assertIn("Chưa có dự án", page)
         self.assertIn("Chưa có team", page)
         self.assertIn("Chưa có sale", page)
+        self.assertIn("formatNumber", page)
+        self.assertIn("formatCurrencyVnd", page)
+        self.assertIn("formatCompactCurrencyVnd", page)
+        self.assertIn("formatPercent", page)
+        self.assertIn("slice(0, 10)", page)
         self.assertIn("AreaTrendCard", page)
         self.assertIn("dashboard-area-chart", page + css)
         self.assertIn("dashboard-hbar-chart", page + css)

@@ -6,11 +6,16 @@ import type { BossDashboard as BossDashboardData, DashboardPreset } from './type
 
 const EMPTY_TEXT = 'Chưa có dữ liệu trong khoảng thời gian này.';
 
-const money = (value: number | null | undefined) => (
-  value == null ? '—' : new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(value)
-);
-const number = (value: number | null | undefined) => (value == null ? '—' : new Intl.NumberFormat('vi-VN').format(value));
-const percent = (value: number | null | undefined) => (value == null ? '—' : `${(value * 100).toFixed(1)}%`);
+const formatNumber = (value: number | null | undefined) => (Number.isFinite(Number(value)) ? new Intl.NumberFormat('vi-VN').format(Number(value)) : '—');
+const formatCurrencyVnd = (value: number | null | undefined) => (Number.isFinite(Number(value)) ? `${new Intl.NumberFormat('vi-VN').format(Number(value))} đ` : '—');
+const formatCompactCurrencyVnd = (value: number | null | undefined) => {
+  if (!Number.isFinite(Number(value))) return '—';
+  const amount = Number(value);
+  if (Math.abs(amount) >= 1_000_000_000) return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(amount / 1_000_000_000)} tỷ đ`;
+  if (Math.abs(amount) >= 1_000_000) return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(amount / 1_000_000)} triệu đ`;
+  return formatCurrencyVnd(amount);
+};
+const formatPercent = (value: number | null | undefined) => (Number.isFinite(Number(value)) ? `${(Number(value) * 100).toFixed(1)}%` : '—');
 const safeLabel = (value: unknown, fallback: string) => (typeof value === 'string' && value.trim() && value !== 'unknown' ? value : fallback);
 
 type ChartRow = { label: string; value: number; meta?: string };
@@ -29,7 +34,7 @@ function ChartEmptyState() {
 function BarChartCard({ title, rows, valueType = 'count', horizontal = false }: BarChartProps) {
   const visibleRows = rows.filter((row) => row.value > 0).slice(0, 10);
   const max = Math.max(1, ...visibleRows.map((row) => row.value));
-  const format = valueType === 'money' ? money : number;
+  const format = valueType === 'money' ? formatCurrencyVnd : formatNumber;
 
   return (
     <section className="card dashboard-chart-card">
@@ -66,7 +71,7 @@ function BarChartCard({ title, rows, valueType = 'count', horizontal = false }: 
 function AreaTrendCard({ title, rows, valueType = 'count', featured = false }: { title: string; rows: ChartRow[]; valueType?: 'count' | 'money'; featured?: boolean }) {
   const visibleRows = rows.filter((row) => row.value > 0 || rows.length <= 45).slice(-45);
   const max = Math.max(1, ...visibleRows.map((row) => row.value));
-  const format = valueType === 'money' ? money : number;
+  const format = valueType === 'money' ? formatCurrencyVnd : formatNumber;
   const width = 640;
   const height = featured ? 260 : 210;
   const paddingX = 28;
@@ -87,7 +92,7 @@ function AreaTrendCard({ title, rows, valueType = 'count', featured = false }: {
     <section className={`card dashboard-chart-card dashboard-area-card${featured ? ' featured' : ''}`}>
       <div className="chart-card-heading">
         <h3>{title}</h3>
-        <span>{visibleRows.length > 0 ? `Tổng: ${format(total)}` : EMPTY_TEXT}</span>
+        <span>{visibleRows.length > 0 ? `Tổng: ${valueType === 'money' ? formatCompactCurrencyVnd(total) : format(total)}` : EMPTY_TEXT}</span>
       </div>
       {visibleRows.length === 0 ? <ChartEmptyState /> : (
         <div className="dashboard-area-chart" role="img" aria-label={title}>
@@ -118,7 +123,7 @@ function FunnelStep({ label, value, rate }: { label: string; value: number | nul
   return (
     <div className="dashboard-funnel-step">
       <span>{label}</span>
-      <strong>{number(value)}</strong>
+      <strong>{formatNumber(value)}</strong>
       {rate ? <em>{rate}</em> : null}
     </div>
   );
@@ -145,8 +150,8 @@ function DetailTable({ title, rows, type }: { title: string; rows: any[]; type: 
             {rows.length === 0 ? <tr><td colSpan={3}>{EMPTY_TEXT}</td></tr> : rows.slice(0, 10).map((row, index) => (
               <tr key={`${title}-${index}`}>
                 <td>{safeLabel(row.sale_name || row.team_name || row.project_name || row.source, type === 'project' ? 'Chưa có dự án' : type === 'sale' ? 'Chưa có sale' : type === 'team' ? 'Chưa có team' : 'Chưa xác định')}{row.team_name && type === 'sale' ? <small>{safeLabel(row.team_name, 'Chưa có team')}</small> : null}</td>
-                <td>{money(row.revenue)}</td>
-                <td>{number(row.contract_count ?? row.lead_count)}</td>
+                <td>{formatCurrencyVnd(row.revenue)}</td>
+                <td>{formatNumber(row.contract_count ?? row.lead_count)}</td>
               </tr>
             ))}
           </tbody>
@@ -177,28 +182,28 @@ export function BossDashboard() {
   }, [preset, fromDate, toDate]);
 
   const cards = useMemo(() => data ? [
-    ['Lead mới', number(data.summary.lead_new_count)],
-    ['Lead chuyển khách hàng', number(data.summary.lead_converted_to_customer_count)],
-    ['Booking', number(data.summary.booking_count)],
-    ['Khách đã cọc', number(data.summary.deposit_count)],
-    ['Deal', number(data.summary.deal_count)],
-    ['Hợp đồng ký', number(data.summary.contract_signed_count)],
-    ['Doanh số', money(data.summary.revenue_total)],
-    ['Hoa hồng công ty', money(data.summary.company_commission_total)],
-    ['Hoa hồng sale', money(data.summary.sales_commission_total)],
-    ['Chi phí quảng cáo', money(data.summary.ads_cost_total)],
-    ['ROI doanh thu/ads', percent(data.summary.roi_ratio)],
+    ['Lead mới', formatNumber(data.summary.lead_new_count)],
+    ['Lead chuyển khách hàng', formatNumber(data.summary.lead_converted_to_customer_count)],
+    ['Booking', formatNumber(data.summary.booking_count)],
+    ['Khách đã cọc', formatNumber(data.summary.deposit_count)],
+    ['Deal', formatNumber(data.summary.deal_count)],
+    ['Hợp đồng ký', formatNumber(data.summary.contract_signed_count)],
+    ['Doanh số', formatCompactCurrencyVnd(data.summary.revenue_total)],
+    ['Hoa hồng công ty', formatCompactCurrencyVnd(data.summary.company_commission_total)],
+    ['Hoa hồng sale', formatCompactCurrencyVnd(data.summary.sales_commission_total)],
+    ['Chi phí quảng cáo', formatCompactCurrencyVnd(data.summary.ads_cost_total)],
+    ['ROI doanh thu/ads', formatPercent(data.summary.roi_ratio)],
   ] : [], [data]);
 
   const leadRows: ChartRow[] = (data?.time_series.leads_by_day ?? []).map((row) => ({ label: row.date.slice(5), value: row.count }));
   const revenueRows: ChartRow[] = (data?.time_series.revenue_by_day ?? []).map((row) => ({ label: row.date.slice(5), value: row.amount }));
   const sourceRows: ChartRow[] = (data?.breakdowns.lead_by_source ?? []).map((row) => ({ label: safeLabel(row.source, 'Chưa xác định'), value: row.count }));
-  const topSourceRows: ChartRow[] = (data?.rankings.top_sources ?? []).map((row) => ({ label: safeLabel(row.source, 'Chưa xác định'), value: row.lead_count ?? 0, meta: `${number(row.contract_count ?? 0)} hợp đồng` }));
-  const sale7Rows: ChartRow[] = (data?.rankings.top_sales_7_days ?? []).map((row) => ({ label: safeLabel(row.sale_name, 'Chưa có sale'), value: row.revenue ?? 0, meta: `${safeLabel(row.team_name, 'Chưa có team')} · ${number(row.contract_count)} hợp đồng` }));
-  const sale30Rows: ChartRow[] = (data?.rankings.top_sales_30_days ?? []).map((row) => ({ label: safeLabel(row.sale_name, 'Chưa có sale'), value: row.revenue ?? 0, meta: `${safeLabel(row.team_name, 'Chưa có team')} · ${number(row.contract_count)} hợp đồng` }));
-  const team7Rows: ChartRow[] = (data?.rankings.top_teams_7_days ?? []).map((row) => ({ label: safeLabel(row.team_name, 'Chưa có team'), value: row.revenue ?? 0, meta: `${safeLabel(row.department_name, 'Chưa có phòng ban')} · ${number(row.contract_count)} hợp đồng` }));
-  const team30Rows: ChartRow[] = (data?.rankings.top_teams_30_days ?? []).map((row) => ({ label: safeLabel(row.team_name, 'Chưa có team'), value: row.revenue ?? 0, meta: `${safeLabel(row.department_name, 'Chưa có phòng ban')} · ${number(row.contract_count)} hợp đồng` }));
-  const projectRows: ChartRow[] = (data?.rankings.top_projects ?? []).map((row) => ({ label: safeLabel(row.project_name, 'Chưa có dự án'), value: row.revenue ?? 0, meta: `${number(row.contract_count)} hợp đồng` }));
+  const topSourceRows: ChartRow[] = (data?.rankings.top_sources ?? []).map((row) => ({ label: safeLabel(row.source, 'Chưa xác định'), value: row.lead_count ?? 0, meta: `${formatNumber(row.contract_count ?? 0)} hợp đồng` }));
+  const sale7Rows: ChartRow[] = (data?.rankings.top_sales_7_days ?? []).map((row) => ({ label: safeLabel(row.sale_name, 'Chưa có sale'), value: row.revenue ?? 0, meta: `${safeLabel(row.team_name, 'Chưa có team')} · ${formatNumber(row.contract_count)} hợp đồng` }));
+  const sale30Rows: ChartRow[] = (data?.rankings.top_sales_30_days ?? []).map((row) => ({ label: safeLabel(row.sale_name, 'Chưa có sale'), value: row.revenue ?? 0, meta: `${safeLabel(row.team_name, 'Chưa có team')} · ${formatNumber(row.contract_count)} hợp đồng` }));
+  const team7Rows: ChartRow[] = (data?.rankings.top_teams_7_days ?? []).map((row) => ({ label: safeLabel(row.team_name, 'Chưa có team'), value: row.revenue ?? 0, meta: `${safeLabel(row.department_name, 'Chưa có phòng ban')} · ${formatNumber(row.contract_count)} hợp đồng` }));
+  const team30Rows: ChartRow[] = (data?.rankings.top_teams_30_days ?? []).map((row) => ({ label: safeLabel(row.team_name, 'Chưa có team'), value: row.revenue ?? 0, meta: `${safeLabel(row.department_name, 'Chưa có phòng ban')} · ${formatNumber(row.contract_count)} hợp đồng` }));
+  const projectRows: ChartRow[] = (data?.rankings.top_projects ?? []).map((row) => ({ label: safeLabel(row.project_name, 'Chưa có dự án'), value: row.revenue ?? 0, meta: `${formatNumber(row.contract_count)} hợp đồng` }));
 
   return (
     <div className="page dashboard-page boss-dashboard">
@@ -230,15 +235,15 @@ export function BossDashboard() {
             </section>
 
             <section className="dashboard-funnel-grid dashboard-section-grid">
-              <FunnelCard title="Funnel Lead → Customer" note={`Tỷ lệ chuyển đổi Lead → Customer: ${percent(data.funnel.lead_to_customer_rate)}`}>
+              <FunnelCard title="Funnel Lead → Customer" note={`Tỷ lệ chuyển đổi Lead → Customer: ${formatPercent(data.funnel.lead_to_customer_rate)}`}>
                 <FunnelStep label="Lead" value={data.funnel.leads} />
-                <FunnelStep label="Customer" value={data.funnel.customers} rate={percent(data.funnel.lead_to_customer_rate)} />
+                <FunnelStep label="Customer" value={data.funnel.customers} rate={formatPercent(data.funnel.lead_to_customer_rate)} />
               </FunnelCard>
-              <FunnelCard title="Funnel Booking → Cọc → Deal → Hợp đồng" note={`Tỷ lệ Booking → Hợp đồng: ${percent(data.funnel.booking_to_contract_rate)}`}>
+              <FunnelCard title="Funnel Booking → Cọc → Deal → Hợp đồng" note={`Tỷ lệ Booking → Hợp đồng: ${formatPercent(data.funnel.booking_to_contract_rate)}`}>
                 <FunnelStep label="Booking" value={data.funnel.bookings} />
                 <FunnelStep label="Cọc" value={data.funnel.deposits} />
                 <FunnelStep label="Deal" value={data.funnel.deals} />
-                <FunnelStep label="Hợp đồng" value={data.funnel.contracts} rate={percent(data.funnel.booking_to_contract_rate)} />
+                <FunnelStep label="Hợp đồng" value={data.funnel.contracts} rate={formatPercent(data.funnel.booking_to_contract_rate)} />
               </FunnelCard>
             </section>
 
@@ -247,7 +252,7 @@ export function BossDashboard() {
               <BarChartCard title="Top sale 30 ngày qua" rows={sale30Rows} valueType="money" horizontal />
               <BarChartCard title="Top team 7 ngày qua" rows={team7Rows} valueType="money" horizontal />
               <BarChartCard title="Top team 30 ngày qua" rows={team30Rows} valueType="money" horizontal />
-              <BarChartCard title="Top dự án" rows={projectRows} valueType="money" horizontal />
+              <BarChartCard title="Top dự án theo doanh số" rows={projectRows} valueType="money" horizontal />
             </section>
 
             <section className="ranking-grid dashboard-section-grid">

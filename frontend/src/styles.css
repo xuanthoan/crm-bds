@@ -2792,3 +2792,49 @@ th .help-label {
     grid-column: span 1;
   }
 }
+
+.boss-dashboard {
+  background: #f4f7fb;
+  border-radius: 18px;
+  padding: 6px;
+}
+
+.boss-dashboard .card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  box-shadow: 0 12px 30px rgb(15 23 42 / 6%);
+  padding: 18px;
+}
+
+.boss-dashboard .page-header h1 {
+  color: #0f172a;
+  font-size: 30px;
+  margin-bottom: 6px;
+}
+
+.boss-dashboard .page-header p {
+  color: #64748b;
+  margin: 0;
+}
+
+.boss-dashboard .summary-card {
+  border-left: 4px solid #2563eb;
+  min-height: 112px;
+}
+
+.boss-dashboard .summary-card strong {
+  color: #0f172a;
+  font-size: clamp(22px, 2.3vw, 30px);
+  line-height: 1.18;
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+
+.boss-dashboard .dashboard-chart-card h3,
+.boss-dashboard .dashboard-funnel-card h3,
+.boss-dashboard .ranking-card h3 {
+  color: #0f172a;
+  font-size: 18px;
+  font-weight: 800;
+}

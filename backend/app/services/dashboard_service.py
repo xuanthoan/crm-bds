@@ -129,7 +129,16 @@ def get_boss_dashboard(db: Session, preset: str | None = None, from_date: date |
     for day, count in db.execute(select(func.date(Lead.created_at), func.count()).where(Lead.deleted_at.is_(None), Lead.created_at >= start, Lead.created_at < end).group_by(func.date(Lead.created_at))): day_map[str(day)]["count"] = count
     for day, amount, count in db.execute(select(func.date(_valid_contract_date()), func.coalesce(func.sum(Contract.contract_value), 0), func.count()).where(*_valid_contracts(start, end)).group_by(func.date(_valid_contract_date()))): revenue_day[str(day)]["amount"] = _money(amount); contracts_day[str(day)]["count"] = count
     for day, count in db.execute(select(func.date(Booking.created_at), func.count()).where(Booking.deleted_at.is_(None), Booking.created_at >= start, Booking.created_at < end).group_by(func.date(Booking.created_at))): bookings_day[str(day)]["count"] = count
-    lead_by_source = [{"source": s or "Chưa xác định", "count": c} for s, c in db.execute(select(Lead.source, func.count()).where(Lead.deleted_at.is_(None), Lead.created_at >= start, Lead.created_at < end).group_by(Lead.source))]
+    lead_by_source = [
+        {"source": s or "Chưa xác định", "count": c}
+        for s, c in db.execute(
+            select(Lead.source, func.count().label("lead_count"))
+            .where(Lead.deleted_at.is_(None), Lead.created_at >= start, Lead.created_at < end)
+            .group_by(Lead.source)
+            .order_by(func.count().desc())
+            .limit(10)
+        )
+    ]
     sales7, teams7, _ = _leaderboards(db, datetime.now(timezone.utc)-timedelta(days=7), datetime.now(timezone.utc)+timedelta(days=1))
     sales30, teams30, _ = _leaderboards(db, datetime.now(timezone.utc)-timedelta(days=30), datetime.now(timezone.utc)+timedelta(days=1))
     sales_range, teams_range, top_projects = _leaderboards(db, start, end)
