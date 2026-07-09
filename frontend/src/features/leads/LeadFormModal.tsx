@@ -11,19 +11,28 @@ import type { DuplicateInfo, Lead, LeadPayload, LeadPriority } from './types';
 const text = (value: unknown) => value == null ? '' : String(value);
 const numberOrNull = (value: string) => value === '' ? null : Number(value);
 const localDateTime = (value?: string | null) => value ? new Date(value).toISOString().slice(0, 16) : '';
+const MATCH_REASON_LABELS: Record<string, string> = {
+  phone_primary_to_phone_primary: 'Số điện thoại chính trùng với số điện thoại chính đã có',
+  phone_primary_to_phone_secondary: 'Số điện thoại chính trùng với số điện thoại phụ đã có',
+  phone_secondary_to_phone_primary: 'Số điện thoại phụ trùng với số điện thoại chính đã có',
+  phone_secondary_to_phone_secondary: 'Số điện thoại phụ trùng với số điện thoại phụ đã có',
+  existing_customer_reengaged: 'Đã ghi nhận lượt tiếp cận lại khách hàng hiện có',
+  duplicate_reengagement: 'Tiếp cận lại khách hàng trùng',
+};
+const matchReasonLabel = (reason?: string | null) => reason ? MATCH_REASON_LABELS[reason] || 'Số điện thoại đã tồn tại trong hệ thống' : 'Số điện thoại đã tồn tại trong hệ thống';
 
-function DuplicateLeadModal({ info, onClose, onOpen }: { info: DuplicateInfo; onClose: () => void; onOpen: () => void }) {
+function DuplicateLeadModal({ info, mode, onClose, onOpen }: { info: DuplicateInfo; mode: 'check' | 'submit'; onClose: () => void; onOpen: () => void }) {
   return <Modal title="Số điện thoại đã tồn tại" onClose={onClose}>
     <div className="duplicate-lead-modal">
-      <p>{info.message || 'Lead/khách hàng này đã có trong hệ thống. Bạn có thể mở hồ sơ hiện có để tiếp tục chăm sóc.'}</p>
+      <p>{mode === 'submit' ? 'Không thể lưu lead mới vì số điện thoại đã tồn tại trong hệ thống. Vui lòng mở hồ sơ hiện có hoặc sửa sang số điện thoại khác.' : (info.message || 'Lead/khách hàng này đã có trong hệ thống. Bạn có thể mở hồ sơ hiện có để tiếp tục chăm sóc.')}</p>
       <dl className="info-grid">
         <div><dt>SĐT trùng</dt><dd>{info.matched_phone || 'Chưa cập nhật'}</dd></div>
         <div><dt>Khách/Lead</dt><dd>{info.lead_name || info.customer_name || 'Trong phạm vi quyền của bạn'}</dd></div>
         <div><dt>Mã hồ sơ</dt><dd>{info.lead_code || info.customer_code || '—'}</dd></div>
-        <div><dt>Lý do trùng</dt><dd>{info.match_reason || 'phone_primary/phone_secondary'}</dd></div>
+        <div><dt>Lý do trùng</dt><dd>{matchReasonLabel(info.match_reason)}</dd></div>
       </dl>
       <p className="form-hint">Bạn chỉ thấy thông tin/hành trình thuộc phạm vi quyền của mình.</p>
-      <footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Đóng</button><button type="button" onClick={onOpen}>Mở thông tin</button></footer>
+      <footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>{mode === 'submit' ? 'Đóng, không lưu' : 'Đóng'}</button><button type="button" onClick={onOpen}>Mở thông tin</button></footer>
     </div>
   </Modal>;
 }
@@ -35,6 +44,8 @@ export function LeadFormModal({ lead, owners, canAssign, onClose, onSubmit }: { 
   const [errors, setErrors] = useState<string[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [duplicateInfo, setDuplicateInfo] = useState<DuplicateInfo | null>(null);
+  const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
+  const [duplicateModalMode, setDuplicateModalMode] = useState<'check' | 'submit'>('check');
   const set = (key: string, value: string) => setForm((current) => ({ ...current, [key]: value }));
   async function checkDuplicateOnBlur(event: FocusEvent<HTMLInputElement>) {
     if (lead) return;
@@ -42,15 +53,23 @@ export function LeadFormModal({ lead, owners, canAssign, onClose, onSubmit }: { 
     if (!phone) return;
     try {
       const response = await checkLeadDuplicate(phone);
-      if (response.data?.is_duplicate) setDuplicateInfo(response.data);
+      if (response.data?.is_duplicate) {
+        setDuplicateInfo(response.data);
+        setDuplicateModalMode('check');
+        setDuplicateModalOpen(true);
+      } else {
+        setDuplicateInfo(null);
+        setDuplicateModalOpen(false);
+      }
     } catch {
       // Duplicate pre-check is advisory; submit still handles duplicate safely.
     }
   }
   function openDuplicateInfo() {
     const url = duplicateInfo?.open_url || (duplicateInfo?.lead_id ? `/leads/${duplicateInfo.lead_id}` : duplicateInfo?.customer_id ? `/customers/${duplicateInfo.customer_id}` : null);
-    if (!url) return setDuplicateInfo(null);
+    if (!url) { setDuplicateModalOpen(false); return; }
     setDuplicateInfo(null);
+    setDuplicateModalOpen(false);
     onClose();
     navigateTo(url);
   }
@@ -59,13 +78,14 @@ export function LeadFormModal({ lead, owners, canAssign, onClose, onSubmit }: { 
     if (!form.full_name.trim() || !form.phone_primary.trim()) return setErrors(['Họ tên và số điện thoại chính là bắt buộc.']);
     if (form.budget_min && form.budget_max && Number(form.budget_min) > Number(form.budget_max)) return setErrors(['Ngân sách tối thiểu không được lớn hơn ngân sách tối đa']);
     if (form.area_min && form.area_max && Number(form.area_min) > Number(form.area_max)) return setErrors(['Diện tích tối thiểu không được lớn hơn diện tích tối đa']);
+    if (!lead && duplicateInfo?.is_duplicate) { setDuplicateModalMode('submit'); setDuplicateModalOpen(true); return; }
     const payload: LeadPayload = { full_name: form.full_name.trim(), phone_primary: form.phone_primary.trim(), phone_secondary: form.phone_secondary || null, zalo: form.zalo || null, facebook: form.facebook || null, email: form.email || null, address: form.address || null, source: form.source || null, project_interest: form.project_interest || null, location_interest: form.location_interest || null, budget_min: numberOrNull(form.budget_min), budget_max: numberOrNull(form.budget_max), bedroom_need: numberOrNull(form.bedroom_need), area_min: numberOrNull(form.area_min), area_max: numberOrNull(form.area_max), priority: form.priority as LeadPriority, next_follow_up_at: form.next_follow_up_at ? new Date(form.next_follow_up_at).toISOString() : null, note: form.note || null };
     if (!lead && canAssign && form.owner_id) payload.owner_id = form.owner_id;
     setSaving(true); setErrors(null);
     try {
       const response = await onSubmit(payload);
       const info = response?.data?.duplicate_info;
-      if (info?.is_duplicate) setDuplicateInfo(info);
+      if (info?.is_duplicate) { setDuplicateInfo(info); setDuplicateModalMode('submit'); setDuplicateModalOpen(true); }
     } catch (error) { setErrors(formatApiError(error, 'Không thể lưu lead.')); } finally { setSaving(false); }
   }
   return <Modal title={lead ? 'Cập nhật lead' : 'Tạo lead'} onClose={onClose}><form className="admin-form lead-form" onSubmit={submit}>
@@ -88,5 +108,5 @@ export function LeadFormModal({ lead, owners, canAssign, onClose, onSubmit }: { 
       <label>Chăm sóc tiếp theo<input type="datetime-local" value={form.next_follow_up_at} onChange={(e: any) => set('next_follow_up_at', e.target.value)} /></label><label className="full-span">Ghi chú<textarea rows={3} value={form.note} onChange={(e: any) => set('note', e.target.value)} /></label>
     </div></fieldset>
     <FormError messages={errors} /><footer className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Hủy</button><button disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu lead'}</button></footer>
-  </form>{duplicateInfo&&<DuplicateLeadModal info={duplicateInfo} onClose={()=>setDuplicateInfo(null)} onOpen={openDuplicateInfo}/>}</Modal>;
+  </form>{duplicateInfo&&duplicateModalOpen&&<DuplicateLeadModal info={duplicateInfo} mode={duplicateModalMode} onClose={()=>setDuplicateModalOpen(false)} onOpen={openDuplicateInfo}/>}</Modal>;
 }

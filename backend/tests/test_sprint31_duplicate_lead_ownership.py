@@ -93,8 +93,13 @@ class Sprint31DuplicateLeadOwnershipSourceTests(unittest.TestCase):
         detail = self.f("features/customers/CustomerDetailPage.tsx")
         customer_types = self.f("features/customers/types.ts")
         lead_types = self.f("features/leads/types.ts")
-        for snippet in ("Số điện thoại đã tồn tại", "Mở thông tin", "Đóng", "checkDuplicateOnBlur", "checkLeadDuplicate(phone)", "existing_customer_reengaged"):
+        for snippet in ("Số điện thoại đã tồn tại", "Mở thông tin", "Đóng", "Đóng, không lưu", "checkDuplicateOnBlur", "checkLeadDuplicate(phone)", "existing_customer_reengaged", "duplicateInfo?.is_duplicate", "duplicateModalOpen"):
             self.assertIn(snippet, form + api + lead_types)
+        for label in ("Số điện thoại chính trùng với số điện thoại chính đã có", "Số điện thoại chính trùng với số điện thoại phụ đã có", "Số điện thoại phụ trùng với số điện thoại chính đã có", "Số điện thoại phụ trùng với số điện thoại phụ đã có", "Đã ghi nhận lượt tiếp cận lại khách hàng hiện có", "Tiếp cận lại khách hàng trùng"):
+            self.assertIn(label, form)
+        self.assertIn("Không thể lưu lead mới vì số điện thoại đã tồn tại trong hệ thống", form)
+        self.assertIn("setDuplicateModalOpen(false)", form)
+        self.assertNotIn("onClose={()=>setDuplicateInfo(null)}", form)
         self.assertNotIn("window.alert", form + page)
         self.assertNotIn("alert(", form + page)
         self.assertIn("if ((response.data as any).duplicate_info?.is_duplicate) return response", page)
