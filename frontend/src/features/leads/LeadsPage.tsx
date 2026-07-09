@@ -107,10 +107,17 @@ export function LeadsPage() {
       });
   }, []);
   async function save(payload: LeadPayload) {
-    if (editing) await updateLead(editing.id, payload);
-    else { const response=await createLead(payload); if ((response.data as any).duplicate_info?.is_duplicate) window.alert((response.data as any).duplicate_info.message || 'Số điện thoại này đã tồn tại trong hệ thống. Lead mới sẽ được liên kết với hồ sơ khách hàng chung.'); }
+    if (editing) {
+      const response = await updateLead(editing.id, payload);
+      setEditing(undefined);
+      await load();
+      return response;
+    }
+    const response = await createLead(payload);
+    if ((response.data as any).duplicate_info?.is_duplicate) return response;
     setEditing(undefined);
     await load();
+    return response;
   }
   async function remove() {
     if (!deleting) return;

@@ -50,6 +50,24 @@ export type Lead = {
   activities?: LeadActivity[];
   created_at: string;
   updated_at: string;
+  duplicate_info?: DuplicateInfo | null;
+};
+
+export type DuplicateInfo = {
+  is_duplicate: boolean;
+  action?: 'existing_customer_reengaged' | string | null;
+  customer_id?: string | null;
+  lead_id?: string | null;
+  customer_name?: string | null;
+  lead_name?: string | null;
+  customer_code?: string | null;
+  lead_code?: string | null;
+  matched_phone?: string | null;
+  match_reason?: string | null;
+  open_url?: string | null;
+  message?: string | null;
+  can_view_common_profile?: boolean;
+  can_view_other_journeys?: boolean;
 };
 
 export type LeadPayload = {

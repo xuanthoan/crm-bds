@@ -29,10 +29,11 @@ class DuplicateLeadResult:
             "matched_lead_ids": self.matched_lead_ids or [],
             "matched_phone": self.matched_phone,
             "match_reason": self.match_reason,
+            "action": "existing_customer_reengaged" if self.is_duplicate else None,
             "can_view_common_profile": self.can_view_common_profile,
             "can_view_other_journeys": self.can_view_other_journeys,
             "safe_summary": self.safe_summary,
-            "message": "Lead/khách hàng này đã tồn tại trong hệ thống. Lead mới đã được liên kết vào hồ sơ khách hàng chung." if self.is_duplicate else None,
+            "message": "Lead/khách hàng này đã có trong hệ thống. Bạn có thể mở hồ sơ hiện có để tiếp tục chăm sóc." if self.is_duplicate else None,
         }
 
 

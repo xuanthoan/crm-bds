@@ -47,19 +47,35 @@ class Sprint31DuplicateLeadOwnershipSourceTests(unittest.TestCase):
         self.assertNotIn("zalo ==", service.lower())
         self.assertNotIn("facebook ==", service.lower())
 
-    def test_create_lead_duplicate_links_to_common_customer_and_audits(self):
+    def test_duplicate_check_endpoint_contract(self):
+        api = self.b("app/api/v1/leads.py")
         service = self.b("app/services/lead_service.py")
-        for snippet in ("detect_duplicate_customer", "customer_id=customer.id", "duplicate_detected=duplicate.is_duplicate", "duplicate_of_customer_id", "duplicate_match_reason", "leads.duplicate_detected", "Phát hiện khách hàng trùng"):
-            self.assertIn(snippet, service)
-        self.assertIn("customers.create", service)
-        self.assertIn("first_upload_note", service)
-        self.assertNotIn("_ensure_phone_unique(db, primary, secondary)\n    owner_id", service)
-        self.assertIn("duplicate_info", service)
+        duplicate_service = self.b("app/services/duplicate_lead_service.py")
+        self.assertIn('@router.get("/duplicate-check")', api)
+        self.assertIn("check_lead_duplicate", api + service)
+        self.assertIn("is_duplicate", service)
+        self.assertIn("matched_phone", service)
+        self.assertIn("match_reason", service)
+        self.assertIn("open_url", service)
+        self.assertIn("can_view_other_journeys", service)
+        self.assertIn("normalize_phone(phone_primary)", duplicate_service)
+        self.assertIn("normalize_phone(phone_secondary)", duplicate_service)
+
+    def test_create_lead_duplicate_reengages_existing_customer_without_new_lead(self):
+        service = self.b("app/services/lead_service.py")
+        api = self.b("app/api/v1/leads.py")
+        for snippet in ("detect_duplicate_customer", "record_duplicate_reengagement", "existing_customer_reengaged", "leads.duplicate_reengaged", "duplicate_info", "Tiếp cận lại khách trùng"):
+            self.assertIn(snippet, service + api)
+        self.assertIn("if duplicate.is_duplicate:\n        return record_duplicate_reengagement", service)
+        self.assertLess(service.index("if duplicate.is_duplicate:"), service.index("lead = Lead(**payload"))
+        self.assertIn("CustomerActivity", service)
+        self.assertIn("last_contact_at = now", service)
+        self.assertIn("updated_at = now", service)
+        self.assertNotIn("leads.duplicate_detected", service)
         audit = self.b("app/services/audit_service.py")
         self.assertIn("json_safe", audit)
         self.assertIn("before_data=json_safe(before_data)", audit)
         self.assertIn("after_data=json_safe(after_data)", audit)
-        self.assertIn("Lead mới đã được liên kết vào hồ sơ khách hàng chung", service)
 
     def test_customer_profile_visibility_and_team_scoped_journey_privacy(self):
         service = self.b("app/services/customer_service.py")
@@ -70,15 +86,20 @@ class Sprint31DuplicateLeadOwnershipSourceTests(unittest.TestCase):
         self.assertIn("Bạn chỉ thấy chi tiết hành trình thuộc phạm vi quyền của mình", service)
         self.assertIn("Bạn đang xem toàn bộ hành trình", service)
 
-    def test_frontend_duplicate_warning_and_customer_banner(self):
+    def test_frontend_duplicate_modal_no_browser_alert_and_blur_check(self):
         form = self.f("features/leads/LeadFormModal.tsx")
         page = self.f("features/leads/LeadsPage.tsx")
+        api = self.f("features/leads/api.ts")
         detail = self.f("features/customers/CustomerDetailPage.tsx")
-        types = self.f("features/customers/types.ts")
-        for snippet in ("Số điện thoại này đã tồn tại", "hồ sơ khách hàng chung"):
-            self.assertIn(snippet, form + page)
+        customer_types = self.f("features/customers/types.ts")
+        lead_types = self.f("features/leads/types.ts")
+        for snippet in ("Số điện thoại đã tồn tại", "Mở thông tin", "Đóng", "checkDuplicateOnBlur", "checkLeadDuplicate(phone)", "existing_customer_reengaged"):
+            self.assertIn(snippet, form + api + lead_types)
+        self.assertNotIn("window.alert", form + page)
+        self.assertNotIn("alert(", form + page)
+        self.assertIn("if ((response.data as any).duplicate_info?.is_duplicate) return response", page)
         for snippet in ("duplicate_visibility", "Khách trùng / Có nhiều hành trình", "Ghi chú upload ban đầu", "Khách có hành trình khác ngoài phạm vi quyền của bạn"):
-            self.assertIn(snippet, detail + types)
+            self.assertIn(snippet, detail + customer_types)
         self.assertNotIn("team khác được xem toàn bộ journey", detail.lower())
 
 

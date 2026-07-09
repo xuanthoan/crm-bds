@@ -18,8 +18,10 @@ from app.leads.constants import (
 )
 from app.models.lead import Lead
 from app.models.customer import Customer
+from app.models.customer_activity import CustomerActivity
 from app.models.role import Role
 from app.models.user import User
+from app.models.user_organization_membership import UserOrganizationMembership
 from app.permissions.dependencies import get_user_permissions
 from app.schemas.lead import LeadAssign, LeadCreate, LeadStatusUpdate, LeadUpdate
 from app.services.audit_service import write_audit_log
@@ -295,7 +297,7 @@ def list_leads(
         query = query.where(condition)
         count_query = count_query.where(condition)
     total = db.scalar(count_query) or 0
-    leads = list(db.scalars(query.order_by(Lead.created_at.desc()).offset((page - 1) * page_size).limit(page_size)).unique().all())
+    leads = list(db.scalars(query.order_by(Lead.updated_at.desc(), Lead.created_at.desc()).offset((page - 1) * page_size).limit(page_size)).unique().all())
     return leads, {"page": page, "page_size": page_size, "total": total, "total_pages": ceil(total / page_size) if total else 0}
 
 
@@ -306,7 +308,117 @@ def _eligible_owner(db: Session, owner_id: UUID) -> User:
     return owner
 
 
-def create_lead(db: Session, payload: LeadCreate, actor: User) -> Lead:
+def _existing_lead_for_duplicate(db: Session, duplicate) -> Lead | None:
+    if duplicate.matched_lead_ids:
+        lead = db.get(Lead, duplicate.matched_lead_ids[0])
+        if lead and lead.deleted_at is None:
+            return lead
+    if duplicate.matched_customer_id:
+        customer = db.get(Customer, duplicate.matched_customer_id)
+        if customer:
+            if customer.source_lead and customer.source_lead.deleted_at is None:
+                return customer.source_lead
+            return db.scalar(select(Lead).where(Lead.deleted_at.is_(None), or_(Lead.customer_id == customer.id, Lead.converted_customer_id == customer.id)).order_by(Lead.created_at.asc()).limit(1))
+    return None
+
+
+def _actor_org_context(db: Session, actor: User) -> tuple[UUID | None, UUID | None]:
+    membership = db.scalar(select(UserOrganizationMembership).where(UserOrganizationMembership.user_id == actor.id).order_by(UserOrganizationMembership.is_primary.desc(), UserOrganizationMembership.created_at.asc()).limit(1))
+    return (membership.team_id if membership else None, membership.department_id if membership else None)
+
+
+def _duplicate_open_url(customer: Customer | None, lead: Lead | None) -> str | None:
+    if lead:
+        return f"/leads/{lead.id}"
+    if customer:
+        return f"/customers/{customer.id}"
+    return None
+
+
+def _duplicate_response_data(db: Session, duplicate, customer: Customer | None, lead: Lead | None, actor: User) -> dict:
+    return {
+        "id": lead.id if lead else None,
+        "code": lead.code if lead else None,
+        "full_name": lead.full_name if lead else (customer.full_name if customer else None),
+        "phone_primary": lead.phone_primary if lead else (customer.primary_phone if customer else None),
+        "phone_secondary": lead.phone_secondary if lead else (customer.secondary_phone if customer else None),
+        "created_at": lead.created_at if lead else (customer.created_at if customer else None),
+        "owner": _serialize_user(lead.owner) if lead else (_serialize_user(customer.owner) if customer else None),
+        "duplicate_info": {
+            "is_duplicate": True,
+            "action": "existing_customer_reengaged",
+            "customer_id": customer.id if customer else None,
+            "lead_id": lead.id if lead else None,
+            "customer_name": customer.full_name if customer else None,
+            "lead_name": lead.full_name if lead else None,
+            "customer_code": customer.customer_code if customer else None,
+            "lead_code": lead.code if lead else None,
+            "matched_phone": duplicate.matched_phone,
+            "match_reason": duplicate.match_reason,
+            "open_url": _duplicate_open_url(customer, lead),
+            "message": "Lead/khách hàng này đã có trong hệ thống. Bạn có thể mở hồ sơ hiện có để tiếp tục chăm sóc.",
+            "can_view_common_profile": True,
+            "can_view_other_journeys": bool(actor.is_superuser or "leads.view.all" in _permission_set(actor)),
+        },
+    }
+
+
+def record_duplicate_reengagement(db: Session, duplicate, payload: LeadCreate, actor: User) -> dict:
+    customer = db.get(Customer, duplicate.matched_customer_id) if duplicate.matched_customer_id else None
+    existing_lead = _existing_lead_for_duplicate(db, duplicate)
+    if customer is None and existing_lead and (existing_lead.customer_id or existing_lead.converted_customer_id):
+        customer = db.get(Customer, existing_lead.customer_id or existing_lead.converted_customer_id)
+    now = datetime.now(timezone.utc)
+    team_id, department_id = _actor_org_context(db, actor)
+    if customer:
+        customer.is_duplicate_profile = True
+        customer.last_contact_at = now
+        customer.updated_at = now
+        db.add(CustomerActivity(
+            customer_id=customer.id,
+            user_id=actor.id,
+            activity_type="duplicate_reengagement",
+            title="Tiếp cận lại khách trùng",
+            content=payload.note,
+            old_value=duplicate.matched_phone,
+            new_value=duplicate.match_reason,
+        ))
+    if existing_lead:
+        existing_lead.last_contact_at = now
+        existing_lead.updated_at = now
+        create_activity_record(db, lead=existing_lead, actor=actor, activity_type="other", title="Tiếp cận lại khách trùng", content=f"User {actor.full_name} nhập lại số {duplicate.matched_phone}; không tạo lead mới.", old_value=duplicate.matched_phone, new_value=duplicate.match_reason)
+    event_data = {
+        "action": "existing_customer_reengaged",
+        "customer_id": customer.id if customer else None,
+        "existing_lead_id": existing_lead.id if existing_lead else None,
+        "actor_user_id": actor.id,
+        "team_id": team_id,
+        "department_id": department_id,
+        "matched_phone": duplicate.matched_phone,
+        "match_reason": duplicate.match_reason,
+        "source": payload.source,
+        "note": payload.note,
+    }
+    write_audit_log(db, action="leads.duplicate_reengaged", user_id=actor.id, entity_type="leads", entity_id=str(existing_lead.id if existing_lead else (customer.id if customer else actor.id)), after_data=event_data)
+    db.commit()
+    if existing_lead:
+        db.refresh(existing_lead)
+    if customer:
+        db.refresh(customer)
+    return _duplicate_response_data(db, duplicate, customer, existing_lead, actor)
+
+
+def check_lead_duplicate(db: Session, phone: str | None, actor: User) -> dict:
+    duplicate = detect_duplicate_customer(db, phone, None, current_user=actor)
+    if not duplicate.is_duplicate:
+        return {"is_duplicate": False, "message": None}
+    customer = db.get(Customer, duplicate.matched_customer_id) if duplicate.matched_customer_id else None
+    existing_lead = _existing_lead_for_duplicate(db, duplicate)
+    info = _duplicate_response_data(db, duplicate, customer, existing_lead, actor)["duplicate_info"]
+    return info
+
+
+def create_lead(db: Session, payload: LeadCreate, actor: User) -> Lead | dict:
     _validate_priority(payload.priority)
     _validate_ranges(payload.budget_min, payload.budget_max, payload.area_min, payload.area_max)
     primary = normalize_phone(payload.phone_primary)
@@ -314,6 +426,8 @@ def create_lead(db: Session, payload: LeadCreate, actor: User) -> Lead:
     if not primary:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Số điện thoại chính là bắt buộc")
     duplicate = detect_duplicate_customer(db, primary, secondary, current_user=actor)
+    if duplicate.is_duplicate:
+        return record_duplicate_reengagement(db, duplicate, payload, actor)
     owner_id = actor.id
     assigned_owner = None
     if payload.owner_id and payload.owner_id != actor.id and _has_any(actor, ASSIGN_PERMISSIONS):
@@ -376,11 +490,7 @@ def create_lead(db: Session, payload: LeadCreate, actor: User) -> Lead:
     if assigned_owner is not None:
         create_activity_record(db, lead=lead, actor=actor, activity_type="assignment", content="Phân công lead khi tạo", old_value=actor.full_name, new_value=assigned_owner.full_name)
     write_audit_log(db, action="leads.create", user_id=actor.id, entity_type="leads", entity_id=str(lead.id), after_data=_audit_snapshot(lead))
-    if duplicate.is_duplicate:
-        create_activity_record(db, lead=lead, actor=actor, activity_type="other", title="Phát hiện khách hàng trùng", content=f"Match {duplicate.match_reason} theo số {duplicate.matched_phone}; lead mới gắn vào Customer Profile chung {customer.customer_code}")
-        write_audit_log(db, action="leads.duplicate_detected", user_id=actor.id, entity_type="leads", entity_id=str(lead.id), after_data=duplicate.to_dict())
-    else:
-        write_audit_log(db, action="customers.create", user_id=actor.id, entity_type="customers", entity_id=str(customer.id), after_data={"source_lead_id": str(lead.id), "first_touch_user_id": str(actor.id)})
+    write_audit_log(db, action="customers.create", user_id=actor.id, entity_type="customers", entity_id=str(customer.id), after_data={"source_lead_id": str(lead.id), "first_touch_user_id": str(actor.id)})
     db.commit()
     db.refresh(lead)
     return lead
