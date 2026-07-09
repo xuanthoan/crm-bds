@@ -62,6 +62,58 @@ function BarChartCard({ title, rows, valueType = 'count', horizontal = false }: 
   );
 }
 
+
+function AreaTrendCard({ title, rows, valueType = 'count', featured = false }: { title: string; rows: ChartRow[]; valueType?: 'count' | 'money'; featured?: boolean }) {
+  const visibleRows = rows.filter((row) => row.value > 0 || rows.length <= 45).slice(-45);
+  const max = Math.max(1, ...visibleRows.map((row) => row.value));
+  const format = valueType === 'money' ? money : number;
+  const width = 640;
+  const height = featured ? 260 : 210;
+  const paddingX = 28;
+  const paddingY = 22;
+  const chartWidth = width - paddingX * 2;
+  const chartHeight = height - paddingY * 2;
+  const points = visibleRows.map((row, index) => {
+    const x = paddingX + (visibleRows.length === 1 ? chartWidth / 2 : (index * chartWidth) / (visibleRows.length - 1));
+    const y = paddingY + chartHeight - (row.value / max) * chartHeight;
+    return { x, y, row };
+  });
+  const linePoints = points.map((point) => `${point.x},${point.y}`).join(' ');
+  const areaPoints = points.length > 0 ? `${paddingX},${height - paddingY} ${linePoints} ${width - paddingX},${height - paddingY}` : '';
+  const last = visibleRows[visibleRows.length - 1];
+  const total = visibleRows.reduce((sum, row) => sum + row.value, 0);
+
+  return (
+    <section className={`card dashboard-chart-card dashboard-area-card${featured ? ' featured' : ''}`}>
+      <div className="chart-card-heading">
+        <h3>{title}</h3>
+        <span>{visibleRows.length > 0 ? `Tổng: ${format(total)}` : EMPTY_TEXT}</span>
+      </div>
+      {visibleRows.length === 0 ? <ChartEmptyState /> : (
+        <div className="dashboard-area-chart" role="img" aria-label={title}>
+          <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+            <defs>
+              <linearGradient id={`${title.replace(/\s+/g, '-')}-gradient`} x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor="#2563eb" stopOpacity="0.34" />
+                <stop offset="100%" stopColor="#2563eb" stopOpacity="0.04" />
+              </linearGradient>
+            </defs>
+            <line x1={paddingX} x2={width - paddingX} y1={height - paddingY} y2={height - paddingY} className="area-axis" />
+            <line x1={paddingX} x2={paddingX} y1={paddingY} y2={height - paddingY} className="area-axis" />
+            <polygon points={areaPoints} fill={`url(#${title.replace(/\s+/g, '-')}-gradient)`} />
+            <polyline points={linePoints} className="area-line" />
+            {points.map((point, index) => <circle key={`${title}-${index}`} cx={point.x} cy={point.y} r={featured ? 4 : 3} className="area-dot"><title>{`${point.row.label}: ${format(point.row.value)}`}</title></circle>)}
+          </svg>
+          <div className="area-chart-footer">
+            <span>{visibleRows[0]?.label}</span>
+            <strong>{last ? `${last.label}: ${format(last.value)}` : '—'}</strong>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function FunnelStep({ label, value, rate }: { label: string; value: number | null | undefined; rate?: string }) {
   return (
     <div className="dashboard-funnel-step">
@@ -142,10 +194,10 @@ export function BossDashboard() {
   const revenueRows: ChartRow[] = (data?.time_series.revenue_by_day ?? []).map((row) => ({ label: row.date.slice(5), value: row.amount }));
   const sourceRows: ChartRow[] = (data?.breakdowns.lead_by_source ?? []).map((row) => ({ label: safeLabel(row.source, 'Chưa xác định'), value: row.count }));
   const topSourceRows: ChartRow[] = (data?.rankings.top_sources ?? []).map((row) => ({ label: safeLabel(row.source, 'Chưa xác định'), value: row.lead_count ?? 0, meta: `${number(row.contract_count ?? 0)} hợp đồng` }));
-  const sale7Rows: ChartRow[] = (data?.rankings.top_sales_7_days ?? []).map((row) => ({ label: safeLabel(row.sale_name, 'Chưa có sale'), value: row.revenue ?? 0, meta: `${number(row.contract_count)} hợp đồng` }));
-  const sale30Rows: ChartRow[] = (data?.rankings.top_sales_30_days ?? []).map((row) => ({ label: safeLabel(row.sale_name, 'Chưa có sale'), value: row.revenue ?? 0, meta: `${number(row.contract_count)} hợp đồng` }));
-  const team7Rows: ChartRow[] = (data?.rankings.top_teams_7_days ?? []).map((row) => ({ label: safeLabel(row.team_name, 'Chưa có team'), value: row.revenue ?? 0, meta: `${number(row.contract_count)} hợp đồng` }));
-  const team30Rows: ChartRow[] = (data?.rankings.top_teams_30_days ?? []).map((row) => ({ label: safeLabel(row.team_name, 'Chưa có team'), value: row.revenue ?? 0, meta: `${number(row.contract_count)} hợp đồng` }));
+  const sale7Rows: ChartRow[] = (data?.rankings.top_sales_7_days ?? []).map((row) => ({ label: safeLabel(row.sale_name, 'Chưa có sale'), value: row.revenue ?? 0, meta: `${safeLabel(row.team_name, 'Chưa có team')} · ${number(row.contract_count)} hợp đồng` }));
+  const sale30Rows: ChartRow[] = (data?.rankings.top_sales_30_days ?? []).map((row) => ({ label: safeLabel(row.sale_name, 'Chưa có sale'), value: row.revenue ?? 0, meta: `${safeLabel(row.team_name, 'Chưa có team')} · ${number(row.contract_count)} hợp đồng` }));
+  const team7Rows: ChartRow[] = (data?.rankings.top_teams_7_days ?? []).map((row) => ({ label: safeLabel(row.team_name, 'Chưa có team'), value: row.revenue ?? 0, meta: `${safeLabel(row.department_name, 'Chưa có phòng ban')} · ${number(row.contract_count)} hợp đồng` }));
+  const team30Rows: ChartRow[] = (data?.rankings.top_teams_30_days ?? []).map((row) => ({ label: safeLabel(row.team_name, 'Chưa có team'), value: row.revenue ?? 0, meta: `${safeLabel(row.department_name, 'Chưa có phòng ban')} · ${number(row.contract_count)} hợp đồng` }));
   const projectRows: ChartRow[] = (data?.rankings.top_projects ?? []).map((row) => ({ label: safeLabel(row.project_name, 'Chưa có dự án'), value: row.revenue ?? 0, meta: `${number(row.contract_count)} hợp đồng` }));
 
   return (
@@ -171,8 +223,8 @@ export function BossDashboard() {
             </section>
 
             <section className="dashboard-grid dashboard-section-grid">
-              <BarChartCard title="Lead mới theo ngày" rows={leadRows} />
-              <BarChartCard title="Doanh số theo ngày" rows={revenueRows} valueType="money" />
+              <AreaTrendCard title="Lead mới theo ngày" rows={leadRows} />
+              <AreaTrendCard title="Doanh số theo ngày" rows={revenueRows} valueType="money" featured />
               <BarChartCard title="Lead theo nguồn" rows={sourceRows} horizontal />
               <BarChartCard title="Top nguồn lead" rows={topSourceRows} horizontal />
             </section>
