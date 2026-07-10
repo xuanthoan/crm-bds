@@ -7,3 +7,9 @@ Hoàn thành nền tảng dashboard giám đốc v1 thay vì rewrite toàn bộ 
 - Frontend: route `/dashboard/boss`, component `DashboardDateRangeFilter`, summary cards tiếng Việt, funnel, mini chart CSS, ranking tables top sale/team/project/source, loading/error/empty state.
 - Verification: test `backend/tests/test_sprint32_dashboard_revenue_attribution.py` khóa quy tắc doanh số không theo first_touch, không theo người upload lead đầu tiên, không tính draft/cancelled contracts, commission lấy từ workflow hiện có và ROI không divide by zero.
 - Backlog sau Sprint 32: dashboard trưởng phòng/team leader/kế toán/admin điều phối, export Excel/PDF dashboard, dashboard realtime, multi-touch marketing attribution, ads cost model chuyên sâu.
+
+## Sprint 32.1 — Boss Dashboard UI/UX Polish & Financial KPIs
+
+- Bổ sung financial KPIs cho boss dashboard: customer paid/outstanding, company commission received/outstanding, sales commission paid/outstanding, gross profit estimates, collection/payment rates và avg contract value.
+- UI nâng cấp thành grouped/tinted KPI cards, enlarged trend charts, trapezoid funnel và top 10 rankings.
+- Không đổi scope Sprint 32: không export, không realtime, không dashboard toàn bộ role và không đổi rule attribution không theo first_touch.

@@ -15,6 +15,7 @@ const formatCompactCurrencyVnd = (value: number | null | undefined) => {
   if (Math.abs(amount) >= 1_000_000) return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(amount / 1_000_000)} triệu đ`;
   return formatCurrencyVnd(amount);
 };
+const formatCurrencyTooltip = formatCurrencyVnd;
 const formatPercent = (value: number | null | undefined) => (Number.isFinite(Number(value)) ? `${(Number(value) * 100).toFixed(1)}%` : '—');
 const safeLabel = (value: unknown, fallback: string) => (typeof value === 'string' && value.trim() && value !== 'unknown' ? value : fallback);
 
@@ -119,22 +120,29 @@ function AreaTrendCard({ title, rows, valueType = 'count', featured = false }: {
   );
 }
 
-function FunnelStep({ label, value, rate }: { label: string; value: number | null | undefined; rate?: string }) {
+function TrapezoidFunnel({ title, steps, conversionLabel, conversionRate }: { title: string; steps: { label: string; value: number | null | undefined; color: string }[]; conversionLabel: string; conversionRate: number | null | undefined }) {
+  const max = Math.max(1, ...steps.map((step) => Number(step.value || 0)));
   return (
-    <div className="dashboard-funnel-step">
-      <span>{label}</span>
-      <strong>{formatNumber(value)}</strong>
-      {rate ? <em>{rate}</em> : null}
-    </div>
-  );
-}
-
-function FunnelCard({ title, children, note }: { title: string; children: ReactNode; note: string }) {
-  return (
-    <section className="card dashboard-funnel-card">
+    <section className="card dashboard-funnel-card trapezoid-funnel-card">
       <h3>{title}</h3>
-      <div className="dashboard-funnel-flow">{children}</div>
-      <p>{note}</p>
+      <div className="trapezoid-funnel-layout">
+        <div className="trapezoid-funnel">
+          {steps.map((step, index) => {
+            const rawRatio = Number(step.value || 0) / max;
+            const width = Math.max(46, 100 - index * 12, rawRatio * 100);
+            return (
+              <div className="trapezoid-segment" style={{ width: `${width}%`, background: step.color }} key={`${title}-${step.label}`}>
+                <span>{step.label}</span>
+                <strong>{formatNumber(step.value)}</strong>
+              </div>
+            );
+          })}
+        </div>
+        <aside className="funnel-rate-panel">
+          <span>{conversionLabel}</span>
+          <strong>{formatPercent(conversionRate)}</strong>
+        </aside>
+      </div>
     </section>
   );
 }
@@ -181,18 +189,47 @@ export function BossDashboard() {
     return () => { alive = false; };
   }, [preset, fromDate, toDate]);
 
-  const cards = useMemo(() => data ? [
-    ['Lead mới', formatNumber(data.summary.lead_new_count)],
-    ['Lead chuyển khách hàng', formatNumber(data.summary.lead_converted_to_customer_count)],
-    ['Booking', formatNumber(data.summary.booking_count)],
-    ['Khách đã cọc', formatNumber(data.summary.deposit_count)],
-    ['Deal', formatNumber(data.summary.deal_count)],
-    ['Hợp đồng ký', formatNumber(data.summary.contract_signed_count)],
-    ['Doanh số', formatCompactCurrencyVnd(data.summary.revenue_total)],
-    ['Hoa hồng công ty', formatCompactCurrencyVnd(data.summary.company_commission_total)],
-    ['Hoa hồng sale', formatCompactCurrencyVnd(data.summary.sales_commission_total)],
-    ['Chi phí quảng cáo', formatCompactCurrencyVnd(data.summary.ads_cost_total)],
-    ['ROI doanh thu/ads', formatPercent(data.summary.roi_ratio)],
+  const kpiSections = useMemo(() => data ? [
+    {
+      title: 'Tổng quan vận hành',
+      tone: 'ops',
+      cards: [
+        ['◌', 'Lead mới', formatNumber(data.summary.lead_new_count)],
+        ['⇄', 'Lead chuyển khách hàng', formatNumber(data.summary.lead_converted_to_customer_count)],
+        ['□', 'Booking', formatNumber(data.summary.booking_count)],
+        ['●', 'Khách đã cọc', formatNumber(data.summary.deposit_count)],
+        ['◇', 'Deal', formatNumber(data.summary.deal_count)],
+        ['✓', 'Hợp đồng ký', formatNumber(data.summary.contract_signed_count)],
+        ['↻', 'Khách trùng tiếp cận lại', formatNumber(data.summary.duplicate_reengagement_count)],
+      ],
+    },
+    {
+      title: 'Doanh số & dòng tiền',
+      tone: 'cash',
+      cards: [
+        ['₫', 'Doanh số', formatCompactCurrencyVnd(data.summary.revenue_total), formatCurrencyTooltip(data.summary.revenue_total)],
+        ['↓', 'Tiền khách đã thu', formatCompactCurrencyVnd(data.summary.customer_paid_total), formatCurrencyTooltip(data.summary.customer_paid_total)],
+        ['!', 'Công nợ khách còn phải thu', formatCompactCurrencyVnd(data.summary.customer_outstanding_total), formatCurrencyTooltip(data.summary.customer_outstanding_total)],
+        ['Ø', 'Giá trị HĐ trung bình', formatCompactCurrencyVnd(data.summary.avg_contract_value), formatCurrencyTooltip(data.summary.avg_contract_value)],
+        ['↗', 'Lợi nhuận gộp tạm tính', formatCompactCurrencyVnd(data.summary.gross_profit_received_estimate), 'Tạm tính = HH công ty đã thu - HH sale đã chi - chi phí quảng cáo'],
+      ],
+    },
+    {
+      title: 'Hoa hồng & chi phí',
+      tone: 'commission',
+      cards: [
+        ['◆', 'HH công ty phải thu', formatCompactCurrencyVnd(data.summary.company_commission_receivable_total), formatCurrencyTooltip(data.summary.company_commission_receivable_total)],
+        ['◆', 'HH công ty đã thu', formatCompactCurrencyVnd(data.summary.company_commission_received_total), formatCurrencyTooltip(data.summary.company_commission_received_total)],
+        ['◆', 'HH công ty còn phải thu', formatCompactCurrencyVnd(data.summary.company_commission_outstanding_total), formatCurrencyTooltip(data.summary.company_commission_outstanding_total)],
+        ['◈', 'HH sale phải chi', formatCompactCurrencyVnd(data.summary.sales_commission_approved_total), formatCurrencyTooltip(data.summary.sales_commission_approved_total)],
+        ['◈', 'HH sale đã chi', formatCompactCurrencyVnd(data.summary.sales_commission_paid_total), formatCurrencyTooltip(data.summary.sales_commission_paid_total)],
+        ['◈', 'HH sale còn phải chi', formatCompactCurrencyVnd(data.summary.sales_commission_outstanding_total), formatCurrencyTooltip(data.summary.sales_commission_outstanding_total)],
+        ['Ads', 'Chi phí quảng cáo', formatCompactCurrencyVnd(data.summary.ads_cost_total), formatCurrencyTooltip(data.summary.ads_cost_total)],
+        ['ROI', 'ROI doanh thu/ads', formatPercent(data.summary.roi_ratio)],
+        ['%', 'Tỷ lệ thu HH công ty', formatPercent(data.summary.company_commission_collection_rate)],
+        ['%', 'Tỷ lệ chi HH sale', formatPercent(data.summary.sales_commission_payment_rate)],
+      ],
+    },
   ] : [], [data]);
 
   const leadRows: ChartRow[] = (data?.time_series.leads_by_day ?? []).map((row) => ({ label: row.date.slice(5), value: row.count }));
@@ -223,46 +260,52 @@ export function BossDashboard() {
         {!loading && !error && data && (
           <>
             <p className="muted">Khoảng dữ liệu: {data.range.label}</p>
-            <section className="summary-grid dashboard-section-grid">
-              {cards.map(([label, value]) => <article className="card summary-card" key={label}><span>{label}</span><strong>{value}</strong></article>)}
-            </section>
+            {kpiSections.map((section) => (
+              <section className="dashboard-kpi-section" key={section.title}>
+                <h2>{section.title}</h2>
+                <div className="summary-grid dashboard-section-grid">
+                  {section.cards.map(([icon, label, value, subtitle]) => (
+                    <article className={`card summary-card kpi-${section.tone}`} key={`${section.title}-${label}`}>
+                      <div className="kpi-icon">{icon}</div>
+                      <span>{label}</span>
+                      <strong title={subtitle || value}>{value}</strong>
+                      {subtitle ? <small>{subtitle}</small> : null}
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ))}
 
-            <section className="dashboard-grid dashboard-section-grid">
-              <AreaTrendCard title="Lead mới theo ngày" rows={leadRows} />
+            <section className="dashboard-section-block"><h2>Xu hướng</h2><div className="dashboard-grid dashboard-section-grid trend-grid">
               <AreaTrendCard title="Doanh số theo ngày" rows={revenueRows} valueType="money" featured />
-              <BarChartCard title="Lead theo nguồn" rows={sourceRows} horizontal />
+              <AreaTrendCard title="Lead mới theo ngày" rows={leadRows} />
+            </div></section>
+
+            <section className="dashboard-section-block"><h2>Funnel chuyển đổi</h2><div className="dashboard-funnel-grid dashboard-section-grid">
+              <TrapezoidFunnel title="Funnel Lead → Customer" conversionLabel="Lead → Customer" conversionRate={data.funnel.lead_to_customer_rate} steps={[{ label: 'Lead', value: data.funnel.leads, color: '#2563eb' }, { label: 'Customer', value: data.funnel.customers, color: '#38bdf8' }]} />
+              <TrapezoidFunnel title="Funnel Booking → Cọc → Deal → Hợp đồng" conversionLabel="Booking → Hợp đồng" conversionRate={data.funnel.booking_to_contract_rate} steps={[{ label: 'Booking', value: data.funnel.bookings, color: '#14b8a6' }, { label: 'Cọc', value: data.funnel.deposits, color: '#22c55e' }, { label: 'Deal', value: data.funnel.deals, color: '#f59e0b' }, { label: 'Hợp đồng', value: data.funnel.contracts, color: '#7c3aed' }]} />
+            </div></section>
+
+            <section className="dashboard-section-block"><h2>Nguồn & dự án</h2><div className="dashboard-grid dashboard-section-grid">
               <BarChartCard title="Top nguồn lead" rows={topSourceRows} horizontal />
-            </section>
+              <BarChartCard title="Top dự án theo doanh số" rows={projectRows} valueType="money" horizontal />
+            </div></section>
 
-            <section className="dashboard-funnel-grid dashboard-section-grid">
-              <FunnelCard title="Funnel Lead → Customer" note={`Tỷ lệ chuyển đổi Lead → Customer: ${formatPercent(data.funnel.lead_to_customer_rate)}`}>
-                <FunnelStep label="Lead" value={data.funnel.leads} />
-                <FunnelStep label="Customer" value={data.funnel.customers} rate={formatPercent(data.funnel.lead_to_customer_rate)} />
-              </FunnelCard>
-              <FunnelCard title="Funnel Booking → Cọc → Deal → Hợp đồng" note={`Tỷ lệ Booking → Hợp đồng: ${formatPercent(data.funnel.booking_to_contract_rate)}`}>
-                <FunnelStep label="Booking" value={data.funnel.bookings} />
-                <FunnelStep label="Cọc" value={data.funnel.deposits} />
-                <FunnelStep label="Deal" value={data.funnel.deals} />
-                <FunnelStep label="Hợp đồng" value={data.funnel.contracts} rate={formatPercent(data.funnel.booking_to_contract_rate)} />
-              </FunnelCard>
-            </section>
-
-            <section className="dashboard-grid dashboard-section-grid">
+            <section className="dashboard-section-block"><h2>Xếp hạng hiệu suất</h2><div className="dashboard-grid dashboard-section-grid">
               <BarChartCard title="Top sale 7 ngày qua" rows={sale7Rows} valueType="money" horizontal />
               <BarChartCard title="Top sale 30 ngày qua" rows={sale30Rows} valueType="money" horizontal />
               <BarChartCard title="Top team 7 ngày qua" rows={team7Rows} valueType="money" horizontal />
               <BarChartCard title="Top team 30 ngày qua" rows={team30Rows} valueType="money" horizontal />
-              <BarChartCard title="Top dự án theo doanh số" rows={projectRows} valueType="money" horizontal />
-            </section>
+            </div></section>
 
-            <section className="ranking-grid dashboard-section-grid">
+            <section className="dashboard-section-block"><h2>Bảng chi tiết</h2><div className="ranking-grid dashboard-section-grid">
               <DetailTable title="Chi tiết top sale 7 ngày qua" rows={data.rankings.top_sales_7_days} type="sale" />
               <DetailTable title="Chi tiết top sale 30 ngày qua" rows={data.rankings.top_sales_30_days} type="sale" />
               <DetailTable title="Chi tiết top team 7 ngày qua" rows={data.rankings.top_teams_7_days} type="team" />
               <DetailTable title="Chi tiết top team 30 ngày qua" rows={data.rankings.top_teams_30_days} type="team" />
               <DetailTable title="Chi tiết top dự án" rows={data.rankings.top_projects} type="project" />
               <DetailTable title="Chi tiết top nguồn lead" rows={data.rankings.top_sources} type="source" />
-            </section>
+            </div></section>
           </>
         )}
       </div>

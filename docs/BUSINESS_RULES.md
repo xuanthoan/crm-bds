@@ -344,3 +344,20 @@ Sprint 32 bổ sung nền tảng Dashboard Foundation cho Boss/Giám đốc và 
 - Duplicate re-engagement không tính là lead mới vì Sprint 31 không tạo lead row mới khi trùng số điện thoại; dashboard có thể hiển thị `duplicate_reengagement_count` riêng nếu có activity tương ứng.
 - ROI v1 dùng `roi_ratio = revenue_total / ads_cost_total` và `roi_profit_ratio = (revenue_total - ads_cost_total) / ads_cost_total`; nếu ads cost bằng 0 thì trả `null`, không chia cho 0.
 - Chưa làm trong Sprint 32: dashboard trưởng phòng/team leader/kế toán/admin điều phối, export Excel/PDF dashboard, realtime dashboard phức tạp, multi-touch marketing attribution.
+
+### Sprint 32.1 — Boss Dashboard UI/UX Polish & Financial KPIs
+
+Sprint 32.1 mở rộng dashboard giám đốc nhưng không đổi revenue attribution: doanh số vẫn theo hợp đồng hợp lệ và deal/contract owner, không theo `first_touch` hoặc người upload lead đầu tiên; duplicate re-engagement không tính là lead mới.
+
+Financial KPI bổ sung:
+- `customer_paid_total`: tổng phiếu thu khách hàng đã xác nhận/đã thu trong range; nếu không có receipt hợp lệ thì trả 0.
+- `customer_outstanding_total`: `max(revenue_total - customer_paid_total, 0)`.
+- `avg_contract_value`: `revenue_total / contract_signed_count`, trả null nếu không có hợp đồng.
+- `company_commission_outstanding_total`: `max(company_commission_receivable_total - company_commission_received_total, 0)`.
+- `sales_commission_outstanding_total`: `max(sales_commission_approved_total - sales_commission_paid_total, 0)`.
+- `gross_profit_received_estimate`: `company_commission_received_total - sales_commission_paid_total - ads_cost_total`.
+- `gross_profit_receivable_estimate`: `company_commission_receivable_total - sales_commission_approved_total - ads_cost_total`.
+- `company_commission_collection_rate`: `company_commission_received_total / company_commission_receivable_total`, null nếu mẫu số bằng 0.
+- `sales_commission_payment_rate`: `sales_commission_paid_total / sales_commission_approved_total`, null nếu mẫu số bằng 0.
+
+UI Sprint 32.1 chia KPI thành nhóm tinted cards, phóng to chart xu hướng, đổi funnel thành dạng hình thang/tầng, và giữ top 10 rankings. Sprint này vẫn chưa làm export Excel/PDF, realtime dashboard hoặc dashboard cho toàn bộ role.

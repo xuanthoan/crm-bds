@@ -14,6 +14,7 @@ from app.models.contract import Contract
 from app.models.project import Project
 from app.models.sales_commission import SalesCommission
 from app.models.company_commission import CompanyCommissionReceivable
+from app.models.payment_receipt import PaymentReceipt
 from app.models.user_organization_membership import UserOrganizationMembership
 from app.models.team import Team
 from app.models.department import Department
@@ -120,10 +121,21 @@ def get_boss_dashboard(db: Session, preset: str | None = None, from_date: date |
     deals = _count(db, Deal, Deal.deleted_at.is_(None), Deal.created_at >= start, Deal.created_at < end)
     contract_count = _count(db, Contract, *_valid_contracts(start, end))
     revenue = _money(db.scalar(select(func.coalesce(func.sum(Contract.contract_value), 0)).where(*_valid_contracts(start, end))))
-    sales_commission = _money(db.scalar(select(func.coalesce(func.sum(SalesCommission.approved_commission + SalesCommission.paid_amount), 0)).where(SalesCommission.status.in_(SALES_COMMISSION_INCLUDED_STATUSES), SalesCommission.created_at >= start, SalesCommission.created_at < end)))
+    sales_commission_approved = _money(db.scalar(select(func.coalesce(func.sum(SalesCommission.approved_commission), 0)).where(SalesCommission.status.in_(SALES_COMMISSION_INCLUDED_STATUSES), SalesCommission.created_at >= start, SalesCommission.created_at < end)))
+    sales_commission_paid = _money(db.scalar(select(func.coalesce(func.sum(SalesCommission.paid_amount), 0)).where(SalesCommission.status.in_(SALES_COMMISSION_INCLUDED_STATUSES), SalesCommission.created_at >= start, SalesCommission.created_at < end)))
+    sales_commission = sales_commission_approved
     company_commission_receivable = _money(db.scalar(select(func.coalesce(func.sum(CompanyCommissionReceivable.confirmed_receivable_amount), 0)).where(CompanyCommissionReceivable.status.in_(COMPANY_COMMISSION_INCLUDED_STATUSES), CompanyCommissionReceivable.created_at >= start, CompanyCommissionReceivable.created_at < end)))
     company_commission_received = _money(db.scalar(select(func.coalesce(func.sum(CompanyCommissionReceivable.received_amount), 0)).where(CompanyCommissionReceivable.status.in_(COMPANY_COMMISSION_INCLUDED_STATUSES), CompanyCommissionReceivable.created_at >= start, CompanyCommissionReceivable.created_at < end)))
+    customer_paid = _money(db.scalar(select(func.coalesce(func.sum(PaymentReceipt.amount), 0)).where(PaymentReceipt.deleted_at.is_(None), PaymentReceipt.status.in_({"confirmed", "paid"}), func.coalesce(PaymentReceipt.confirmed_at, PaymentReceipt.created_at) >= start, func.coalesce(PaymentReceipt.confirmed_at, PaymentReceipt.created_at) < end)))
+    customer_outstanding = max(revenue - customer_paid, 0)
+    avg_contract_value = revenue / contract_count if contract_count else None
+    company_commission_outstanding = max(company_commission_receivable - company_commission_received, 0)
+    sales_commission_outstanding = max(sales_commission_approved - sales_commission_paid, 0)
     ads_cost = 0.0; roi_ratio = revenue / ads_cost if ads_cost else None; roi_profit_ratio = (revenue - ads_cost) / ads_cost if ads_cost else None
+    gross_profit_received = company_commission_received - sales_commission_paid - ads_cost
+    gross_profit_receivable = company_commission_receivable - sales_commission_approved - ads_cost
+    company_collection_rate = company_commission_received / company_commission_receivable if company_commission_receivable else None
+    sales_payment_rate = sales_commission_paid / sales_commission_approved if sales_commission_approved else None
     duplicate_count = _count(db, LeadActivity, LeadActivity.activity_type == "duplicate_reengagement", LeadActivity.created_at >= start, LeadActivity.created_at < end)
     day_map = {d: {"date": d, "count": 0} for d in _dates(start, end)}; revenue_day = {d: {"date": d, "amount": 0} for d in _dates(start, end)}; contracts_day = {d: {"date": d, "count": 0} for d in _dates(start, end)}; bookings_day = {d: {"date": d, "count": 0} for d in _dates(start, end)}
     for day, count in db.execute(select(func.date(Lead.created_at), func.count()).where(Lead.deleted_at.is_(None), Lead.created_at >= start, Lead.created_at < end).group_by(func.date(Lead.created_at))): day_map[str(day)]["count"] = count
@@ -142,7 +154,7 @@ def get_boss_dashboard(db: Session, preset: str | None = None, from_date: date |
     sales7, teams7, _ = _leaderboards(db, datetime.now(timezone.utc)-timedelta(days=7), datetime.now(timezone.utc)+timedelta(days=1))
     sales30, teams30, _ = _leaderboards(db, datetime.now(timezone.utc)-timedelta(days=30), datetime.now(timezone.utc)+timedelta(days=1))
     sales_range, teams_range, top_projects = _leaderboards(db, start, end)
-    summary = {"lead_new_count": lead_new, "duplicate_reengagement_count": duplicate_count, "lead_converted_to_customer_count": lead_converted, "booking_count": bookings, "deposit_count": deposits, "deal_count": deals, "contract_signed_count": contract_count, "revenue_total": revenue, "company_commission_total": company_commission_receivable, "company_commission_receivable_total": company_commission_receivable, "company_commission_received_total": company_commission_received, "sales_commission_total": sales_commission, "ads_cost_total": ads_cost, "roi_ratio": roi_ratio, "roi_profit_ratio": roi_profit_ratio}
+    summary = {"lead_new_count": lead_new, "duplicate_reengagement_count": duplicate_count, "lead_converted_to_customer_count": lead_converted, "booking_count": bookings, "deposit_count": deposits, "deal_count": deals, "contract_signed_count": contract_count, "revenue_total": revenue, "customer_paid_total": customer_paid, "customer_outstanding_total": customer_outstanding, "avg_contract_value": avg_contract_value, "company_commission_total": company_commission_receivable, "company_commission_receivable_total": company_commission_receivable, "company_commission_received_total": company_commission_received, "company_commission_outstanding_total": company_commission_outstanding, "sales_commission_total": sales_commission, "sales_commission_approved_total": sales_commission_approved, "sales_commission_paid_total": sales_commission_paid, "sales_commission_outstanding_total": sales_commission_outstanding, "ads_cost_total": ads_cost, "roi_ratio": roi_ratio, "roi_profit_ratio": roi_profit_ratio, "gross_profit_received_estimate": gross_profit_received, "gross_profit_receivable_estimate": gross_profit_receivable, "company_commission_collection_rate": company_collection_rate, "sales_commission_payment_rate": sales_payment_rate}
     funnel = {"leads": lead_new, "customers": customers, "bookings": bookings, "deposits": deposits, "deals": deals, "contracts": contract_count, "lead_to_customer_rate": _rate(customers, lead_new), "lead_to_booking_rate": _rate(bookings, lead_new), "booking_to_contract_rate": _rate(contract_count, bookings), "deal_to_contract_rate": _rate(contract_count, deals)}
     range_public = {k:v for k,v in r.items() if not k.startswith("_")}
     return {"range": range_public, "summary": summary, "funnel": funnel, "time_series": {"leads_by_day": list(day_map.values()), "revenue_by_day": list(revenue_day.values()), "contracts_by_day": list(contracts_day.values()), "bookings_by_day": list(bookings_day.values())}, "breakdowns": {"lead_by_source": lead_by_source, "lead_by_project": [], "revenue_by_project": top_projects, "booking_by_project": [], "contract_by_project": []}, "rankings": {"top_sales_7_days": sales7, "top_sales_30_days": sales30, "top_teams_7_days": teams7, "top_teams_30_days": teams30, "top_projects": top_projects, "top_sources": [{"source": row["source"], "lead_count": row["count"], "booking_count": 0, "contract_count": 0, "revenue": 0, "ads_cost": 0, "roi": None} for row in lead_by_source], "top_sales_in_range": sales_range, "top_teams_in_range": teams_range}}

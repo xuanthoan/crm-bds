@@ -2838,3 +2838,162 @@ th .help-label {
   font-size: 18px;
   font-weight: 800;
 }
+
+.dashboard-kpi-section,
+.dashboard-section-block {
+  margin-top: 22px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.dashboard-kpi-section h2,
+.dashboard-section-block h2 {
+  color: #0f172a;
+  font-size: 21px;
+  margin: 0 0 12px;
+}
+
+.kpi-icon {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 800;
+  height: 30px;
+  justify-content: center;
+  margin-bottom: 10px;
+  width: 30px;
+}
+
+.summary-card small {
+  color: #64748b;
+  display: block;
+  font-size: 11px;
+  margin-top: 6px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary-card.kpi-ops {
+  background: #eef4ff;
+  border-left-color: #2563eb;
+}
+
+.summary-card.kpi-ops .kpi-icon {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.summary-card.kpi-cash {
+  background: #fff7ed;
+  border-left-color: #ea580c;
+}
+
+.summary-card.kpi-cash .kpi-icon {
+  background: #fed7aa;
+  color: #c2410c;
+}
+
+.summary-card.kpi-commission {
+  background: #f5f3ff;
+  border-left-color: #7c3aed;
+}
+
+.summary-card.kpi-commission .kpi-icon {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.trend-grid {
+  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+}
+
+.dashboard-area-chart svg {
+  height: 320px;
+}
+
+.dashboard-area-card.featured .dashboard-area-chart svg {
+  height: 380px;
+}
+
+.trapezoid-funnel-card {
+  overflow: hidden;
+}
+
+.trapezoid-funnel-layout {
+  align-items: center;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(130px, 0.35fr);
+  max-width: 100%;
+  min-width: 0;
+}
+
+.trapezoid-funnel {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.trapezoid-segment {
+  border-radius: 12px;
+  box-shadow: 0 8px 18px rgb(15 23 42 / 10%);
+  clip-path: polygon(7% 0, 93% 0, 100% 100%, 0 100%);
+  color: #ffffff;
+  max-width: 100%;
+  min-height: 58px;
+  min-width: 120px;
+  padding: 10px 18px;
+  text-align: center;
+}
+
+.trapezoid-segment span,
+.trapezoid-segment strong {
+  display: block;
+  text-shadow: 0 1px 2px rgb(15 23 42 / 26%);
+}
+
+.trapezoid-segment span {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.trapezoid-segment strong {
+  font-size: 22px;
+}
+
+.funnel-rate-panel {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.funnel-rate-panel span,
+.funnel-rate-panel strong {
+  display: block;
+}
+
+.funnel-rate-panel span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.funnel-rate-panel strong {
+  color: #0f172a;
+  font-size: 28px;
+  margin-top: 4px;
+}
+
+@media (max-width: 900px) {
+  .trend-grid,
+  .trapezoid-funnel-layout {
+    grid-template-columns: 1fr;
+  }
+}

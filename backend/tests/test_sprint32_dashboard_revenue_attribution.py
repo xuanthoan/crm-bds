@@ -79,6 +79,12 @@ class Sprint32DashboardRevenueAttributionSourceTests(unittest.TestCase):
         self.assertIn('activity_type == "duplicate_reengagement"', service)
         self.assertIn("lead_new_count", service)
         self.assertIn("duplicate_reengagement_count", service)
+        for field in ("customer_paid_total", "customer_outstanding_total", "avg_contract_value", "company_commission_outstanding_total", "sales_commission_approved_total", "sales_commission_paid_total", "sales_commission_outstanding_total", "gross_profit_received_estimate", "gross_profit_receivable_estimate", "company_commission_collection_rate", "sales_commission_payment_rate"):
+            self.assertIn(field, service)
+        self.assertIn("max(revenue - customer_paid, 0)", service)
+        self.assertIn("max(company_commission_receivable - company_commission_received, 0)", service)
+        self.assertIn("max(sales_commission_approved - sales_commission_paid, 0)", service)
+        self.assertIn("company_commission_received - sales_commission_paid - ads_cost", service)
 
     def test_frontend_boss_dashboard_foundation(self):
         page = self.f("features/dashboard/BossDashboard.tsx")
@@ -87,13 +93,17 @@ class Sprint32DashboardRevenueAttributionSourceTests(unittest.TestCase):
         routes = self.f("routes/AppRoutes.tsx")
         layout = self.f("layouts/AppLayout.tsx")
         css = self.f("styles.css")
-        for label in ("Tổng quan giám đốc", "Lead mới", "Lead chuyển khách hàng", "Booking", "Khách đã cọc", "Deal", "Hợp đồng ký", "Doanh số", "Hoa hồng công ty", "Hoa hồng sale", "Chi phí quảng cáo", "ROI doanh thu/ads"):
+        for label in ("Tổng quan giám đốc", "Lead mới", "Lead chuyển khách hàng", "Booking", "Khách đã cọc", "Deal", "Hợp đồng ký", "Doanh số", "Chi phí quảng cáo", "ROI doanh thu/ads"):
+            self.assertIn(label, page)
+        for section in ("Tổng quan vận hành", "Doanh số & dòng tiền", "Hoa hồng & chi phí", "Xu hướng", "Funnel chuyển đổi", "Nguồn & dự án", "Xếp hạng hiệu suất", "Bảng chi tiết"):
+            self.assertIn(section, page)
+        for label in ("Tiền khách đã thu", "Công nợ khách còn phải thu", "HH công ty đã thu", "HH công ty còn phải thu", "HH sale đã chi", "HH sale còn phải chi", "Lợi nhuận gộp tạm tính", "Tỷ lệ thu HH công ty", "Tỷ lệ chi HH sale"):
             self.assertIn(label, page)
         for label in ("Hôm nay", "7 ngày qua", "30 ngày qua", "Tháng này", "Tháng trước", "Tùy chọn"):
             self.assertIn(label, filter_component)
         for preset in ("today", "last_7_days", "last_30_days", "this_month", "last_month", "custom"):
             self.assertIn(preset, filter_component + page)
-        for label in ("Lead mới theo ngày", "Doanh số theo ngày", "Lead theo nguồn", "Top sale 7 ngày qua", "Top sale 30 ngày qua", "Top team 7 ngày qua", "Top team 30 ngày qua", "Top dự án theo doanh số", "Top nguồn lead", "Funnel Lead → Customer", "Funnel Booking → Cọc → Deal → Hợp đồng"):
+        for label in ("Lead mới theo ngày", "Doanh số theo ngày", "Top sale 7 ngày qua", "Top sale 30 ngày qua", "Top team 7 ngày qua", "Top team 30 ngày qua", "Top dự án theo doanh số", "Top nguồn lead", "Funnel Lead → Customer", "Funnel Booking → Cọc → Deal → Hợp đồng"):
             self.assertIn(label, page)
         self.assertIn("/api/v1/dashboard/boss", api)
         self.assertIn("/dashboard/boss", routes + layout)
@@ -108,8 +118,14 @@ class Sprint32DashboardRevenueAttributionSourceTests(unittest.TestCase):
         self.assertIn("formatCurrencyVnd", page)
         self.assertIn("formatCompactCurrencyVnd", page)
         self.assertIn("formatPercent", page)
+        self.assertIn("formatCurrencyTooltip", page)
         self.assertIn("slice(0, 10)", page)
         self.assertIn("AreaTrendCard", page)
+        self.assertIn("TrapezoidFunnel", page)
+        self.assertIn("trapezoid-segment", page + css)
+        self.assertIn("kpi-ops", page + css)
+        self.assertIn("kpi-cash", page + css)
+        self.assertIn("kpi-commission", page + css)
         self.assertIn("dashboard-area-chart", page + css)
         self.assertIn("dashboard-hbar-chart", page + css)
         self.assertIn("table-scroll-wrapper", page + css)
@@ -138,7 +154,7 @@ class Sprint32DashboardRevenueAttributionSourceTests(unittest.TestCase):
 
     def test_docs_capture_sprint32_rules_and_non_scope(self):
         docs = self.d("BUSINESS_RULES.md") + self.d("PROJECT_HANDOFF.md") + self.d("DEVELOPMENT_ROADMAP.md")
-        for snippet in ("Sprint 32", "Dashboard Foundation", "dashboard.boss.view", "GET /api/v1/dashboard/boss", "today", "last_7_days", "last_30_days", "this_month", "last_month", "custom", "không theo first_touch", "không theo người upload lead đầu tiên", "Duplicate re-engagement không tính là lead mới", "export Excel/PDF", "realtime", "multi-touch"):
+        for snippet in ("Sprint 32", "Dashboard Foundation", "dashboard.boss.view", "GET /api/v1/dashboard/boss", "today", "last_7_days", "last_30_days", "this_month", "last_month", "custom", "không theo first_touch", "không theo người upload lead đầu tiên", "Duplicate re-engagement không tính là lead mới", "export Excel/PDF", "realtime", "multi-touch", "Sprint 32.1", "customer_outstanding_total", "gross_profit_received_estimate"):
             self.assertIn(snippet, docs)
 
 
