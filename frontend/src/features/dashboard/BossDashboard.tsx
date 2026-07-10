@@ -19,7 +19,7 @@ const formatCurrencyTooltip = formatCurrencyVnd;
 const formatPercent = (value: number | null | undefined) => (Number.isFinite(Number(value)) ? `${(Number(value) * 100).toFixed(1)}%` : '—');
 const safeLabel = (value: unknown, fallback: string) => (typeof value === 'string' && value.trim() && value !== 'unknown' ? value : fallback);
 
-type ChartRow = { label: string; value: number; meta?: string };
+type ChartRow = { label: string; value: number; meta?: string; fullLabel?: string };
 
 function normalizeDailySeries(rows: ChartRow[], maxPoints = 30) {
   if (rows.length <= maxPoints) return rows;
@@ -27,6 +27,18 @@ function normalizeDailySeries(rows: ChartRow[], maxPoints = 30) {
   const sampled = rows.filter((_, index) => index % step === 0).slice(0, maxPoints - 1);
   const last = rows[rows.length - 1];
   return sampled[sampled.length - 1]?.label === last.label ? sampled : [...sampled, last];
+}
+
+function formatDateLabel(dateText: string) {
+  const parts = dateText.split('-');
+  return parts.length === 3 ? `${parts[2]}/${parts[1]}` : dateText;
+}
+
+function getXAxisTicks(rows: ChartRow[]) {
+  if (rows.length <= 10) return rows.map((row, index) => ({ ...row, index }));
+  const step = rows.length <= 30 ? Math.ceil((rows.length - 1) / 8) : Math.ceil((rows.length - 1) / 9);
+  const ticks = rows.map((row, index) => ({ ...row, index })).filter((_, index) => index === 0 || index === rows.length - 1 || index % step === 0);
+  return ticks[ticks.length - 1]?.index === rows.length - 1 ? ticks : [...ticks, { ...rows[rows.length - 1], index: rows.length - 1 }];
 }
 
 type BarChartProps = {
@@ -82,18 +94,21 @@ function AreaTrendCard({ title, rows, valueType = 'count', featured = false }: {
   const max = Math.max(1, ...visibleRows.map((row) => row.value));
   const format = valueType === 'money' ? formatCurrencyVnd : formatNumber;
   const width = 640;
-  const height = featured ? 260 : 210;
-  const paddingX = 28;
-  const paddingY = 22;
+  const height = featured ? 280 : 250;
+  const paddingX = 34;
+  const paddingTop = 22;
+  const paddingBottom = 42;
   const chartWidth = width - paddingX * 2;
-  const chartHeight = height - paddingY * 2;
+  const chartHeight = height - paddingTop - paddingBottom;
   const points = visibleRows.map((row, index) => {
     const x = paddingX + (visibleRows.length === 1 ? chartWidth / 2 : (index * chartWidth) / (visibleRows.length - 1));
-    const y = paddingY + chartHeight - (row.value / max) * chartHeight;
+    const y = paddingTop + chartHeight - (row.value / max) * chartHeight;
     return { x, y, row };
   });
   const linePoints = points.map((point) => `${point.x},${point.y}`).join(' ');
-  const areaPoints = points.length > 0 ? `${paddingX},${height - paddingY} ${linePoints} ${width - paddingX},${height - paddingY}` : '';
+  const baselineY = height - paddingBottom;
+  const ticks = getXAxisTicks(visibleRows);
+  const areaPoints = points.length > 0 ? `${paddingX},${baselineY} ${linePoints} ${width - paddingX},${baselineY}` : '';
   const last = visibleRows[visibleRows.length - 1];
   const total = visibleRows.reduce((sum, row) => sum + row.value, 0);
 
@@ -112,11 +127,16 @@ function AreaTrendCard({ title, rows, valueType = 'count', featured = false }: {
                 <stop offset="100%" stopColor="#2563eb" stopOpacity="0.04" />
               </linearGradient>
             </defs>
-            <line x1={paddingX} x2={width - paddingX} y1={height - paddingY} y2={height - paddingY} className="area-axis" />
-            <line x1={paddingX} x2={paddingX} y1={paddingY} y2={height - paddingY} className="area-axis" />
+            <line x1={paddingX} x2={width - paddingX} y1={baselineY} y2={baselineY} className="area-axis" />
+            <line x1={paddingX} x2={paddingX} y1={paddingTop} y2={baselineY} className="area-axis" />
+            {[0.25, 0.5, 0.75].map((ratio) => <line key={`${title}-grid-${ratio}`} x1={paddingX} x2={width - paddingX} y1={paddingTop + chartHeight * ratio} y2={paddingTop + chartHeight * ratio} className="area-grid-line" />)}
             <polygon points={areaPoints} fill={`url(#${title.replace(/\s+/g, '-')}-gradient)`} />
             <polyline points={linePoints} className="area-line" />
-            {points.map((point, index) => <circle key={`${title}-${index}`} cx={point.x} cy={point.y} r={featured ? 4 : 3} className="area-dot"><title>{`${point.row.label}: ${format(point.row.value)}`}</title></circle>)}
+            {ticks.map((tick) => {
+              const x = paddingX + (visibleRows.length === 1 ? chartWidth / 2 : (tick.index * chartWidth) / (visibleRows.length - 1));
+              return <g key={`${title}-tick-${tick.index}`}><line x1={x} x2={x} y1={baselineY} y2={baselineY + 5} className="area-tick-line" /><text x={x} y={baselineY + 19} className="area-tick-label">{tick.label}</text></g>;
+            })}
+            {points.map((point, index) => <circle key={`${title}-${index}`} cx={point.x} cy={point.y} r={featured ? 4 : 3} className="area-dot"><title>{`${point.row.fullLabel || point.row.label}: ${format(point.row.value)}`}</title></circle>)}
           </svg>
           <div className="area-chart-footer">
             <span>{visibleRows[0]?.label}</span>
@@ -167,33 +187,34 @@ function DetailTable({ title, rows, type }: { title: string; rows: any[]; type: 
   };
 
   return (
-    <section className="card ranking-card detail-table-card">
-      <div className="detail-table-header">
-        <div>
-          <h3>{title}</h3>
-          <p>Thông tin chi tiết theo top 10, sắp xếp theo hiệu suất.</p>
+    <section className="card ranking-card detail-list-card">
+      <div className="detail-list-header">
+        <h3>{title}</h3>
+        <span>Top {visibleRows.length}</span>
+      </div>
+      {visibleRows.length === 0 ? <ChartEmptyState /> : (
+        <div className="detail-ranking-list">
+          {visibleRows.map((row, index) => {
+            const rankTone = index === 0 ? 'gold' : index === 1 ? 'silver' : index === 2 ? 'bronze' : '';
+            const name = getName(row);
+            return (
+              <article className="detail-ranking-row" key={`${title}-${index}`}>
+                <div className="detail-rank-name">
+                  <span className={`rank-badge ${rankTone}`}>#{index + 1}</span>
+                  <div title={name}>
+                    <strong>{name}</strong>
+                    <small>{getSubtitle(row)}</small>
+                  </div>
+                </div>
+                <div className="detail-row-metrics">
+                  <strong>{formatCompactCurrencyVnd(row.revenue)}</strong>
+                  <small>{formatNumber(row.contract_count ?? row.lead_count)} HĐ/Lead</small>
+                </div>
+              </article>
+            );
+          })}
         </div>
-        <span className="detail-table-badge">Top {Math.min(visibleRows.length || 10, 10)}</span>
-      </div>
-      <div className="table-scroll-wrapper">
-        <table className="detail-table-modern">
-          <thead><tr><th>Hạng</th><th>Tên</th><th>Doanh số</th><th>Hợp đồng/Lead</th></tr></thead>
-          <tbody>
-            {visibleRows.length === 0 ? <tr><td colSpan={4}>{EMPTY_TEXT}</td></tr> : visibleRows.map((row, index) => {
-              const rankTone = index === 0 ? 'gold' : index === 1 ? 'silver' : index === 2 ? 'bronze' : '';
-              const name = getName(row);
-              return (
-                <tr key={`${title}-${index}`}>
-                  <td><span className={`rank-badge ${rankTone}`}>#{index + 1}</span></td>
-                  <td className="detail-name-cell" title={name}><strong>{name}</strong><small>{getSubtitle(row)}</small></td>
-                  <td className="numeric-cell">{formatCurrencyVnd(row.revenue)}</td>
-                  <td className="numeric-cell">{formatNumber(row.contract_count ?? row.lead_count)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      )}
     </section>
   );
 }
@@ -236,33 +257,33 @@ export function BossDashboard() {
       title: 'Doanh số & dòng tiền',
       tone: 'cash',
       cards: [
-        ['₫', 'Doanh số', formatCompactCurrencyVnd(data.summary.revenue_total), formatCurrencyTooltip(data.summary.revenue_total)],
-        ['↓', 'Tiền khách đã thu', formatCompactCurrencyVnd(data.summary.customer_paid_total), formatCurrencyTooltip(data.summary.customer_paid_total)],
-        ['!', 'Công nợ khách còn phải thu', formatCompactCurrencyVnd(data.summary.customer_outstanding_total), formatCurrencyTooltip(data.summary.customer_outstanding_total)],
-        ['Ø', 'Giá trị HĐ trung bình', formatCompactCurrencyVnd(data.summary.avg_contract_value), formatCurrencyTooltip(data.summary.avg_contract_value)],
-        ['↗', 'Lợi nhuận gộp tạm tính', formatCompactCurrencyVnd(data.summary.gross_profit_received_estimate), 'Tạm tính = HH công ty đã thu - HH sale đã chi - chi phí quảng cáo'],
+        ['DS', 'Doanh số', formatCompactCurrencyVnd(data.summary.revenue_total), 'Theo hợp đồng hợp lệ'],
+        ['TH', 'Tiền khách đã thu', formatCompactCurrencyVnd(data.summary.customer_paid_total), 'Từ phiếu thu đã xác nhận'],
+        ['CN', 'Công nợ khách còn phải thu', formatCompactCurrencyVnd(data.summary.customer_outstanding_total), 'Doanh số - tiền đã thu'],
+        ['TB', 'Giá trị HĐ trung bình', formatCompactCurrencyVnd(data.summary.avg_contract_value), 'Doanh số / số hợp đồng'],
+        ['LN', 'Lợi nhuận gộp tạm tính', formatCompactCurrencyVnd(data.summary.gross_profit_received_estimate), 'HH công ty đã thu - HH sale đã chi - ads'],
       ],
     },
     {
       title: 'Hoa hồng & chi phí',
       tone: 'commission',
       cards: [
-        ['◆', 'HH công ty phải thu', formatCompactCurrencyVnd(data.summary.company_commission_receivable_total), formatCurrencyTooltip(data.summary.company_commission_receivable_total)],
-        ['◆', 'HH công ty đã thu', formatCompactCurrencyVnd(data.summary.company_commission_received_total), formatCurrencyTooltip(data.summary.company_commission_received_total)],
-        ['◆', 'HH công ty còn phải thu', formatCompactCurrencyVnd(data.summary.company_commission_outstanding_total), formatCurrencyTooltip(data.summary.company_commission_outstanding_total)],
-        ['◈', 'HH sale phải chi', formatCompactCurrencyVnd(data.summary.sales_commission_approved_total), formatCurrencyTooltip(data.summary.sales_commission_approved_total)],
-        ['◈', 'HH sale đã chi', formatCompactCurrencyVnd(data.summary.sales_commission_paid_total), formatCurrencyTooltip(data.summary.sales_commission_paid_total)],
-        ['◈', 'HH sale còn phải chi', formatCompactCurrencyVnd(data.summary.sales_commission_outstanding_total), formatCurrencyTooltip(data.summary.sales_commission_outstanding_total)],
-        ['Ads', 'Chi phí quảng cáo', formatCompactCurrencyVnd(data.summary.ads_cost_total), formatCurrencyTooltip(data.summary.ads_cost_total)],
-        ['ROI', 'ROI doanh thu/ads', formatPercent(data.summary.roi_ratio)],
-        ['%', 'Tỷ lệ thu HH công ty', formatPercent(data.summary.company_commission_collection_rate)],
-        ['%', 'Tỷ lệ chi HH sale', formatPercent(data.summary.sales_commission_payment_rate)],
+        ['CT', 'HH công ty phải thu', formatCompactCurrencyVnd(data.summary.company_commission_receivable_total), 'Theo receivable đã xác nhận'],
+        ['ĐT', 'HH công ty đã thu', formatCompactCurrencyVnd(data.summary.company_commission_received_total), 'Số tiền đã ghi nhận thu'],
+        ['PT', 'HH công ty còn phải thu', formatCompactCurrencyVnd(data.summary.company_commission_outstanding_total), 'Phải thu - đã thu'],
+        ['PC', 'HH sale phải chi', formatCompactCurrencyVnd(data.summary.sales_commission_approved_total), 'Hoa hồng đã duyệt'],
+        ['ĐC', 'HH sale đã chi', formatCompactCurrencyVnd(data.summary.sales_commission_paid_total), 'Theo phiếu chi/xác nhận đã chi'],
+        ['CC', 'HH sale còn phải chi', formatCompactCurrencyVnd(data.summary.sales_commission_outstanding_total), 'Phải chi - đã chi'],
+        ['AD', 'Chi phí quảng cáo', formatCompactCurrencyVnd(data.summary.ads_cost_total), 'Theo ads cost trong kỳ'],
+        ['ROI', 'ROI doanh thu/ads', formatPercent(data.summary.roi_ratio), 'Doanh số / chi phí ads'],
+        ['%', 'Tỷ lệ thu HH công ty', formatPercent(data.summary.company_commission_collection_rate), 'Đã thu / phải thu'],
+        ['%', 'Tỷ lệ chi HH sale', formatPercent(data.summary.sales_commission_payment_rate), 'Đã chi / phải chi'],
       ],
     },
   ] : [], [data]);
 
-  const leadRows: ChartRow[] = (data?.time_series.leads_by_day ?? []).map((row) => ({ label: row.date.slice(5), value: row.count }));
-  const revenueRows: ChartRow[] = (data?.time_series.revenue_by_day ?? []).map((row) => ({ label: row.date.slice(5), value: row.amount }));
+  const leadRows: ChartRow[] = (data?.time_series.leads_by_day ?? []).map((row) => ({ label: formatDateLabel(row.date), fullLabel: row.date, value: row.count }));
+  const revenueRows: ChartRow[] = (data?.time_series.revenue_by_day ?? []).map((row) => ({ label: formatDateLabel(row.date), fullLabel: row.date, value: row.amount }));
   const sourceRows: ChartRow[] = (data?.breakdowns.lead_by_source ?? []).map((row) => ({ label: safeLabel(row.source, 'Chưa xác định'), value: row.count }));
   const topSourceRows: ChartRow[] = (data?.rankings.top_sources ?? []).map((row) => ({ label: safeLabel(row.source, 'Chưa xác định'), value: row.lead_count ?? 0, meta: `${formatNumber(row.contract_count ?? 0)} hợp đồng` }));
   const sale7Rows: ChartRow[] = (data?.rankings.top_sales_7_days ?? []).map((row) => ({ label: safeLabel(row.sale_name, 'Chưa có sale'), value: row.revenue ?? 0, meta: `${safeLabel(row.team_name, 'Chưa có team')} · ${formatNumber(row.contract_count)} hợp đồng` }));

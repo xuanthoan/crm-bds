@@ -20,3 +20,8 @@
 - Boss Dashboard tiếp tục giữ nguyên route `GET /api/v1/dashboard/boss`, permission `dashboard.boss.view`, revenue attribution theo hợp đồng/deal owner và các KPI tài chính Sprint 32.1.
 - UI được polish bằng KPI card có icon badge/subtitle/accent, trend chart lớn hơn, funnel hình thang đúng chiều và bảng chi tiết top 10 hiện đại hơn.
 - Time series `last_7_days`/`last_30_days` được kỳ vọng trả đủ ngày trong khoảng; frontend không downsample preset 30 ngày xuống dưới 30 điểm.
+
+## Sprint 32.3 — Boss Dashboard Detail Rollback, Chart Axis Labels & KPI Cleanup
+- Bảng chi tiết dashboard được đổi sang ranking list gọn với 3 vùng thông tin trong một hàng, dùng compact currency và không cần kéo ngang trong card.
+- Trend charts giữ đủ 7/30 điểm nhưng bổ sung tick labels `dd/MM`, luôn có ngày đầu/cuối và thêm các mốc giữa để boss đọc được thời gian.
+- KPI card bỏ subtitle lặp số tiền; subtitle chỉ còn mô tả nguồn/công thức nghiệp vụ. Revenue attribution và financial formulas không đổi.

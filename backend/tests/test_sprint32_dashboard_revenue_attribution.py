@@ -128,7 +128,7 @@ class Sprint32DashboardRevenueAttributionSourceTests(unittest.TestCase):
         self.assertIn("kpi-commission", page + css)
         self.assertIn("dashboard-area-chart", page + css)
         self.assertIn("dashboard-hbar-chart", page + css)
-        self.assertIn("table-scroll-wrapper", page + css)
+        self.assertIn("detail-ranking-list", page + css)
         self.assertIn("Chưa có phòng ban", page)
         self.assertNotIn("lead đầu tiên", page.lower())
         self.assertNotIn("lead_new_count</", page)
@@ -164,7 +164,7 @@ class Sprint32DashboardRevenueAttributionSourceTests(unittest.TestCase):
             self.assertIn(snippet, service)
         self.assertIn("clip-path: polygon(0 0, 100% 0, 92% 100%, 8% 100%)", css)
         self.assertNotIn("clip-path: polygon(7% 0, 93% 0, 100% 100%, 0 100%)", css)
-        for snippet in ("detail-table-header", "detail-table-badge", "detail-table-modern", "rank-badge", "gold", "silver", "bronze"):
+        for snippet in ("detail-list-header", "detail-ranking-list", "detail-ranking-row", "detail-row-metrics", "rank-badge", "gold", "silver", "bronze"):
             self.assertIn(snippet, page + css)
         for snippet in ("box-shadow: 0 20px 44px", "transform: translateY(-1px)", "linear-gradient(135deg", "kpi-icon"):
             self.assertIn(snippet, css)
@@ -174,9 +174,34 @@ class Sprint32DashboardRevenueAttributionSourceTests(unittest.TestCase):
         for snippet in ("Sprint 32.2", "30-day trend charts", "hình thang đúng chiều", "Modern KPI cards"):
             self.assertIn(snippet, docs)
 
+    def test_sprint32_3_dashboard_ui_cleanup_contract(self):
+        page = self.f("features/dashboard/BossDashboard.tsx")
+        css = self.f("styles.css")
+        docs = self.d("BUSINESS_RULES.md") + self.d("PROJECT_HANDOFF.md") + self.d("DEVELOPMENT_ROADMAP.md")
+        for snippet in ("getXAxisTicks", "formatDateLabel", "area-tick-label", "area-tick-line", "fullLabel", "tick.label"):
+            self.assertIn(snippet, page + css)
+        self.assertIn("rows.length <= 10", page)
+        self.assertIn("rows.length <= 30", page)
+        self.assertIn("index === 0 || index === rows.length - 1", page)
+        self.assertIn("grid-template-columns: 1fr", css.split("/* Sprint 32.3 cleanup", 1)[1])
+        self.assertIn("dashboard-area-card.featured", css)
+        for subtitle in ("Theo hợp đồng hợp lệ", "Từ phiếu thu đã xác nhận", "Doanh số - tiền đã thu", "Đã thu / phải thu", "Đã chi / phải chi"):
+            self.assertIn(subtitle, page)
+        self.assertNotIn("formatCurrencyTooltip(data.summary.customer_paid_total)", page)
+        self.assertNotIn("formatCurrencyTooltip(data.summary.customer_outstanding_total)", page)
+        self.assertNotIn("formatCurrencyTooltip(data.summary.sales_commission_paid_total)", page)
+        self.assertIn("detail-list-card", page + css)
+        self.assertIn("detail-ranking-list", page + css)
+        self.assertIn("grid-template-columns: minmax(0, 1fr) auto", css)
+        self.assertIn("formatCompactCurrencyVnd(row.revenue)", page)
+        self.assertNotIn("table-scroll-wrapper", page)
+        self.assertIn("clip-path: polygon(0 0, 100% 0, 92% 100%, 8% 100%)", css)
+        self.assertNotIn("width: 100vw", css.split(".dashboard-page", 1)[1])
+        self.assertIn("Sprint 32.3", docs)
+
     def test_docs_capture_sprint32_rules_and_non_scope(self):
         docs = self.d("BUSINESS_RULES.md") + self.d("PROJECT_HANDOFF.md") + self.d("DEVELOPMENT_ROADMAP.md")
-        for snippet in ("Sprint 32", "Dashboard Foundation", "dashboard.boss.view", "GET /api/v1/dashboard/boss", "today", "last_7_days", "last_30_days", "this_month", "last_month", "custom", "không theo first_touch", "không theo người upload lead đầu tiên", "Duplicate re-engagement không tính là lead mới", "export Excel/PDF", "realtime", "multi-touch", "Sprint 32.1", "customer_outstanding_total", "gross_profit_received_estimate", "Sprint 32.2"):
+        for snippet in ("Sprint 32", "Dashboard Foundation", "dashboard.boss.view", "GET /api/v1/dashboard/boss", "today", "last_7_days", "last_30_days", "this_month", "last_month", "custom", "không theo first_touch", "không theo người upload lead đầu tiên", "Duplicate re-engagement không tính là lead mới", "export Excel/PDF", "realtime", "multi-touch", "Sprint 32.1", "customer_outstanding_total", "gross_profit_received_estimate", "Sprint 32.2", "Sprint 32.3"):
             self.assertIn(snippet, docs)
 
 

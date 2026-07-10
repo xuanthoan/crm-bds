@@ -367,3 +367,8 @@ UI Sprint 32.1 chia KPI thành nhóm tinted cards, phóng to chart xu hướng, 
 - Biểu đồ xu hướng phải giữ đủ điểm dữ liệu cho preset `last_7_days` và `last_30_days`; ngày không phát sinh dữ liệu vẫn hiển thị 0 để tránh hiểu nhầm xu hướng.
 - Funnel dashboard dùng hình thang đúng chiều: tầng trên rộng hơn tầng dưới, thu hẹp dần từ Lead/Booking xuống Customer/Hợp đồng.
 - Bảng chi tiết top sale/team/project/source chỉ là lớp phụ trợ, hiển thị tối đa top 10 với rank badge và không tạo scroll ngang toàn trang.
+
+### Sprint 32.3 — Boss Dashboard Detail Rollback, Chart Axis Labels & KPI Cleanup
+- Sprint 32.3 chỉ sửa UI/layout/display: bảng chi tiết chuyển sang danh sách gọn không cần kéo ngang, chart xu hướng có nhãn trục thời gian `dd/MM`, và Lead mới theo ngày hiển thị full width trong section Xu hướng.
+- KPI subtitle không được lặp lại số tiền chính; chỉ hiển thị mô tả nghiệp vụ có ích như “Theo hợp đồng hợp lệ”, “Doanh số - tiền đã thu”, “Đã thu / phải thu”.
+- Funnel giữ hình thang đúng chiều, top 10 ranking giữ nguyên và không đổi revenue attribution/financial KPI formulas Sprint 32.1.

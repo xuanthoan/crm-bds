@@ -17,3 +17,7 @@ Hoàn thành nền tảng dashboard giám đốc v1 thay vì rewrite toàn bộ 
 ## Sprint 32.2 — Boss Dashboard visual polish
 - Hoàn thiện trải nghiệm Boss Dashboard: modern KPI cards, 30-day trend charts, corrected trapezoid funnel geometry, modern detail tables/ranking details.
 - Không thay đổi phạm vi Sprint 32: không realtime dashboard, không export Excel/PDF, không multi-touch attribution, không đổi revenue attribution khỏi hợp đồng/deal owner.
+
+## Sprint 32.3 — Boss Dashboard detail rollback and chart labels
+- Sửa UX sau feedback: no-scroll detail ranking lists, chart x-axis labels, full-width Lead trend chart và KPI subtitle cleanup.
+- Không thêm dependency chart mới, không đổi API dashboard và không đổi revenue attribution/financial KPI formulas.
