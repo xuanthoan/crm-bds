@@ -21,6 +21,14 @@ const safeLabel = (value: unknown, fallback: string) => (typeof value === 'strin
 
 type ChartRow = { label: string; value: number; meta?: string };
 
+function normalizeDailySeries(rows: ChartRow[], maxPoints = 30) {
+  if (rows.length <= maxPoints) return rows;
+  const step = Math.ceil(rows.length / maxPoints);
+  const sampled = rows.filter((_, index) => index % step === 0).slice(0, maxPoints - 1);
+  const last = rows[rows.length - 1];
+  return sampled[sampled.length - 1]?.label === last.label ? sampled : [...sampled, last];
+}
+
 type BarChartProps = {
   title: string;
   rows: ChartRow[];
@@ -70,7 +78,7 @@ function BarChartCard({ title, rows, valueType = 'count', horizontal = false }: 
 
 
 function AreaTrendCard({ title, rows, valueType = 'count', featured = false }: { title: string; rows: ChartRow[]; valueType?: 'count' | 'money'; featured?: boolean }) {
-  const visibleRows = rows.filter((row) => row.value > 0 || rows.length <= 45).slice(-45);
+  const visibleRows = normalizeDailySeries(rows, 30);
   const max = Math.max(1, ...visibleRows.map((row) => row.value));
   const format = valueType === 'money' ? formatCurrencyVnd : formatNumber;
   const width = 640;
@@ -148,20 +156,41 @@ function TrapezoidFunnel({ title, steps, conversionLabel, conversionRate }: { ti
 }
 
 function DetailTable({ title, rows, type }: { title: string; rows: any[]; type: 'sale' | 'team' | 'project' | 'source' }) {
+  const visibleRows = rows.slice(0, 10);
+  const fallback = type === 'project' ? 'Chưa có dự án' : type === 'sale' ? 'Chưa có sale' : type === 'team' ? 'Chưa có team' : 'Chưa xác định';
+  const getName = (row: any) => safeLabel(row.sale_name || row.team_name || row.project_name || row.source, fallback);
+  const getSubtitle = (row: any) => {
+    if (type === 'sale') return safeLabel(row.team_name, 'Chưa có team');
+    if (type === 'team') return safeLabel(row.department_name, 'Chưa có phòng ban');
+    if (type === 'project') return `${formatNumber(row.contract_count)} hợp đồng`;
+    return `${formatNumber(row.lead_count)} lead · ${formatNumber(row.contract_count ?? 0)} hợp đồng`;
+  };
+
   return (
-    <section className="card ranking-card">
-      <h3>{title}</h3>
+    <section className="card ranking-card detail-table-card">
+      <div className="detail-table-header">
+        <div>
+          <h3>{title}</h3>
+          <p>Thông tin chi tiết theo top 10, sắp xếp theo hiệu suất.</p>
+        </div>
+        <span className="detail-table-badge">Top {Math.min(visibleRows.length || 10, 10)}</span>
+      </div>
       <div className="table-scroll-wrapper">
-        <table>
-          <thead><tr><th>Tên</th><th>Doanh số</th><th>Hợp đồng/Lead</th></tr></thead>
+        <table className="detail-table-modern">
+          <thead><tr><th>Hạng</th><th>Tên</th><th>Doanh số</th><th>Hợp đồng/Lead</th></tr></thead>
           <tbody>
-            {rows.length === 0 ? <tr><td colSpan={3}>{EMPTY_TEXT}</td></tr> : rows.slice(0, 10).map((row, index) => (
-              <tr key={`${title}-${index}`}>
-                <td>{safeLabel(row.sale_name || row.team_name || row.project_name || row.source, type === 'project' ? 'Chưa có dự án' : type === 'sale' ? 'Chưa có sale' : type === 'team' ? 'Chưa có team' : 'Chưa xác định')}{row.team_name && type === 'sale' ? <small>{safeLabel(row.team_name, 'Chưa có team')}</small> : null}</td>
-                <td>{formatCurrencyVnd(row.revenue)}</td>
-                <td>{formatNumber(row.contract_count ?? row.lead_count)}</td>
-              </tr>
-            ))}
+            {visibleRows.length === 0 ? <tr><td colSpan={4}>{EMPTY_TEXT}</td></tr> : visibleRows.map((row, index) => {
+              const rankTone = index === 0 ? 'gold' : index === 1 ? 'silver' : index === 2 ? 'bronze' : '';
+              const name = getName(row);
+              return (
+                <tr key={`${title}-${index}`}>
+                  <td><span className={`rank-badge ${rankTone}`}>#{index + 1}</span></td>
+                  <td className="detail-name-cell" title={name}><strong>{name}</strong><small>{getSubtitle(row)}</small></td>
+                  <td className="numeric-cell">{formatCurrencyVnd(row.revenue)}</td>
+                  <td className="numeric-cell">{formatNumber(row.contract_count ?? row.lead_count)}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

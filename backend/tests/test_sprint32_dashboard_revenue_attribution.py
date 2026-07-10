@@ -152,9 +152,31 @@ class Sprint32DashboardRevenueAttributionSourceTests(unittest.TestCase):
         self.assertNotIn("min-width: 1200px", dashboard_css)
         self.assertNotIn("grid-template-columns: repeat(6, 1fr)", dashboard_css)
 
+
+    def test_sprint32_2_visual_polish_and_30_day_chart_contract(self):
+        page = self.f("features/dashboard/BossDashboard.tsx")
+        css = self.f("styles.css")
+        service = self.b("app/services/dashboard_service.py")
+        docs = self.d("BUSINESS_RULES.md") + self.d("PROJECT_HANDOFF.md") + self.d("DEVELOPMENT_ROADMAP.md")
+        for snippet in ("normalizeDailySeries", "if (rows.length <= maxPoints) return rows", "const visibleRows = normalizeDailySeries(rows, 30)"):
+            self.assertIn(snippet, page)
+        for snippet in ("today - timedelta(days=6)", "today - timedelta(days=29)", "day_map = {d:", "revenue_day = {d:", "for d in _dates(start, end)"):
+            self.assertIn(snippet, service)
+        self.assertIn("clip-path: polygon(0 0, 100% 0, 92% 100%, 8% 100%)", css)
+        self.assertNotIn("clip-path: polygon(7% 0, 93% 0, 100% 100%, 0 100%)", css)
+        for snippet in ("detail-table-header", "detail-table-badge", "detail-table-modern", "rank-badge", "gold", "silver", "bronze"):
+            self.assertIn(snippet, page + css)
+        for snippet in ("box-shadow: 0 20px 44px", "transform: translateY(-1px)", "linear-gradient(135deg", "kpi-icon"):
+            self.assertIn(snippet, css)
+        self.assertIn("rows.slice(0, 10)", page)
+        self.assertIn("overflow-x: auto", css)
+        self.assertNotIn("width: 100vw", css.split(".dashboard-page", 1)[1])
+        for snippet in ("Sprint 32.2", "30-day trend charts", "hình thang đúng chiều", "Modern KPI cards"):
+            self.assertIn(snippet, docs)
+
     def test_docs_capture_sprint32_rules_and_non_scope(self):
         docs = self.d("BUSINESS_RULES.md") + self.d("PROJECT_HANDOFF.md") + self.d("DEVELOPMENT_ROADMAP.md")
-        for snippet in ("Sprint 32", "Dashboard Foundation", "dashboard.boss.view", "GET /api/v1/dashboard/boss", "today", "last_7_days", "last_30_days", "this_month", "last_month", "custom", "không theo first_touch", "không theo người upload lead đầu tiên", "Duplicate re-engagement không tính là lead mới", "export Excel/PDF", "realtime", "multi-touch", "Sprint 32.1", "customer_outstanding_total", "gross_profit_received_estimate"):
+        for snippet in ("Sprint 32", "Dashboard Foundation", "dashboard.boss.view", "GET /api/v1/dashboard/boss", "today", "last_7_days", "last_30_days", "this_month", "last_month", "custom", "không theo first_touch", "không theo người upload lead đầu tiên", "Duplicate re-engagement không tính là lead mới", "export Excel/PDF", "realtime", "multi-touch", "Sprint 32.1", "customer_outstanding_total", "gross_profit_received_estimate", "Sprint 32.2"):
             self.assertIn(snippet, docs)
 
 

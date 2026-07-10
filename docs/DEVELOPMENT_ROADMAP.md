@@ -13,3 +13,7 @@ Hoàn thành nền tảng dashboard giám đốc v1 thay vì rewrite toàn bộ 
 - Bổ sung financial KPIs cho boss dashboard: customer paid/outstanding, company commission received/outstanding, sales commission paid/outstanding, gross profit estimates, collection/payment rates và avg contract value.
 - UI nâng cấp thành grouped/tinted KPI cards, enlarged trend charts, trapezoid funnel và top 10 rankings.
 - Không đổi scope Sprint 32: không export, không realtime, không dashboard toàn bộ role và không đổi rule attribution không theo first_touch.
+
+## Sprint 32.2 — Boss Dashboard visual polish
+- Hoàn thiện trải nghiệm Boss Dashboard: modern KPI cards, 30-day trend charts, corrected trapezoid funnel geometry, modern detail tables/ranking details.
+- Không thay đổi phạm vi Sprint 32: không realtime dashboard, không export Excel/PDF, không multi-touch attribution, không đổi revenue attribution khỏi hợp đồng/deal owner.

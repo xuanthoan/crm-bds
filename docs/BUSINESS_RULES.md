@@ -361,3 +361,9 @@ Financial KPI bổ sung:
 - `sales_commission_payment_rate`: `sales_commission_paid_total / sales_commission_approved_total`, null nếu mẫu số bằng 0.
 
 UI Sprint 32.1 chia KPI thành nhóm tinted cards, phóng to chart xu hướng, đổi funnel thành dạng hình thang/tầng, và giữ top 10 rankings. Sprint này vẫn chưa làm export Excel/PDF, realtime dashboard hoặc dashboard cho toàn bộ role.
+
+### Sprint 32.2 — Boss Dashboard Visual Polish
+- Sprint 32.2 chỉ polish UI dashboard: Modern KPI cards / KPI card hiện đại hơn với icon badge, subtitle, accent/tinted background; không đổi công thức revenue attribution hoặc financial KPI Sprint 32.1.
+- Biểu đồ xu hướng phải giữ đủ điểm dữ liệu cho preset `last_7_days` và `last_30_days`; ngày không phát sinh dữ liệu vẫn hiển thị 0 để tránh hiểu nhầm xu hướng.
+- Funnel dashboard dùng hình thang đúng chiều: tầng trên rộng hơn tầng dưới, thu hẹp dần từ Lead/Booking xuống Customer/Hợp đồng.
+- Bảng chi tiết top sale/team/project/source chỉ là lớp phụ trợ, hiển thị tối đa top 10 với rank badge và không tạo scroll ngang toàn trang.
