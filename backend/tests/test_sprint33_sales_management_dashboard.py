@@ -50,7 +50,7 @@ class Sprint33SalesManagementDashboardSourceTest(unittest.TestCase):
         self.assertIn('/api/v1/dashboard/sales-management', api)
         for label in ['Tổng quan quản lý sale','Tổng quan team','Cảnh báo cần xử lý','Pipeline & doanh số','Xu hướng','Funnel chuyển đổi','Hiệu suất sale','Nguồn & dự án','Danh sách cần xử lý']:
             self.assertIn(label, page)
-        for label in ['Sale trong phạm vi','Lead mới','Lead đã phân công','Lead chưa phân công','Lead quá hạn','Lead chưa có hoạt động','Khách lâu chưa tương tác','Công việc hôm nay','Công việc quá hạn','Lịch hẹn hôm nay','Booking','Khách đã cọc','Deal','Hợp đồng ký','Doanh số','HH sale còn phải chi']:
+        for label in ['Sale trong phạm vi','Lead mới','Lead đã phân công','Lead quá hạn chăm sóc','Lead chưa có hoạt động','Khách lâu chưa tương tác','Công việc hôm nay','Công việc quá hạn','Lịch hẹn hôm nay','Booking','Khách đã cọc','Deal','Hợp đồng ký','Doanh số','HH sale còn phải chi']:
             self.assertIn(label, page)
         self.assertIn('HelpLabel', page)
         self.assertNotIn('first_touch', page)

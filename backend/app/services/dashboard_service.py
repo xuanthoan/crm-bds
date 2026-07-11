@@ -161,7 +161,7 @@ def get_boss_dashboard(db: Session, preset: str | None = None, from_date: date |
 
 SALES_MANAGEMENT_PERMISSIONS = {"dashboard.sales_manager.view", "dashboard.leader.view", "dashboard.team.view", "dashboard.sales.view.all"}
 STALE_LEAD_DAYS = 7
-CLOSED_LEAD_STATUSES = {"lost", "closed", "cancelled", "converted"}
+CLOSED_LEAD_STATUSES = {"converted", "lost"}  # aligned with lead_service.list_overdue_leads
 
 
 def _role_codes(user):
@@ -238,6 +238,30 @@ def _appt_alert(appt):
 def _top_users(rows, key): return sorted(rows.values(), key=lambda x: x.get(key, 0), reverse=True)[:10]
 
 
+def _resolve_sales_management_project(db: Session, contract: Contract, deal: Deal | None) -> tuple[str, str | None, str, str]:
+    """Resolve project for top_projects_by_revenue without changing revenue attribution.
+
+    Fallback order follows Sprint 33.2 business rule and only uses fields that exist in
+    the current schema: contract.project_id, deal.project_id, booking/property unit
+    project_id, then lead project_interest as a named bucket.
+    """
+    project_id = contract.project_id or (deal.project_id if deal else None)
+    source = "contract.project_id" if contract.project_id else "deal.project_id" if project_id else "unknown"
+    if not project_id and contract.booking and contract.booking.property_unit and contract.booking.property_unit.project_id:
+        project_id = contract.booking.property_unit.project_id; source = "booking.property_unit.project_id"
+    if not project_id and contract.property_unit and contract.property_unit.project_id:
+        project_id = contract.property_unit.project_id; source = "contract.property_unit.project_id"
+    if not project_id and deal and deal.property_unit and deal.property_unit.project_id:
+        project_id = deal.property_unit.project_id; source = "deal.property_unit.project_id"
+    if project_id:
+        project = db.get(Project, project_id)
+        return str(project_id), str(project_id), project.name if project else "Chưa có dự án", source
+    lead_project = (deal.source_lead.project_interest if deal and deal.source_lead else None) or (deal.project_name if deal else None)
+    if lead_project:
+        return f"lead_project:{lead_project}", None, lead_project, "lead.project_interest"
+    return "unknown", None, "Chưa có dự án", "unknown"
+
+
 def get_sales_management_dashboard(db: Session, user: User, preset: str | None = None, start_date: date | str | None = None, end_date: date | str | None = None, scope_type: str | None = "auto", team_id=None, department_id=None) -> dict:
     r = resolve_dashboard_date_range(preset or "last_7_days", start_date, end_date); start, end = r["_start"], r["_end"]; today_start, today_end = _bounds(); stamp = now(); stale_before = stamp - timedelta(days=STALE_LEAD_DAYS)
     scope = resolve_sales_management_scope(db, user, scope_type, team_id, department_id); ids = scope["user_ids"] or {user.id}
@@ -272,7 +296,10 @@ def get_sales_management_dashboard(db: Session, user: User, preset: str | None =
     projects = {}; sources = {}
     for c, d, u in contract_rows:
         b = sales.setdefault(str(u.id), {"sale_id": str(u.id), "sale_name": u.full_name, "revenue": 0, "contract_count": 0, "activity_count": 0, "overdue_lead_count": 0}); b["revenue"] += _money(c.contract_value); b["contract_count"] += 1
-        p = db.get(Project, c.project_id or d.project_id) if (c.project_id or d.project_id) else None; pk = str(c.project_id or d.project_id or "unknown"); pb = projects.setdefault(pk, {"project_id": None if pk == "unknown" else pk, "project_name": p.name if p else "Chưa có dự án", "revenue": 0, "contract_count": 0}); pb["revenue"] += _money(c.contract_value); pb["contract_count"] += 1
+        project_key, project_id, project_name, project_source = _resolve_sales_management_project(db, c, d)
+        pb = projects.setdefault(project_key, {"project_id": project_id, "id": project_id, "project_name": project_name, "name": project_name, "project_source": project_source, "revenue": 0, "contract_count": 0, "lead_count": 0})
+        pb["revenue"] += _money(c.contract_value); pb["contract_count"] += 1
+        if d.source_lead_id: pb["lead_count"] += 1
     for uid, cnt in db.execute(select(LeadActivity.user_id, func.count()).where(LeadActivity.user_id.in_(ids), LeadActivity.created_at >= start, LeadActivity.created_at < end).group_by(LeadActivity.user_id)): sales.setdefault(str(uid), {"sale_id": str(uid), "sale_name": "Chưa xác định", "revenue": 0, "contract_count": 0, "activity_count": 0, "overdue_lead_count": 0})["activity_count"] = cnt
     for uid, cnt in db.execute(select(Lead.owner_id, func.count()).where(*lead_base, Lead.next_follow_up_at.is_not(None), Lead.next_follow_up_at < stamp).group_by(Lead.owner_id)):
         if uid: sales.setdefault(str(uid), {"sale_id": str(uid), "sale_name": "Chưa xác định", "revenue": 0, "contract_count": 0, "activity_count": 0, "overdue_lead_count": 0})["overdue_lead_count"] = cnt

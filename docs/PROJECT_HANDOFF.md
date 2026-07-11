@@ -42,3 +42,8 @@
 - Trang `/dashboard/sales-management` được polish lại để dùng cùng ngôn ngữ UI với Boss Dashboard Sprint 32.4: KPI card có label + `HelpLabel`, area trend chart, trapezoid funnel, ranking row có rank badge và alert list gọn.
 - UI đã Việt hóa scope (`all` → `Toàn bộ`, `team` → nhóm/team, `department` → phòng ban), format ngày giờ alert bằng `Intl.DateTimeFormat('vi-VN')` và giữ link “Mở”.
 - Sprint 33.1 không đổi backend permission/scope, duplicate re-engagement rule hay revenue attribution Sprint 32.
+
+## Sprint 33.2 — Sales Management alert cleanup & project revenue verification
+- Bỏ “Lead chưa phân công” khỏi UI `/dashboard/sales-management`; backend vẫn giữ field tương ứng để không phá client/test cũ.
+- Đổi nhãn/tooltip thành “Lead quá hạn chăm sóc” để làm rõ lead đã đến hạn follow-up nhưng trễ xử lý.
+- Top dự án theo doanh số dùng hợp đồng hợp lệ trong scope Sales Manager/Leader/Admin, group theo project với fallback contract/deal/booking-property/contract-property/deal-property/lead project interest và vẫn theo deal owner, không theo first-touch/uploader.

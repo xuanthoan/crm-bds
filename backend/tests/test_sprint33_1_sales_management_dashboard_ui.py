@@ -10,7 +10,7 @@ class Sprint331SalesManagementDashboardUiSourceTest(unittest.TestCase):
 
     def test_kpi_labels_use_boss_dashboard_help_label_pattern(self):
         page = self.read('frontend/src/features/dashboard/SalesManagementDashboard.tsx')
-        for label in ['Lead mới','Lead đã phân công','Lead chưa phân công','Lead quá hạn','Công việc quá hạn','Booking','Doanh số','HH sale còn phải chi']:
+        for label in ['Lead mới','Lead đã phân công','Lead quá hạn chăm sóc','Công việc quá hạn','Booking','Doanh số','HH sale còn phải chi']:
             self.assertIn(f'label="{label}"', page)
         self.assertIn('<HelpLabel content={help}>{label}</HelpLabel>', page)
         self.assertIn('className={`card summary-card kpi-${tone}`}', page)
