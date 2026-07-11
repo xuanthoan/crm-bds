@@ -331,3 +331,44 @@ Sprint 21 chưa thay đổi công thức hoa hồng sale của Sprint 20 và ch�
 - **Visibility rule:** Sale/user thường xem Customer Profile chung nếu họ có lead/journey thuộc customer đó, nhưng chỉ xem journey trong phạm vi permission hiện tại. Team Leader/Trưởng phòng xem profile và journey thuộc team/phòng mình. Admin/Giám đốc xem toàn bộ journey/team history.
 - **Revenue/commission rule:** Doanh số và hoa hồng tính cho sale/team/phòng chốt hợp đồng có hiệu lực (contract/deal winning owner hoặc owner hiện có của deal/contract). First uploader không mặc định được chia doanh số/hoa hồng nếu không chốt hợp đồng.
 - **Chưa làm trong Sprint 31:** Không làm dashboard lớn, co-sale/chia hoa hồng phức tạp, release policy tự động phức tạp, tách database theo team/phòng hoặc reset/xóa dữ liệu cũ.
+
+## Sprint 32 — Dashboard Foundation & Revenue Attribution Verification
+
+Sprint 32 bổ sung nền tảng Dashboard Foundation cho Boss/Giám đốc và khóa lại quy tắc Revenue Attribution kế thừa Sprint 31.
+
+- API Boss Dashboard v1: `GET /api/v1/dashboard/boss` với quyền `dashboard.boss.view`, `dashboard.view.all` hoặc `reports.view.ceo_dashboard`.
+- Date range presets dùng chung: `today`, `last_7_days`, `last_30_days` (mặc định), `this_month`, `last_month`, `custom`. Khoảng ngày được resolve từ 00:00 ngày bắt đầu đến trước 00:00 ngày kế tiếp của ngày kết thúc để tránh lỗi off-by-one.
+- Metrics v1 gồm lead mới, lead chuyển khách hàng, booking, khách đã cọc, deal, hợp đồng ký, doanh số, hoa hồng công ty, hoa hồng sale, chi phí quảng cáo, ROI, funnel, time series theo ngày, breakdown nguồn/dự án và ranking top sale/team/project/source.
+- Revenue attribution: doanh số tính theo hợp đồng hợp lệ `signed`/`effective`/`active`/`completed`/`won`, lấy giá trị `contracts.contract_value` và sale chốt từ owner của deal/contract hiện có. Doanh số không theo first_touch, không theo người upload lead đầu tiên, không theo lead creator và không tính cho team upload lead nếu team đó không chốt hợp đồng.
+- Commission attribution: hoa hồng sale lấy từ `sales_commissions`; hoa hồng công ty lấy từ `company_commission_receivables`. Cả hai không dùng first_touch lead để phân bổ.
+- Duplicate re-engagement không tính là lead mới vì Sprint 31 không tạo lead row mới khi trùng số điện thoại; dashboard có thể hiển thị `duplicate_reengagement_count` riêng nếu có activity tương ứng.
+- ROI v1 dùng `roi_ratio = revenue_total / ads_cost_total` và `roi_profit_ratio = (revenue_total - ads_cost_total) / ads_cost_total`; nếu ads cost bằng 0 thì trả `null`, không chia cho 0.
+- Chưa làm trong Sprint 32: dashboard trưởng phòng/team leader/kế toán/admin điều phối, export Excel/PDF dashboard, realtime dashboard phức tạp, multi-touch marketing attribution.
+
+### Sprint 32.1 — Boss Dashboard UI/UX Polish & Financial KPIs
+
+Sprint 32.1 mở rộng dashboard giám đốc nhưng không đổi revenue attribution: doanh số vẫn theo hợp đồng hợp lệ và deal/contract owner, không theo `first_touch` hoặc người upload lead đầu tiên; duplicate re-engagement không tính là lead mới.
+
+Financial KPI bổ sung:
+- `customer_paid_total`: tổng phiếu thu khách hàng đã xác nhận/đã thu trong range; nếu không có receipt hợp lệ thì trả 0.
+- `customer_outstanding_total`: `max(revenue_total - customer_paid_total, 0)`.
+- `avg_contract_value`: `revenue_total / contract_signed_count`, trả null nếu không có hợp đồng.
+- `company_commission_outstanding_total`: `max(company_commission_receivable_total - company_commission_received_total, 0)`.
+- `sales_commission_outstanding_total`: `max(sales_commission_approved_total - sales_commission_paid_total, 0)`.
+- `gross_profit_received_estimate`: `company_commission_received_total - sales_commission_paid_total - ads_cost_total`.
+- `gross_profit_receivable_estimate`: `company_commission_receivable_total - sales_commission_approved_total - ads_cost_total`.
+- `company_commission_collection_rate`: `company_commission_received_total / company_commission_receivable_total`, null nếu mẫu số bằng 0.
+- `sales_commission_payment_rate`: `sales_commission_paid_total / sales_commission_approved_total`, null nếu mẫu số bằng 0.
+
+UI Sprint 32.1 chia KPI thành nhóm tinted cards, phóng to chart xu hướng, đổi funnel thành dạng hình thang/tầng, và giữ top 10 rankings. Sprint này vẫn chưa làm export Excel/PDF, realtime dashboard hoặc dashboard cho toàn bộ role.
+
+### Sprint 32.2 — Boss Dashboard Visual Polish
+- Sprint 32.2 chỉ polish UI dashboard: Modern KPI cards / KPI card hiện đại hơn với icon badge, subtitle, accent/tinted background; không đổi công thức revenue attribution hoặc financial KPI Sprint 32.1.
+- Biểu đồ xu hướng phải giữ đủ điểm dữ liệu cho preset `last_7_days` và `last_30_days`; ngày không phát sinh dữ liệu vẫn hiển thị 0 để tránh hiểu nhầm xu hướng.
+- Funnel dashboard dùng hình thang đúng chiều: tầng trên rộng hơn tầng dưới, thu hẹp dần từ Lead/Booking xuống Customer/Hợp đồng.
+- Bảng chi tiết top sale/team/project/source chỉ là lớp phụ trợ, hiển thị tối đa top 10 với rank badge và không tạo scroll ngang toàn trang.
+
+### Sprint 32.3 — Boss Dashboard Detail Rollback, Chart Axis Labels & KPI Cleanup
+- Sprint 32.3 chỉ sửa UI/layout/display: bảng chi tiết chuyển sang danh sách gọn không cần kéo ngang, chart xu hướng có nhãn trục thời gian `dd/MM`, và Lead mới theo ngày hiển thị full width trong section Xu hướng.
+- KPI subtitle không được lặp lại số tiền chính; chỉ hiển thị mô tả nghiệp vụ có ích như “Theo hợp đồng hợp lệ”, “Doanh số - tiền đã thu”, “Đã thu / phải thu”.
+- Funnel giữ hình thang đúng chiều, top 10 ranking giữ nguyên và không đổi revenue attribution/financial KPI formulas Sprint 32.1.

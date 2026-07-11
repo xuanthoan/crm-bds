@@ -19,6 +19,7 @@ import { AppointmentsPage } from '../features/appointments/AppointmentsPage';
 import { TodayAppointmentsPage } from '../features/appointments/TodayAppointmentsPage';
 import { MyWorkDashboard } from '../features/dashboard/MyWorkDashboard';
 import { TeamWorkDashboard } from '../features/dashboard/TeamWorkDashboard';
+import { BossDashboard } from '../features/dashboard/BossDashboard';
 import { AppLayout } from '../layouts/AppLayout';
 import { CustomersPage } from '../features/customers/CustomersPage';
 import { CustomerDetailPage } from '../features/customers/CustomerDetailPage';
@@ -78,6 +79,7 @@ const protectedPages: Record<string, ProtectedPage> = {
   '/dashboard': { element: <MyWorkDashboard />, permission: ['dashboard.view.own', 'dashboard.view.team', 'dashboard.view.all'] },
   '/dashboard/my-work': { element: <MyWorkDashboard />, permission: ['dashboard.view.own', 'dashboard.view.team', 'dashboard.view.all'] },
   '/dashboard/team-work': { element: <TeamWorkDashboard />, permission: ['dashboard.view.team', 'dashboard.view.all'] },
+  '/dashboard/boss': { element: <BossDashboard />, permission: ['dashboard.boss.view', 'dashboard.view.all', 'reports.view.ceo_dashboard'] },
   '/tasks': { element: <TasksPage />, permission: ['tasks.view', 'tasks.view_all'] },
   '/tasks/today': { element: <TodayTasksPage />, permission: ['tasks.view', 'tasks.view_all'] },
   '/tasks/overdue': { element: <OverdueTasksPage />, permission: ['tasks.view', 'tasks.view_all'] },
