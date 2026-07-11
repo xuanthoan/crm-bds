@@ -25,3 +25,8 @@
 - Bảng chi tiết dashboard được đổi sang ranking list gọn với 3 vùng thông tin trong một hàng, dùng compact currency và không cần kéo ngang trong card.
 - Trend charts giữ đủ 7/30 điểm nhưng bổ sung tick labels `dd/MM`, luôn có ngày đầu/cuối và thêm các mốc giữa để boss đọc được thời gian.
 - KPI card bỏ subtitle lặp số tiền; subtitle chỉ còn mô tả nguồn/công thức nghiệp vụ. Revenue attribution và financial formulas không đổi.
+
+## Sprint 32.4 — Boss Dashboard KPI Tooltip, Full 30-day Axis & Final UI Cleanup
+- KPI cards bỏ toàn bộ subtitle dưới số lớn; ý nghĩa KPI chuyển sang dấu `?` dùng `HelpLabel`/`HelpTooltip` cùng style với commissions và reconciliation.
+- Trend charts dùng nhãn trục ngày dạng `dd` cho toàn bộ 7/30 điểm; hover marker vẫn hiển thị ngày đầy đủ hơn.
+- Detail ranking bỏ badge `Top N` ở header, vẫn giữ rank trong từng dòng, top 10 và không scroll ngang. Không đổi revenue attribution, duplicate re-engagement rule hoặc financial formulas.

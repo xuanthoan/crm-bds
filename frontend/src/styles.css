@@ -3394,3 +3394,62 @@ th .help-label {
     text-align: left;
   }
 }
+
+/* Sprint 32.4 cleanup: KPI help tooltips, no KPI subtitles and full day-number axis. */
+.boss-dashboard .summary-card {
+  min-height: 128px;
+  padding: 18px 20px 20px;
+}
+
+.kpi-label-row {
+  align-items: center;
+  color: #475569;
+  display: flex;
+  font-size: 13px;
+  font-weight: 850;
+  gap: 5px;
+  line-height: 1.25;
+  min-height: 34px;
+  min-width: 0;
+}
+
+.kpi-label-row .help-label {
+  align-items: center;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.kpi-label-row .help-label-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kpi-label-row .help-tooltip {
+  margin-left: 0.1rem;
+}
+
+.boss-dashboard .summary-card > span {
+  display: none;
+}
+
+.boss-dashboard .summary-card small {
+  display: none;
+}
+
+.boss-dashboard .summary-card strong {
+  margin-top: 12px;
+}
+
+.area-tick-label {
+  dominant-baseline: hanging;
+  font-size: 10px;
+  letter-spacing: -0.01em;
+}
+
+.detail-list-header {
+  justify-content: flex-start;
+}
+
+.detail-list-header span {
+  display: none;
+}

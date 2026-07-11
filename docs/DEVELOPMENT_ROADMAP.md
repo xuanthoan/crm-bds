@@ -21,3 +21,7 @@ Hoàn thành nền tảng dashboard giám đốc v1 thay vì rewrite toàn bộ 
 ## Sprint 32.3 — Boss Dashboard detail rollback and chart labels
 - Sửa UX sau feedback: no-scroll detail ranking lists, chart x-axis labels, full-width Lead trend chart và KPI subtitle cleanup.
 - Không thêm dependency chart mới, không đổi API dashboard và không đổi revenue attribution/financial KPI formulas.
+
+## Sprint 32.4 — Boss Dashboard KPI tooltip and axis cleanup
+- Final UI cleanup: KPI tooltip help icons instead of subtitles, full 30-day day-number axis labels, and removal of detail-card Top N badges.
+- No new dependencies, no API route changes, no revenue attribution changes, and no financial KPI formula changes.

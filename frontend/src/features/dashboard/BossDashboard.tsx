@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import { HelpLabel } from '../../components/help/HelpTooltip';
 import { DashboardDateRangeFilter } from './DashboardDateRangeFilter';
 import { getBossDashboard } from './api';
 import type { BossDashboard as BossDashboardData, DashboardPreset } from './types';
@@ -29,14 +30,19 @@ function normalizeDailySeries(rows: ChartRow[], maxPoints = 30) {
   return sampled[sampled.length - 1]?.label === last.label ? sampled : [...sampled, last];
 }
 
-function formatDateLabel(dateText: string) {
+function formatDayTick(dateText: string) {
   const parts = dateText.split('-');
-  return parts.length === 3 ? `${parts[2]}/${parts[1]}` : dateText;
+  return parts.length === 3 ? parts[2] : dateText;
+}
+
+function formatFullDateTooltip(dateText: string) {
+  const parts = dateText.split('-');
+  return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dateText;
 }
 
 function getXAxisTicks(rows: ChartRow[]) {
-  if (rows.length <= 10) return rows.map((row, index) => ({ ...row, index }));
-  const step = rows.length <= 30 ? Math.ceil((rows.length - 1) / 8) : Math.ceil((rows.length - 1) / 9);
+  if (rows.length <= 30) return rows.map((row, index) => ({ ...row, index }));
+  const step = Math.ceil((rows.length - 1) / 29);
   const ticks = rows.map((row, index) => ({ ...row, index })).filter((_, index) => index === 0 || index === rows.length - 1 || index % step === 0);
   return ticks[ticks.length - 1]?.index === rows.length - 1 ? ticks : [...ticks, { ...rows[rows.length - 1], index: rows.length - 1 }];
 }
@@ -94,10 +100,10 @@ function AreaTrendCard({ title, rows, valueType = 'count', featured = false }: {
   const max = Math.max(1, ...visibleRows.map((row) => row.value));
   const format = valueType === 'money' ? formatCurrencyVnd : formatNumber;
   const width = 640;
-  const height = featured ? 280 : 250;
+  const height = featured ? 300 : 270;
   const paddingX = 34;
   const paddingTop = 22;
-  const paddingBottom = 42;
+  const paddingBottom = 58;
   const chartWidth = width - paddingX * 2;
   const chartHeight = height - paddingTop - paddingBottom;
   const points = visibleRows.map((row, index) => {
@@ -134,7 +140,7 @@ function AreaTrendCard({ title, rows, valueType = 'count', featured = false }: {
             <polyline points={linePoints} className="area-line" />
             {ticks.map((tick) => {
               const x = paddingX + (visibleRows.length === 1 ? chartWidth / 2 : (tick.index * chartWidth) / (visibleRows.length - 1));
-              return <g key={`${title}-tick-${tick.index}`}><line x1={x} x2={x} y1={baselineY} y2={baselineY + 5} className="area-tick-line" /><text x={x} y={baselineY + 19} className="area-tick-label">{tick.label}</text></g>;
+              return <g key={`${title}-tick-${tick.index}`}><line x1={x} x2={x} y1={baselineY} y2={baselineY + 5} className="area-tick-line" /><text x={x} y={baselineY + 23} className="area-tick-label" transform={`rotate(-55 ${x} ${baselineY + 23})`}>{tick.label}</text></g>;
             })}
             {points.map((point, index) => <circle key={`${title}-${index}`} cx={point.x} cy={point.y} r={featured ? 4 : 3} className="area-dot"><title>{`${point.row.fullLabel || point.row.label}: ${format(point.row.value)}`}</title></circle>)}
           </svg>
@@ -190,7 +196,6 @@ function DetailTable({ title, rows, type }: { title: string; rows: any[]; type: 
     <section className="card ranking-card detail-list-card">
       <div className="detail-list-header">
         <h3>{title}</h3>
-        <span>Top {visibleRows.length}</span>
       </div>
       {visibleRows.length === 0 ? <ChartEmptyState /> : (
         <div className="detail-ranking-list">
@@ -244,46 +249,46 @@ export function BossDashboard() {
       title: 'Tổng quan vận hành',
       tone: 'ops',
       cards: [
-        ['◌', 'Lead mới', formatNumber(data.summary.lead_new_count)],
-        ['⇄', 'Lead chuyển khách hàng', formatNumber(data.summary.lead_converted_to_customer_count)],
-        ['□', 'Booking', formatNumber(data.summary.booking_count)],
-        ['●', 'Khách đã cọc', formatNumber(data.summary.deposit_count)],
-        ['◇', 'Deal', formatNumber(data.summary.deal_count)],
-        ['✓', 'Hợp đồng ký', formatNumber(data.summary.contract_signed_count)],
-        ['↻', 'Khách trùng tiếp cận lại', formatNumber(data.summary.duplicate_reengagement_count)],
+        ['◦', 'Lead mới', formatNumber(data.summary.lead_new_count), 'Số lead mới được tạo trong khoảng thời gian đã chọn.'],
+        ['⇄', 'Lead chuyển khách hàng', formatNumber(data.summary.lead_converted_to_customer_count), 'Số lead đã được chuyển thành khách hàng trong khoảng thời gian đã chọn.'],
+        ['□', 'Booking', formatNumber(data.summary.booking_count), 'Số booking/giữ chỗ được tạo trong khoảng thời gian đã chọn.'],
+        ['●', 'Khách đã cọc', formatNumber(data.summary.deposit_count), 'Số booking hoặc giao dịch đã ghi nhận trạng thái cọc trong khoảng thời gian đã chọn.'],
+        ['◇', 'Deal', formatNumber(data.summary.deal_count), 'Số giao dịch/deal được ghi nhận trong khoảng thời gian đã chọn.'],
+        ['✓', 'Hợp đồng ký', formatNumber(data.summary.contract_signed_count), 'Số hợp đồng hợp lệ được ký hoặc có hiệu lực trong khoảng thời gian đã chọn.'],
+        ['↻', 'Khách trùng tiếp cận lại', formatNumber(data.summary.duplicate_reengagement_count), 'Số lượt tiếp cận lại khách hàng đã tồn tại trong hệ thống.'],
       ],
     },
     {
       title: 'Doanh số & dòng tiền',
       tone: 'cash',
       cards: [
-        ['DS', 'Doanh số', formatCompactCurrencyVnd(data.summary.revenue_total), 'Theo hợp đồng hợp lệ'],
-        ['TH', 'Tiền khách đã thu', formatCompactCurrencyVnd(data.summary.customer_paid_total), 'Từ phiếu thu đã xác nhận'],
-        ['CN', 'Công nợ khách còn phải thu', formatCompactCurrencyVnd(data.summary.customer_outstanding_total), 'Doanh số - tiền đã thu'],
-        ['TB', 'Giá trị HĐ trung bình', formatCompactCurrencyVnd(data.summary.avg_contract_value), 'Doanh số / số hợp đồng'],
-        ['LN', 'Lợi nhuận gộp tạm tính', formatCompactCurrencyVnd(data.summary.gross_profit_received_estimate), 'HH công ty đã thu - HH sale đã chi - ads'],
+        ['$', 'Doanh số', formatCompactCurrencyVnd(data.summary.revenue_total), 'Tổng giá trị hợp đồng hợp lệ trong khoảng thời gian đã chọn.'],
+        ['↓', 'Tiền khách đã thu', formatCompactCurrencyVnd(data.summary.customer_paid_total), 'Tổng số tiền khách đã thanh toán hoặc phiếu thu đã xác nhận trong kỳ.'],
+        ['!', 'Công nợ khách còn phải thu', formatCompactCurrencyVnd(data.summary.customer_outstanding_total), 'Phần doanh số hợp lệ còn lại sau khi trừ tiền khách đã thu.'],
+        ['Ø', 'Giá trị HĐ trung bình', formatCompactCurrencyVnd(data.summary.avg_contract_value), 'Doanh số chia cho số hợp đồng hợp lệ trong kỳ.'],
+        ['↗', 'Lợi nhuận gộp tạm tính', formatCompactCurrencyVnd(data.summary.gross_profit_received_estimate), 'Hoa hồng công ty đã thu trừ hoa hồng sale đã chi và chi phí quảng cáo.'],
       ],
     },
     {
       title: 'Hoa hồng & chi phí',
       tone: 'commission',
       cards: [
-        ['CT', 'HH công ty phải thu', formatCompactCurrencyVnd(data.summary.company_commission_receivable_total), 'Theo receivable đã xác nhận'],
-        ['ĐT', 'HH công ty đã thu', formatCompactCurrencyVnd(data.summary.company_commission_received_total), 'Số tiền đã ghi nhận thu'],
-        ['PT', 'HH công ty còn phải thu', formatCompactCurrencyVnd(data.summary.company_commission_outstanding_total), 'Phải thu - đã thu'],
-        ['PC', 'HH sale phải chi', formatCompactCurrencyVnd(data.summary.sales_commission_approved_total), 'Hoa hồng đã duyệt'],
-        ['ĐC', 'HH sale đã chi', formatCompactCurrencyVnd(data.summary.sales_commission_paid_total), 'Theo phiếu chi/xác nhận đã chi'],
-        ['CC', 'HH sale còn phải chi', formatCompactCurrencyVnd(data.summary.sales_commission_outstanding_total), 'Phải chi - đã chi'],
-        ['AD', 'Chi phí quảng cáo', formatCompactCurrencyVnd(data.summary.ads_cost_total), 'Theo ads cost trong kỳ'],
-        ['ROI', 'ROI doanh thu/ads', formatPercent(data.summary.roi_ratio), 'Doanh số / chi phí ads'],
-        ['%', 'Tỷ lệ thu HH công ty', formatPercent(data.summary.company_commission_collection_rate), 'Đã thu / phải thu'],
-        ['%', 'Tỷ lệ chi HH sale', formatPercent(data.summary.sales_commission_payment_rate), 'Đã chi / phải chi'],
+        ['◆', 'HH công ty phải thu', formatCompactCurrencyVnd(data.summary.company_commission_receivable_total), 'Tổng hoa hồng công ty đã xác nhận phải thu trong kỳ.'],
+        ['◆', 'HH công ty đã thu', formatCompactCurrencyVnd(data.summary.company_commission_received_total), 'Tổng hoa hồng công ty đã ghi nhận thu trong kỳ.'],
+        ['◆', 'HH công ty còn phải thu', formatCompactCurrencyVnd(data.summary.company_commission_outstanding_total), 'Hoa hồng công ty phải thu trừ hoa hồng công ty đã thu.'],
+        ['◈', 'HH sale phải chi', formatCompactCurrencyVnd(data.summary.sales_commission_approved_total), 'Tổng hoa hồng sale đã được duyệt phải chi trong kỳ.'],
+        ['◈', 'HH sale đã chi', formatCompactCurrencyVnd(data.summary.sales_commission_paid_total), 'Tổng hoa hồng sale đã ghi nhận chi trong kỳ.'],
+        ['◈', 'HH sale còn phải chi', formatCompactCurrencyVnd(data.summary.sales_commission_outstanding_total), 'Hoa hồng sale phải chi trừ hoa hồng sale đã chi.'],
+        ['AD', 'Chi phí quảng cáo', formatCompactCurrencyVnd(data.summary.ads_cost_total), 'Tổng chi phí quảng cáo được ghi nhận trong kỳ.'],
+        ['%', 'ROI doanh thu/ads', formatPercent(data.summary.roi_ratio), 'Tỷ lệ doanh số trên chi phí quảng cáo trong kỳ.'],
+        ['%', 'Tỷ lệ thu HH công ty', formatPercent(data.summary.company_commission_collection_rate), 'Tỷ lệ hoa hồng công ty đã thu trên hoa hồng công ty phải thu.'],
+        ['%', 'Tỷ lệ chi HH sale', formatPercent(data.summary.sales_commission_payment_rate), 'Tỷ lệ hoa hồng sale đã chi trên hoa hồng sale phải chi.'],
       ],
     },
   ] : [], [data]);
 
-  const leadRows: ChartRow[] = (data?.time_series.leads_by_day ?? []).map((row) => ({ label: formatDateLabel(row.date), fullLabel: row.date, value: row.count }));
-  const revenueRows: ChartRow[] = (data?.time_series.revenue_by_day ?? []).map((row) => ({ label: formatDateLabel(row.date), fullLabel: row.date, value: row.amount }));
+  const leadRows: ChartRow[] = (data?.time_series.leads_by_day ?? []).map((row) => ({ label: formatDayTick(row.date), fullLabel: formatFullDateTooltip(row.date), value: row.count }));
+  const revenueRows: ChartRow[] = (data?.time_series.revenue_by_day ?? []).map((row) => ({ label: formatDayTick(row.date), fullLabel: formatFullDateTooltip(row.date), value: row.amount }));
   const sourceRows: ChartRow[] = (data?.breakdowns.lead_by_source ?? []).map((row) => ({ label: safeLabel(row.source, 'Chưa xác định'), value: row.count }));
   const topSourceRows: ChartRow[] = (data?.rankings.top_sources ?? []).map((row) => ({ label: safeLabel(row.source, 'Chưa xác định'), value: row.lead_count ?? 0, meta: `${formatNumber(row.contract_count ?? 0)} hợp đồng` }));
   const sale7Rows: ChartRow[] = (data?.rankings.top_sales_7_days ?? []).map((row) => ({ label: safeLabel(row.sale_name, 'Chưa có sale'), value: row.revenue ?? 0, meta: `${safeLabel(row.team_name, 'Chưa có team')} · ${formatNumber(row.contract_count)} hợp đồng` }));
@@ -314,12 +319,11 @@ export function BossDashboard() {
               <section className="dashboard-kpi-section" key={section.title}>
                 <h2>{section.title}</h2>
                 <div className="summary-grid dashboard-section-grid">
-                  {section.cards.map(([icon, label, value, subtitle]) => (
+                  {section.cards.map(([icon, label, value, tooltip]) => (
                     <article className={`card summary-card kpi-${section.tone}`} key={`${section.title}-${label}`}>
                       <div className="kpi-icon">{icon}</div>
-                      <span>{label}</span>
-                      <strong title={subtitle || value}>{value}</strong>
-                      {subtitle ? <small>{subtitle}</small> : null}
+                      <div className="kpi-label-row"><HelpLabel content={tooltip}>{label}</HelpLabel></div>
+                      <strong title={value}>{value}</strong>
                     </article>
                   ))}
                 </div>
