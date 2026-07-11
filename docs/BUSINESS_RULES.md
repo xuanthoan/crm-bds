@@ -372,3 +372,16 @@ UI Sprint 32.1 chia KPI thành nhóm tinted cards, phóng to chart xu hướng, 
 - Sprint 32.3 chỉ sửa UI/layout/display: bảng chi tiết chuyển sang danh sách gọn không cần kéo ngang, chart xu hướng có nhãn trục thời gian `dd/MM`, và Lead mới theo ngày hiển thị full width trong section Xu hướng.
 - KPI subtitle không được lặp lại số tiền chính; chỉ hiển thị mô tả nghiệp vụ có ích như “Theo hợp đồng hợp lệ”, “Doanh số - tiền đã thu”, “Đã thu / phải thu”.
 - Funnel giữ hình thang đúng chiều, top 10 ranking giữ nguyên và không đổi revenue attribution/financial KPI formulas Sprint 32.1.
+
+## Sprint 33 — Sales Management Dashboard Rules
+- Permission mới: `dashboard.sales_manager.view`, `dashboard.leader.view`, `dashboard.team.view`, `dashboard.sales.view.all`.
+- Sales Manager chỉ xem user/lead/task/booking/deal/contract/commission trong department được quản lý hoặc membership hợp lệ. Leader chỉ xem team được quản lý hoặc membership hợp lệ; truy vấn team ngoài phạm vi phải bị từ chối.
+- Lead mới là lead tạo trong khoảng ngày chọn và không có cờ duplicate/re-engagement. `duplicate_reengagement_count` được tính riêng từ activity `duplicate_reengagement`.
+- Lead lâu chưa tương tác dùng ngưỡng `STALE_LEAD_DAYS = 7`; lead đóng/hủy/chuyển đổi không tính vào cảnh báo stale/overdue.
+- Doanh số dashboard quản lý sale tính từ hợp đồng hợp lệ theo owner deal/winning owner trong phạm vi, giữ nguyên rule attribution Sprint 32.
+
+## Sprint 33.2 — Sales Management Dashboard cleanup
+- Dashboard quản lý sale không hiển thị KPI/list “Lead chưa phân công” vì nghiệp vụ hiện tại tự gán người tạo làm người phụ trách mặc định nếu không chọn sale; API vẫn giữ field cũ để backward-compatible.
+- “Lead quá hạn chăm sóc” là lead có `next_follow_up_at` đã qua thời điểm hiện tại và chưa ở trạng thái `converted`/`lost`, căn theo logic trang Lead quá hạn hiện có. Khái niệm này khác “Lead chưa có hoạt động” (chưa từng ghi nhận activity) và “Khách lâu chưa tương tác” (quá ngưỡng stale 7 ngày).
+- Top dự án theo doanh số của Sales Management Dashboard được kiểm chứng theo hợp đồng hợp lệ trong khoảng ngày chọn, scope theo deal owner/winning owner, group theo project fallback: `contract.project_id`, `deal.project_id`, property unit từ booking/contract/deal, rồi tên dự án quan tâm từ lead/deal nếu không có project id. Không dùng first_touch, uploader hoặc lead creator để phân bổ doanh số.
+- Sprint 33.2 không đổi Boss Dashboard, không đổi permission/scope nền và không đổi revenue attribution Sprint 32.

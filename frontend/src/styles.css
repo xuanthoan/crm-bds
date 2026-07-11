@@ -3453,3 +3453,117 @@ th .help-label {
 .detail-list-header span {
   display: none;
 }
+.sales-management-dashboard{max-width:100%;overflow-x:hidden}.sales-management-dashboard .dashboard-content{min-width:0}.dashboard-alert-list{display:grid;gap:.75rem;list-style:none;margin:0;padding:0}.dashboard-alert-list li{align-items:center;border:1px solid #e4e7ec;border-radius:.85rem;display:flex;gap:.75rem;justify-content:space-between;padding:.75rem}.dashboard-alert-list span{color:#667085;display:block;font-size:.85rem}.dashboard-alert-list a{color:#2563eb;font-weight:700;text-decoration:none;white-space:nowrap}
+
+/* Sprint 33.1 Sales Management dashboard polish: reuse Boss Dashboard visual language. */
+.sales-management-dashboard {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.sales-management-dashboard .dashboard-content,
+.sales-management-dashboard .dashboard-section-grid,
+.sales-management-dashboard .ranking-grid {
+  min-width: 0;
+}
+
+.sales-management-dashboard .scope-badge {
+  align-items: center;
+  background: #eef4ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  color: #1d4ed8;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 800;
+  margin-top: 10px;
+  padding: 6px 12px;
+}
+
+.sales-management-dashboard .summary-card .help-label {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.sales-management-dashboard .summary-card .help-label-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sales-management-dashboard .detail-row-metrics strong {
+  white-space: nowrap;
+}
+
+.sales-management-dashboard .ranking-progress {
+  background: #e2e8f0;
+  border-radius: 999px;
+  display: block;
+  height: 5px;
+  margin-top: 8px;
+  overflow: hidden;
+  width: min(180px, 100%);
+}
+
+.sales-management-dashboard .ranking-progress i {
+  background: linear-gradient(90deg, #2563eb, #38bdf8);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+}
+
+.sales-alert-card h3 {
+  margin-bottom: 12px;
+}
+
+.sales-alert-list {
+  display: grid;
+  gap: 10px;
+}
+
+.sales-alert-row {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 12px;
+}
+
+.sales-alert-row div {
+  min-width: 0;
+}
+
+.sales-alert-row strong,
+.sales-alert-row small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sales-alert-row strong {
+  color: #0f172a;
+}
+
+.sales-alert-row small {
+  color: #64748b;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.sales-alert-row a {
+  background: #eef4ff;
+  border-radius: 999px;
+  color: #1d4ed8;
+  flex: 0 0 auto;
+  font-weight: 800;
+  padding: 7px 12px;
+  text-decoration: none;
+}

@@ -158,3 +158,151 @@ def get_boss_dashboard(db: Session, preset: str | None = None, from_date: date |
     funnel = {"leads": lead_new, "customers": customers, "bookings": bookings, "deposits": deposits, "deals": deals, "contracts": contract_count, "lead_to_customer_rate": _rate(customers, lead_new), "lead_to_booking_rate": _rate(bookings, lead_new), "booking_to_contract_rate": _rate(contract_count, bookings), "deal_to_contract_rate": _rate(contract_count, deals)}
     range_public = {k:v for k,v in r.items() if not k.startswith("_")}
     return {"range": range_public, "summary": summary, "funnel": funnel, "time_series": {"leads_by_day": list(day_map.values()), "revenue_by_day": list(revenue_day.values()), "contracts_by_day": list(contracts_day.values()), "bookings_by_day": list(bookings_day.values())}, "breakdowns": {"lead_by_source": lead_by_source, "lead_by_project": [], "revenue_by_project": top_projects, "booking_by_project": [], "contract_by_project": []}, "rankings": {"top_sales_7_days": sales7, "top_sales_30_days": sales30, "top_teams_7_days": teams7, "top_teams_30_days": teams30, "top_projects": top_projects, "top_sources": [{"source": row["source"], "lead_count": row["count"], "booking_count": 0, "contract_count": 0, "revenue": 0, "ads_cost": 0, "roi": None} for row in lead_by_source], "top_sales_in_range": sales_range, "top_teams_in_range": teams_range}}
+
+SALES_MANAGEMENT_PERMISSIONS = {"dashboard.sales_manager.view", "dashboard.leader.view", "dashboard.team.view", "dashboard.sales.view.all"}
+STALE_LEAD_DAYS = 7
+CLOSED_LEAD_STATUSES = {"converted", "lost"}  # aligned with lead_service.list_overdue_leads
+
+
+def _role_codes(user):
+    return {getattr(role, "code", None) for role in getattr(user, "roles", []) if getattr(role, "code", None)}
+
+
+def _scope_ids_from_memberships(db, user_ids):
+    memberships = list(db.scalars(select(UserOrganizationMembership).where(UserOrganizationMembership.user_id.in_(user_ids)))) if user_ids else []
+    return {m.team_id for m in memberships if m.team_id}, {m.department_id for m in memberships if m.department_id}
+
+
+def resolve_sales_management_scope(db: Session, current_user: User, scope_type: str | None = "auto", team_id=None, department_id=None) -> dict:
+    from fastapi import HTTPException
+    ps = permissions(current_user); roles = _role_codes(current_user)
+    can_view_all = current_user.is_superuser or bool(ps & {"dashboard.view.all", "dashboard.sales.view.all", "dashboard.leader.view.all"})
+    requested = scope_type or "auto"
+    if can_view_all:
+        user_query = select(User.id).where(User.status == "active", User.deleted_at.is_(None))
+        actual = "all"
+        if team_id:
+            user_query = user_query.join(UserOrganizationMembership, UserOrganizationMembership.user_id == User.id).where(UserOrganizationMembership.team_id == team_id); actual = "team"
+        elif department_id:
+            user_query = user_query.join(UserOrganizationMembership, UserOrganizationMembership.user_id == User.id).where(UserOrganizationMembership.department_id == department_id); actual = "department"
+        user_ids = set(db.scalars(user_query))
+    elif "sales_manager" in roles and ("dashboard.sales_manager.view" in ps or "dashboard.team.view" in ps or "dashboard.view.team" in ps):
+        managed_departments = set(db.scalars(select(Department.id).where(Department.manager_id == current_user.id, Department.status == "active", Department.deleted_at.is_(None))))
+        member_departments = set(db.scalars(select(UserOrganizationMembership.department_id).where(UserOrganizationMembership.user_id == current_user.id, UserOrganizationMembership.department_id.is_not(None))))
+        allowed_departments = managed_departments | member_departments
+        allowed_teams = set(db.scalars(select(Team.id).where(Team.department_id.in_(allowed_departments), Team.deleted_at.is_(None)))) if allowed_departments else set()
+        if department_id and department_id not in allowed_departments: raise HTTPException(403, "Bạn không có quyền xem phòng ban này")
+        if team_id and team_id not in allowed_teams: raise HTTPException(403, "Bạn không có quyền xem team này")
+        q = select(UserOrganizationMembership.user_id)
+        if team_id:
+            q = q.where(UserOrganizationMembership.team_id == team_id); actual = "team"
+        else:
+            q = q.where(UserOrganizationMembership.department_id.in_({department_id} if department_id else allowed_departments)); actual = "department"
+        user_ids = set(db.scalars(q)) | {current_user.id}
+        if not allowed_departments and not user_ids: raise HTTPException(403, "Không xác định được phạm vi dashboard quản lý sale")
+    elif "leader" in roles and ("dashboard.leader.view" in ps or "dashboard.team.view" in ps or "dashboard.view.team" in ps):
+        allowed_teams = set(db.scalars(select(Team.id).where(Team.leader_id == current_user.id, Team.status == "active", Team.deleted_at.is_(None))))
+        member_teams = set(db.scalars(select(UserOrganizationMembership.team_id).where(UserOrganizationMembership.user_id == current_user.id, UserOrganizationMembership.team_id.is_not(None))))
+        allowed_teams |= member_teams
+        if team_id and team_id not in allowed_teams: raise HTTPException(403, "Bạn không có quyền xem team này")
+        selected = {team_id} if team_id else allowed_teams
+        if not selected: raise HTTPException(403, "Không xác định được team dashboard quản lý sale")
+        user_ids = set(db.scalars(select(UserOrganizationMembership.user_id).where(UserOrganizationMembership.team_id.in_(selected)))) | {current_user.id}
+        actual = "team"
+    else:
+        raise HTTPException(403, "Bạn không có quyền xem dashboard quản lý sale")
+    team_ids, department_ids = _scope_ids_from_memberships(db, user_ids)
+    team = db.get(Team, team_id) if team_id else None; dept = db.get(Department, department_id) if department_id else None
+    return {"user_ids": user_ids, "team_ids": team_ids, "department_ids": department_ids, "scope_type": actual, "team_id": str(team_id) if team_id else None, "team_name": team.name if team else None, "department_id": str(department_id) if department_id else None, "department_name": dept.name if dept else None, "member_count": len(user_ids), "can_view_all": can_view_all}
+
+
+def _range_public(r):
+    return {"preset": r["preset"], "start_date": r["from_date"], "end_date": r["to_date"], "from_date": r["from_date"], "to_date": r["to_date"], "label": r["label"]}
+
+def _lead_scope_condition(scope): return Lead.owner_id.in_(scope["user_ids"])
+def _task_scope_condition(scope): return LeadTask.assigned_to_id.in_(scope["user_ids"])
+def _appt_scope_condition(scope): return LeadAppointment.assigned_to_id.in_(scope["user_ids"])
+
+def _alert_user(u): return {"id": str(u.id), "full_name": u.full_name} if u else None
+
+def _lead_alert(lead):
+    return {"id": str(lead.id), "title": lead.full_name, "code": lead.code, "status": lead.status, "owner": _alert_user(lead.owner), "due_at": lead.next_follow_up_at.isoformat() if lead.next_follow_up_at else None, "last_contact_at": lead.last_contact_at.isoformat() if lead.last_contact_at else None, "url": f"/leads/{lead.id}"}
+
+def _task_alert(task):
+    return {"id": str(task.id), "title": task.title, "status": task.status, "assignee": _alert_user(task.assigned_to), "due_at": task.due_at.isoformat() if task.due_at else None, "lead_id": str(task.lead_id), "url": f"/leads/{task.lead_id}"}
+
+def _appt_alert(appt):
+    return {"id": str(appt.id), "title": appt.title, "status": appt.status, "assignee": _alert_user(appt.assigned_to), "start_at": appt.start_at.isoformat() if appt.start_at else None, "lead_id": str(appt.lead_id), "url": f"/leads/{appt.lead_id}"}
+
+
+def _top_users(rows, key): return sorted(rows.values(), key=lambda x: x.get(key, 0), reverse=True)[:10]
+
+
+def _resolve_sales_management_project(db: Session, contract: Contract, deal: Deal | None) -> tuple[str, str | None, str, str]:
+    """Resolve project for top_projects_by_revenue without changing revenue attribution.
+
+    Fallback order follows Sprint 33.2 business rule and only uses fields that exist in
+    the current schema: contract.project_id, deal.project_id, booking/property unit
+    project_id, then lead project_interest as a named bucket.
+    """
+    project_id = contract.project_id or (deal.project_id if deal else None)
+    source = "contract.project_id" if contract.project_id else "deal.project_id" if project_id else "unknown"
+    if not project_id and contract.booking and contract.booking.property_unit and contract.booking.property_unit.project_id:
+        project_id = contract.booking.property_unit.project_id; source = "booking.property_unit.project_id"
+    if not project_id and contract.property_unit and contract.property_unit.project_id:
+        project_id = contract.property_unit.project_id; source = "contract.property_unit.project_id"
+    if not project_id and deal and deal.property_unit and deal.property_unit.project_id:
+        project_id = deal.property_unit.project_id; source = "deal.property_unit.project_id"
+    if project_id:
+        project = db.get(Project, project_id)
+        return str(project_id), str(project_id), project.name if project else "Chưa có dự án", source
+    lead_project = (deal.source_lead.project_interest if deal and deal.source_lead else None) or (deal.project_name if deal else None)
+    if lead_project:
+        return f"lead_project:{lead_project}", None, lead_project, "lead.project_interest"
+    return "unknown", None, "Chưa có dự án", "unknown"
+
+
+def get_sales_management_dashboard(db: Session, user: User, preset: str | None = None, start_date: date | str | None = None, end_date: date | str | None = None, scope_type: str | None = "auto", team_id=None, department_id=None) -> dict:
+    r = resolve_dashboard_date_range(preset or "last_7_days", start_date, end_date); start, end = r["_start"], r["_end"]; today_start, today_end = _bounds(); stamp = now(); stale_before = stamp - timedelta(days=STALE_LEAD_DAYS)
+    scope = resolve_sales_management_scope(db, user, scope_type, team_id, department_id); ids = scope["user_ids"] or {user.id}
+    lead_base = [Lead.deleted_at.is_(None), _lead_scope_condition(scope)]
+    lead_new = _count(db, Lead, *lead_base, Lead.created_at >= start, Lead.created_at < end, Lead.duplicate_detected.is_(False), Lead.duplicate_of_customer_id.is_(None))
+    assigned = _count(db, Lead, *lead_base, Lead.owner_id.is_not(None))
+    unassigned = _count(db, Lead, Lead.deleted_at.is_(None), Lead.owner_id.is_(None), Lead.created_at >= start, Lead.created_at < end)
+    overdue = _count(db, Lead, *lead_base, Lead.next_follow_up_at.is_not(None), Lead.next_follow_up_at < stamp, Lead.status.notin_(CLOSED_LEAD_STATUSES))
+    without_activity = db.scalar(select(func.count()).select_from(Lead).where(*lead_base, ~Lead.activities.any())) or 0
+    stale = _count(db, Lead, *lead_base, Lead.status.notin_(CLOSED_LEAD_STATUSES), func.coalesce(Lead.last_contact_at, Lead.created_at) < stale_before)
+    duplicate_count = _count(db, LeadActivity, LeadActivity.activity_type == "duplicate_reengagement", LeadActivity.user_id.in_(ids), LeadActivity.created_at >= start, LeadActivity.created_at < end)
+    active_task = LeadTask.status.in_({"pending", "in_progress"})
+    task_today = _count(db, LeadTask, LeadTask.deleted_at.is_(None), _task_scope_condition(scope), active_task, LeadTask.due_at >= today_start, LeadTask.due_at < today_end)
+    task_overdue = _count(db, LeadTask, LeadTask.deleted_at.is_(None), _task_scope_condition(scope), active_task, LeadTask.due_at < stamp)
+    appt_today = _count(db, LeadAppointment, LeadAppointment.deleted_at.is_(None), _appt_scope_condition(scope), LeadAppointment.start_at >= today_start, LeadAppointment.start_at < today_end)
+    appt_overdue = _count(db, LeadAppointment, LeadAppointment.deleted_at.is_(None), _appt_scope_condition(scope), LeadAppointment.status.in_({"scheduled", "rescheduled"}), LeadAppointment.start_at < stamp)
+    bookings = _count(db, Booking, Booking.deleted_at.is_(None), Booking.assigned_user_id.in_(ids), Booking.created_at >= start, Booking.created_at < end)
+    deposits = _count(db, Booking, Booking.deleted_at.is_(None), Booking.assigned_user_id.in_(ids), Booking.status.in_(DEPOSIT_BOOKING_STATUSES), func.coalesce(Booking.deposit_date, Booking.created_at) >= start, func.coalesce(Booking.deposit_date, Booking.created_at) < end)
+    deals = _count(db, Deal, Deal.deleted_at.is_(None), Deal.owner_id.in_(ids), Deal.created_at >= start, Deal.created_at < end)
+    contract_stmt = select(Contract, Deal, User).join(Deal, Contract.deal_id == Deal.id).join(User, Deal.owner_id == User.id).where(*_valid_contracts(start, end), Deal.deleted_at.is_(None), Deal.owner_id.in_(ids))
+    contract_rows = db.execute(contract_stmt).all(); contract_count = len(contract_rows); revenue = sum(_money(c.contract_value) for c, _d, _u in contract_rows)
+    comm_q = [SalesCommission.sale_id.in_(ids), SalesCommission.status.in_(SALES_COMMISSION_INCLUDED_STATUSES), SalesCommission.created_at >= start, SalesCommission.created_at < end]
+    sc_approved = _money(db.scalar(select(func.coalesce(func.sum(SalesCommission.approved_commission), 0)).where(*comm_q))); sc_paid = _money(db.scalar(select(func.coalesce(func.sum(SalesCommission.paid_amount), 0)).where(*comm_q)))
+    days = _dates(start, end); leads_by_day = {d: {"date": d, "label": d[-2:], "count": 0} for d in days}; revenue_by_day = {d: {"date": d, "label": d[-2:], "amount": 0} for d in days}; tasks_by_day = {d: {"date": d, "label": d[-2:], "count": 0} for d in days}; appts_by_day = {d: {"date": d, "label": d[-2:], "count": 0} for d in days}
+    for day, count in db.execute(select(func.date(Lead.created_at), func.count()).where(*lead_base, Lead.created_at >= start, Lead.created_at < end, Lead.duplicate_detected.is_(False), Lead.duplicate_of_customer_id.is_(None)).group_by(func.date(Lead.created_at))): leads_by_day[str(day)]["count"] = count
+    for c, d, u in contract_rows:
+        key = _valid_contract_date(c.__class__) if False else (c.effective_date or c.signed_date or c.created_at).date().isoformat(); revenue_by_day[key]["amount"] += _money(c.contract_value)
+    for day, count in db.execute(select(func.date(LeadTask.due_at), func.count()).where(LeadTask.deleted_at.is_(None), _task_scope_condition(scope), active_task, LeadTask.due_at >= start, LeadTask.due_at < end).group_by(func.date(LeadTask.due_at))): tasks_by_day[str(day)]["count"] = count
+    for day, count in db.execute(select(func.date(LeadAppointment.start_at), func.count()).where(LeadAppointment.deleted_at.is_(None), _appt_scope_condition(scope), LeadAppointment.start_at >= start, LeadAppointment.start_at < end).group_by(func.date(LeadAppointment.start_at))): appts_by_day[str(day)]["count"] = count
+    customers = _count(db, Customer, Customer.deleted_at.is_(None), Customer.created_at >= start, Customer.created_at < end)
+    sales = {str(uid): {"sale_id": str(uid), "sale_name": (db.get(User, uid).full_name if db.get(User, uid) else "Chưa xác định"), "revenue": 0, "contract_count": 0, "activity_count": 0, "overdue_lead_count": 0} for uid in ids}
+    projects = {}; sources = {}
+    for c, d, u in contract_rows:
+        b = sales.setdefault(str(u.id), {"sale_id": str(u.id), "sale_name": u.full_name, "revenue": 0, "contract_count": 0, "activity_count": 0, "overdue_lead_count": 0}); b["revenue"] += _money(c.contract_value); b["contract_count"] += 1
+        project_key, project_id, project_name, project_source = _resolve_sales_management_project(db, c, d)
+        pb = projects.setdefault(project_key, {"project_id": project_id, "id": project_id, "project_name": project_name, "name": project_name, "project_source": project_source, "revenue": 0, "contract_count": 0, "lead_count": 0})
+        pb["revenue"] += _money(c.contract_value); pb["contract_count"] += 1
+        if d.source_lead_id: pb["lead_count"] += 1
+    for uid, cnt in db.execute(select(LeadActivity.user_id, func.count()).where(LeadActivity.user_id.in_(ids), LeadActivity.created_at >= start, LeadActivity.created_at < end).group_by(LeadActivity.user_id)): sales.setdefault(str(uid), {"sale_id": str(uid), "sale_name": "Chưa xác định", "revenue": 0, "contract_count": 0, "activity_count": 0, "overdue_lead_count": 0})["activity_count"] = cnt
+    for uid, cnt in db.execute(select(Lead.owner_id, func.count()).where(*lead_base, Lead.next_follow_up_at.is_not(None), Lead.next_follow_up_at < stamp).group_by(Lead.owner_id)):
+        if uid: sales.setdefault(str(uid), {"sale_id": str(uid), "sale_name": "Chưa xác định", "revenue": 0, "contract_count": 0, "activity_count": 0, "overdue_lead_count": 0})["overdue_lead_count"] = cnt
+    for src, cnt in db.execute(select(Lead.source, func.count()).where(*lead_base, Lead.created_at >= start, Lead.created_at < end).group_by(Lead.source).order_by(func.count().desc()).limit(10)): sources[src or "Chưa xác định"] = {"source": src or "Chưa xác định", "lead_count": cnt}
+    summary = {"member_count": len(ids), "lead_new_count": lead_new, "lead_assigned_count": assigned, "lead_unassigned_count": unassigned, "lead_overdue_count": overdue, "lead_without_activity_count": without_activity, "lead_stale_count": stale, "duplicate_reengagement_count": duplicate_count, "task_today_count": task_today, "task_overdue_count": task_overdue, "appointment_today_count": appt_today, "appointment_overdue_count": appt_overdue, "booking_count": bookings, "deposit_count": deposits, "deal_count": deals, "contract_signed_count": contract_count, "revenue_total": revenue, "avg_contract_value": revenue / contract_count if contract_count else None, "sales_commission_approved_total": sc_approved, "sales_commission_paid_total": sc_paid, "sales_commission_outstanding_total": max(sc_approved - sc_paid, 0), "lead_to_customer_rate": _rate(customers, lead_new), "booking_to_contract_rate": _rate(contract_count, bookings)}
+    return {"range": _range_public(r), "scope": {k: v for k, v in scope.items() if k != "user_ids"}, "summary": summary, "time_series": {"leads_by_day": list(leads_by_day.values()), "revenue_by_day": list(revenue_by_day.values()), "tasks_overdue_by_day": list(tasks_by_day.values()), "appointments_by_day": list(appts_by_day.values())}, "funnel": {"lead_count": lead_new, "customer_count": customers, "booking_count": bookings, "deposit_count": deposits, "deal_count": deals, "contract_count": contract_count, "lead_to_customer_rate": _rate(customers, lead_new), "booking_to_contract_rate": _rate(contract_count, bookings)}, "rankings": {"top_sales_by_revenue": _top_users(sales, "revenue"), "top_sales_by_contract_count": _top_users(sales, "contract_count"), "top_sales_by_activity_count": _top_users(sales, "activity_count"), "top_sales_with_overdue_leads": _top_users(sales, "overdue_lead_count"), "top_sources_by_lead_count": list(sources.values())[:10], "top_projects_by_revenue": sorted(projects.values(), key=lambda x: x["revenue"], reverse=True)[:10]}, "alerts": {"unassigned_leads": [_lead_alert(x) for x in db.scalars(select(Lead).where(Lead.deleted_at.is_(None), Lead.owner_id.is_(None)).order_by(Lead.created_at.desc()).limit(10)).unique()], "overdue_leads": [_lead_alert(x) for x in db.scalars(select(Lead).where(*lead_base, Lead.next_follow_up_at.is_not(None), Lead.next_follow_up_at < stamp).order_by(Lead.next_follow_up_at).limit(10)).unique()], "stale_leads": [_lead_alert(x) for x in db.scalars(select(Lead).where(*lead_base, func.coalesce(Lead.last_contact_at, Lead.created_at) < stale_before).order_by(func.coalesce(Lead.last_contact_at, Lead.created_at)).limit(10)).unique()], "overdue_tasks": [_task_alert(x) for x in db.scalars(select(LeadTask).where(LeadTask.deleted_at.is_(None), _task_scope_condition(scope), active_task, LeadTask.due_at < stamp).order_by(LeadTask.due_at).limit(10)).unique()], "today_appointments": [_appt_alert(x) for x in db.scalars(select(LeadAppointment).where(LeadAppointment.deleted_at.is_(None), _appt_scope_condition(scope), LeadAppointment.start_at >= today_start, LeadAppointment.start_at < today_end).order_by(LeadAppointment.start_at).limit(10)).unique()]}}

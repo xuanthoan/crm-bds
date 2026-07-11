@@ -25,3 +25,16 @@ Hoàn thành nền tảng dashboard giám đốc v1 thay vì rewrite toàn bộ 
 ## Sprint 32.4 — Boss Dashboard KPI tooltip and axis cleanup
 - Final UI cleanup: KPI tooltip help icons instead of subtitles, full 30-day day-number axis labels, and removal of detail-card Top N badges.
 - No new dependencies, no API route changes, no revenue attribution changes, and no financial KPI formula changes.
+
+## Sprint 33 — Sales Manager / Leader Dashboard
+- Backend: endpoint `/api/v1/dashboard/sales-management`, date preset today/last_7_days/last_30_days/this_month/last_month/custom, scope auto/team/department/all, response summary/time_series/funnel/rankings/alerts.
+- Frontend: trang `/dashboard/sales-management`, menu “Tổng quan quản lý sale”, date filter, KPI tooltip, trend charts, funnel summary, rankings top 10 và alert lists.
+- Guardrails: không làm lại Boss Dashboard, không tính revenue theo first-touch/lead uploader, không leak dữ liệu team khác, không thêm dependency chart mới.
+
+## Sprint 33.1 — Sales Management Dashboard UI reuse & polish
+- Polish frontend `/dashboard/sales-management`: sửa KPI mất label, dùng `HelpLabel`, area trend chart, `TrapezoidFunnel`, ranking card có rank badge, alert date format tiếng Việt và scope badge.
+- Không thêm chart dependency và không đổi backend scope/permission/revenue attribution.
+
+## Sprint 33.2 — Sales Management alert cleanup & project revenue verification
+- Cleanup UI: không hiển thị “Lead chưa phân công”, đổi label thành “Lead quá hạn chăm sóc”, giữ Sprint 33.1 KPI/chart/funnel/ranking polish.
+- Backend top project revenue verified with project fallback and valid-contract/deal-owner scoped attribution; no Boss Dashboard or revenue attribution rule changes.
