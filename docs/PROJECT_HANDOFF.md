@@ -37,3 +37,8 @@
 - KPI chính gồm lead mới/đã phân công/chưa phân công/trùng tiếp cận lại, cảnh báo lead-task-appointment, pipeline, hợp đồng, doanh số và hoa hồng sale.
 - Revenue attribution tiếp tục theo owner của deal/hợp đồng hợp lệ Sprint 32, không theo lead creator/uploader/first touch. Duplicate re-engagement được đếm riêng và không tăng lead mới.
 - Sprint này không thêm dashboard cho Sale/Marketing/Accountant/Inventory và không thay đổi Boss Dashboard.
+
+## Sprint 33.1 — Sales Management Dashboard UI polish
+- Trang `/dashboard/sales-management` được polish lại để dùng cùng ngôn ngữ UI với Boss Dashboard Sprint 32.4: KPI card có label + `HelpLabel`, area trend chart, trapezoid funnel, ranking row có rank badge và alert list gọn.
+- UI đã Việt hóa scope (`all` → `Toàn bộ`, `team` → nhóm/team, `department` → phòng ban), format ngày giờ alert bằng `Intl.DateTimeFormat('vi-VN')` và giữ link “Mở”.
+- Sprint 33.1 không đổi backend permission/scope, duplicate re-engagement rule hay revenue attribution Sprint 32.

@@ -30,3 +30,7 @@ Hoàn thành nền tảng dashboard giám đốc v1 thay vì rewrite toàn bộ 
 - Backend: endpoint `/api/v1/dashboard/sales-management`, date preset today/last_7_days/last_30_days/this_month/last_month/custom, scope auto/team/department/all, response summary/time_series/funnel/rankings/alerts.
 - Frontend: trang `/dashboard/sales-management`, menu “Tổng quan quản lý sale”, date filter, KPI tooltip, trend charts, funnel summary, rankings top 10 và alert lists.
 - Guardrails: không làm lại Boss Dashboard, không tính revenue theo first-touch/lead uploader, không leak dữ liệu team khác, không thêm dependency chart mới.
+
+## Sprint 33.1 — Sales Management Dashboard UI reuse & polish
+- Polish frontend `/dashboard/sales-management`: sửa KPI mất label, dùng `HelpLabel`, area trend chart, `TrapezoidFunnel`, ranking card có rank badge, alert date format tiếng Việt và scope badge.
+- Không thêm chart dependency và không đổi backend scope/permission/revenue attribution.
