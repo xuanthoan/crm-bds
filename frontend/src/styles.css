@@ -3453,3 +3453,4 @@ th .help-label {
 .detail-list-header span {
   display: none;
 }
+.sales-management-dashboard{max-width:100%;overflow-x:hidden}.sales-management-dashboard .dashboard-content{min-width:0}.dashboard-alert-list{display:grid;gap:.75rem;list-style:none;margin:0;padding:0}.dashboard-alert-list li{align-items:center;border:1px solid #e4e7ec;border-radius:.85rem;display:flex;gap:.75rem;justify-content:space-between;padding:.75rem}.dashboard-alert-list span{color:#667085;display:block;font-size:.85rem}.dashboard-alert-list a{color:#2563eb;font-weight:700;text-decoration:none;white-space:nowrap}

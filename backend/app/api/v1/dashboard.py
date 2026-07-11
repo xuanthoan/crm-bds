@@ -4,7 +4,7 @@ from app.core.responses import success_response
 from app.db.session import get_db
 from app.models.user import User
 from app.permissions.dependencies import require_auth,user_has_permission
-from app.services.dashboard_service import BOSS_DASHBOARD_PERMISSION,get_boss_dashboard,get_my_work_summary,get_team_work_summary
+from app.services.dashboard_service import BOSS_DASHBOARD_PERMISSION,get_boss_dashboard,get_my_work_summary,get_team_work_summary,get_sales_management_dashboard
 router=APIRouter(prefix="/dashboard",tags=["dashboard"])
 @router.get("/my-work")
 @router.get("/sale")
@@ -19,5 +19,13 @@ def boss_dashboard(preset:str|None=None,from_date:str|None=None,to_date:str|None
         raise HTTPException(403,"Bạn không có quyền xem dashboard giám đốc")
     try:
         return success_response(get_boss_dashboard(db,preset,from_date,to_date),"Boss dashboard retrieved")
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
+
+
+@router.get("/sales-management")
+def sales_management_dashboard(preset:str|None=None,start_date:str|None=None,end_date:str|None=None,from_date:str|None=None,to_date:str|None=None,scope_type:str|None="auto",team_id:str|None=None,department_id:str|None=None,db:Session=Depends(get_db),user:User=Depends(require_auth)):
+    try:
+        return success_response(get_sales_management_dashboard(db,user,preset,start_date or from_date,end_date or to_date,scope_type,team_id,department_id),"Sales management dashboard retrieved")
     except ValueError as exc:
         raise HTTPException(400,str(exc)) from exc

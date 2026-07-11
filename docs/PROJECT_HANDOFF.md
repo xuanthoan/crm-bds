@@ -30,3 +30,10 @@
 - KPI cards bỏ toàn bộ subtitle dưới số lớn; ý nghĩa KPI chuyển sang dấu `?` dùng `HelpLabel`/`HelpTooltip` cùng style với commissions và reconciliation.
 - Trend charts dùng nhãn trục ngày dạng `dd` cho toàn bộ 7/30 điểm; hover marker vẫn hiển thị ngày đầy đủ hơn.
 - Detail ranking bỏ badge `Top N` ở header, vẫn giữ rank trong từng dòng, top 10 và không scroll ngang. Không đổi revenue attribution, duplicate re-engagement rule hoặc financial formulas.
+
+## Sprint 33 — Sales Manager / Leader Dashboard
+- Thêm dashboard vận hành sale tại `GET /api/v1/dashboard/sales-management` và route frontend `/dashboard/sales-management` cho Sales Manager/Leader; Admin/Director hoặc user có quyền view-all được xem toàn phạm vi.
+- Scope dữ liệu: Sales Manager dùng phòng ban do `Department.manager_id` quản lý hoặc department membership hiện có; Leader dùng team do `Team.leader_id` quản lý hoặc team membership hiện có; sale/marketing/accountant/inventory/viewer không có permission sẽ bị 403.
+- KPI chính gồm lead mới/đã phân công/chưa phân công/trùng tiếp cận lại, cảnh báo lead-task-appointment, pipeline, hợp đồng, doanh số và hoa hồng sale.
+- Revenue attribution tiếp tục theo owner của deal/hợp đồng hợp lệ Sprint 32, không theo lead creator/uploader/first touch. Duplicate re-engagement được đếm riêng và không tăng lead mới.
+- Sprint này không thêm dashboard cho Sale/Marketing/Accountant/Inventory và không thay đổi Boss Dashboard.
