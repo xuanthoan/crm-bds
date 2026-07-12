@@ -14,7 +14,10 @@ from app.services.booking_service import create_deal_from_booking, add_booking_a
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
 @router.get("")
-def get_bookings(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),q:str|None=None,customer_id:UUID|None=None,property_unit_id:UUID|None=None,assigned_user_id:UUID|None=None,status_filter:str|None=Query(None,alias="status"),created_from:datetime|None=None,created_to:datetime|None=None,expires_from:datetime|None=None,expires_to:datetime|None=None,db:Session=Depends(get_db),actor:User=Depends(require_auth)):
+def get_bookings(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),q:str|None=None,customer_id:UUID|None=None,property_unit_id:UUID|None=None,assigned_user_id:UUID|None=None,status_filter:str|None=Query(None,alias="status"),created_from:datetime|None=None,created_to:datetime|None=None,expires_from:datetime|None=None,expires_to:datetime|None=None,date_from:datetime|None=None,date_to:datetime|None=None,scope:str|None=None,db:Session=Depends(get_db),actor:User=Depends(require_auth)):
+    if scope=="mine": assigned_user_id=actor.id
+    created_from=created_from or date_from
+    created_to=created_to or date_to
     items,meta=list_bookings(db,actor,page=page,page_size=page_size,q=q,customer_id=customer_id,property_unit_id=property_unit_id,assigned_user_id=assigned_user_id,status=status_filter,created_from=created_from,created_to=created_to,expires_from=expires_from,expires_to=expires_to)
     return success_response([serialize_booking(item) for item in items],meta=meta)
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { hydrateFiltersFromQuery } from "../../utils/queryHydration";
 import { FormError } from "../../components/FormError";
 import { Pagination } from "../../components/common/Pagination";
 import { GuideBox } from "../../components/help/GuideBox";
@@ -16,7 +17,7 @@ const days = (v: string | null) =>
     : 0;
 export function OverdueLeadsPage() {
   const [items, setItems] = useState<Lead[]>([]),
-    [priority, setPriority] = useState(""),
+    [priority, setPriority] = useState(() => hydrateFiltersFromQuery({ priority: "" }, { priority: "string" }).priority),
     [page, setPage] = useState(1),
     [meta, setMeta] = useState({ page: 1, total: 0, total_pages: 1 }),
     [errors, setErrors] = useState<string[] | null>(null),
@@ -24,7 +25,8 @@ export function OverdueLeadsPage() {
   async function load(nextPage = page, nextPriority = priority) {
     setLoading(true);
     try {
-      const response = await listOverdueLeads({ page: nextPage, page_size: 20, priority: nextPriority });
+      const queryFilters = hydrateFiltersFromQuery({ scope: "", care_status: "" }, { scope: "string", care_status: "string" });
+      const response = await listOverdueLeads({ page: nextPage, page_size: 20, priority: nextPriority, ...queryFilters });
       setItems(Array.isArray(response.data) ? response.data : []);
       setMeta({
         page: Number(response.meta.page || nextPage),
@@ -40,6 +42,16 @@ export function OverdueLeadsPage() {
       setLoading(false);
     }
   }
+  useEffect(() => {
+    const hydrate = () => {
+      const next = hydrateFiltersFromQuery({ priority: "" }, { priority: "string" }).priority;
+      setPriority(next);
+      setPage(1);
+      void load(1, next);
+    };
+    window.addEventListener("popstate", hydrate);
+    return () => window.removeEventListener("popstate", hydrate);
+  }, []);
   useEffect(() => {
     void load(page, priority);
   }, [page]);

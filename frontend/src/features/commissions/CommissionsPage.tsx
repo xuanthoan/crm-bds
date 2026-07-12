@@ -7,6 +7,7 @@ import { ActionModal, GenerateModal, GuideModal } from './CommissionModals';
 import { Pagination } from '../../components/common/Pagination';
 import { GuideBox } from '../../components/help/GuideBox';
 import { HelpLabel, HelpTooltip } from '../../components/help/HelpTooltip';
+import { useQueryHydratedFilters } from '../../utils/queryHydration';
 import { tooltipTexts } from '../help/helpContent';
 
 const money = (v: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(v || 0);
@@ -20,7 +21,7 @@ type ActionState = { type: 'approve' | 'hold' | 'cancel' | 'paid'; c: Commission
 export function CommissionsPage() {
   const [items, setItems] = useState<Commission[]>([]);
   const [summary, setSummary] = useState<Record<string, number>>({});
-  const [filters, setFilters] = useState<Record<string, string>>({ page: '1', page_size: '20' });
+  const [filters, setFilters] = useQueryHydratedFilters<Record<string, string>>({ page: '1', page_size: '20' }, { page: 'string', page_size: 'string', status: 'string', keyword: 'string', scope: 'string', date_from: 'string', date_to: 'string' });
   const [guide, setGuide] = useState(false);
   const [gen, setGen] = useState(false);
   const [action, setAction] = useState<ActionState | null>(null);
@@ -46,7 +47,7 @@ export function CommissionsPage() {
     finally { setLoading(false); }
   }
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(filters); }, [JSON.stringify(filters)]);
 
   useEffect(() => {
     const updateTableScrollWidth = () => setTableScrollWidth(tableScrollRef.current?.scrollWidth || 0);

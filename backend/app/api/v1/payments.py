@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
@@ -27,8 +28,8 @@ def receipt_post(payment_id:UUID,payload:ReceiptCreate,db:Session=Depends(get_db
 def receipts(payment_id:UUID,db:Session=Depends(get_db),actor:User=Depends(require_auth)): return success_response([serialize_receipt(r) for r in list_receipts(db,payment_id,actor)])
 
 @router.get('/payment-receipts')
-def receipt_list(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),q:str|None=None,status_filter:str|None=Query(None,alias='status'),db:Session=Depends(get_db),actor:User=Depends(require_auth)):
-    items,meta=list_all_receipts(db,actor,page,page_size,q,status_filter); return success_response([serialize_receipt(i) for i in items],meta=meta)
+def receipt_list(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),q:str|None=None,status_filter:str|None=Query(None,alias='status'),scope:str|None=None,date_from:datetime|None=None,date_to:datetime|None=None,db:Session=Depends(get_db),actor:User=Depends(require_auth)):
+    items,meta=list_all_receipts(db,actor,page,page_size,q,status_filter,scope=scope,date_from=date_from,date_to=date_to); return success_response([serialize_receipt(i) for i in items],meta=meta)
 @router.get('/payment-receipts/{receipt_id}')
 def receipt_get(receipt_id:UUID,db:Session=Depends(get_db),actor:User=Depends(require_auth)): return success_response(serialize_receipt(get_receipt(db,receipt_id,actor)))
 @router.post('/payment-receipts/{receipt_id}/confirm')
@@ -36,7 +37,7 @@ def receipt_confirm_alias(receipt_id:UUID,payload:ReceiptConfirm,db:Session=Depe
 @router.post('/payment-receipts/{receipt_id}/cancel')
 def receipt_cancel_alias(receipt_id:UUID,payload:ReceiptCancel,db:Session=Depends(get_db),actor:User=Depends(require_auth)): return success_response(serialize_receipt(cancel_receipt(db,receipt_id,payload,actor)),'Hủy phiếu thu thành công')
 @router.get('/invoices')
-def invoice_list(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),q:str|None=None,status_filter:str|None=Query(None,alias='status'),db:Session=Depends(get_db),actor:User=Depends(require_auth)):
+def invoice_list(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),q:str|None=None,status_filter:str|None=Query(None,alias='status'),scope:str|None=None,date_from:datetime|None=None,date_to:datetime|None=None,db:Session=Depends(get_db),actor:User=Depends(require_auth)):
     items,meta=list_invoices(db,actor,page,page_size,q,status_filter); return success_response([serialize_invoice(i) for i in items],meta=meta)
 @router.get('/invoices/{invoice_id}')
 def invoice_get(invoice_id:UUID,db:Session=Depends(get_db),actor:User=Depends(require_auth)): return success_response(serialize_invoice(get_invoice(db,invoice_id,actor)))

@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from math import ceil
 from uuid import UUID
@@ -260,6 +260,12 @@ def list_leads(
     created_to: date | None = None,
     next_follow_up_from: date | None = None,
     next_follow_up_to: date | None = None,
+    care_due: str | None = None,
+    care_status: str | None = None,
+    next_follow_up: str | None = None,
+    activity_status: str | None = None,
+    has_activity: bool | None = None,
+    stale: bool | None = None,
 ) -> tuple[list[Lead], dict]:
     require_view_permission(user)
     query = apply_view_scope(db, select(Lead).where(Lead.deleted_at.is_(None)), user)
@@ -269,9 +275,12 @@ def list_leads(
         term = f"%{search.strip()}%"
         conditions.append(or_(Lead.code.ilike(term), Lead.full_name.ilike(term), Lead.phone_primary.ilike(term), Lead.phone_secondary.ilike(term), Lead.email.ilike(term), Lead.zalo.ilike(term), Lead.facebook.ilike(term)))
     if lead_status:
-        if lead_status not in LEAD_STATUSES:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Trạng thái lead không hợp lệ")
-        conditions.append(Lead.status == lead_status)
+        if lead_status in {"active", "open"}:
+            conditions.append(Lead.status.not_in({"converted", "lost"}))
+        else:
+            if lead_status not in LEAD_STATUSES:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Trạng thái lead không hợp lệ")
+            conditions.append(Lead.status == lead_status)
     if priority:
         _validate_priority(priority)
         conditions.append(Lead.priority == priority)
@@ -293,6 +302,21 @@ def list_leads(
         conditions.append(Lead.next_follow_up_at >= datetime.combine(next_follow_up_from, time.min, tzinfo=timezone.utc))
     if next_follow_up_to:
         conditions.append(Lead.next_follow_up_at <= datetime.combine(next_follow_up_to, time.max, tzinfo=timezone.utc))
+    if care_due == "today" or next_follow_up == "today":
+        today = datetime.now(timezone.utc).date()
+        conditions.append(Lead.next_follow_up_at >= datetime.combine(today, time.min, tzinfo=timezone.utc))
+        conditions.append(Lead.next_follow_up_at <= datetime.combine(today, time.max, tzinfo=timezone.utc))
+        conditions.append(Lead.status.not_in({"converted", "lost"}))
+    if care_status == "overdue":
+        conditions.append(Lead.next_follow_up_at < datetime.now(timezone.utc))
+        conditions.append(Lead.status.not_in({"converted", "lost"}))
+    if activity_status == "none" or has_activity is False:
+        conditions.append(~Lead.activities.any())
+        conditions.append(Lead.status.not_in({"converted", "lost"}))
+    if stale is True:
+        stale_before = datetime.now(timezone.utc) - timedelta(days=7)
+        conditions.append(Lead.last_contact_at < stale_before)
+        conditions.append(Lead.status.not_in({"converted", "lost"}))
     for condition in conditions:
         query = query.where(condition)
         count_query = count_query.where(condition)

@@ -49,3 +49,8 @@ Hoàn thành nền tảng dashboard giám đốc v1 thay vì rewrite toàn bộ 
 - Convert actionable Sale Dashboard KPI cards into keyboard-accessible drilldown shortcuts.
 - Use existing routes with `scope=mine` and date range query params instead of exposing any user/sale/team/department IDs.
 - Keep ratio cards non-clickable until a dedicated safe analysis route exists.
+
+### Sprint 34.2 — Sale Dashboard drilldown filter hydration
+- Fixed the critical drilldown gap where KPI cards changed the URL but destination list pages ignored query filters.
+- Added shared query hydration for frontend list pages and backend `scope=mine` resolution for safe current-user filtering.
+- Covered leads, appointments, customers, bookings, deals, contracts, receipts, and commissions without adding new dashboard modules or chart dependencies.

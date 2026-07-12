@@ -398,3 +398,8 @@ UI Sprint 32.1 chia KPI thành nhóm tinted cards, phóng to chart xu hướng, 
 - Sale Dashboard drilldown URLs must use `scope=mine`/current-user semantics and must not include raw `user_id`, `sale_id`, `team_id`, or `department_id` values.
 - Date-dependent KPI drilldowns carry the selected dashboard date range so list pages can apply equivalent filters.
 - Drilldowns are shortcuts only; they do not alter revenue attribution, duplicate lead ownership, or Boss/Sales Management Dashboard scopes.
+
+### Sprint 34.2 Drilldown scope rule
+- Sale Dashboard drilldown links may pass `scope=mine` plus business filters (status/stage/date/activity/stale), but must not pass `user_id`, `sale_id`, `team_id`, or `department_id`.
+- List APIs that receive `scope=mine` must resolve the owner/assignee/sale filter from the authenticated user on the backend.
+- Destination pages must hydrate filters from URL query strings after direct load, refresh, and browser back/forward so KPI drilldowns remain actionable and scoped.

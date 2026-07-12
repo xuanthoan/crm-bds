@@ -63,3 +63,9 @@
 - Linked cards include today/overdue tasks, today/overdue appointments, follow-up lead cards, lead/customer cards, booking/deal/contract/revenue/receipt cards, and personal commission amount cards.
 - Ratio cards remain non-clickable because they represent derived metrics rather than a single safe list destination.
 - Sprint 34.1 does not change Boss Dashboard, Sales Management Dashboard, duplicate lead ownership, or Sprint 32 revenue attribution.
+
+### Sprint 34.2 — Drilldown filter hydration critical fix
+- Dashboard drilldown URLs now hydrate list-page filters from `window.location.search` through a shared frontend helper, so refresh and browser back/forward preserve filters.
+- List pages for leads, appointments, customers, bookings, deals, contracts, receipts, and commissions pass dashboard query params such as `scope=mine`, status/stage, date ranges, stale, and activity flags to backend APIs instead of showing unfiltered data.
+- Backend list endpoints resolve `scope=mine` from the authenticated user (`current_user`/`actor`) and do not accept raw `user_id`, `sale_id`, `team_id`, or `department_id` from Sale Dashboard drilldown links.
+- No revenue attribution, duplicate lead ownership, Boss Dashboard, or Sales Management Dashboard logic changed.
