@@ -393,3 +393,8 @@ UI Sprint 32.1 chia KPI thành nhóm tinted cards, phóng to chart xu hướng, 
 - Lead overdue care uses `next_follow_up_at < now` and excludes Sprint 33.2 closed lead statuses.
 - New lead counts exclude duplicate re-engagement records (`duplicate_detected`/`duplicate_of_customer_id`).
 - Revenue attribution remains Sprint 32 deal-owner/winning-owner based and excludes draft/cancelled contracts.
+
+## Sprint 34.1 Sale Dashboard drilldown rules
+- Sale Dashboard drilldown URLs must use `scope=mine`/current-user semantics and must not include raw `user_id`, `sale_id`, `team_id`, or `department_id` values.
+- Date-dependent KPI drilldowns carry the selected dashboard date range so list pages can apply equivalent filters.
+- Drilldowns are shortcuts only; they do not alter revenue attribution, duplicate lead ownership, or Boss/Sales Management Dashboard scopes.

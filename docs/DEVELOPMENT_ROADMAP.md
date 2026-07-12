@@ -44,3 +44,8 @@ Hoàn thành nền tảng dashboard giám đốc v1 thay vì rewrite toàn bộ 
 - Scope is strictly current user; no cross-sale/team/department selector in this sprint.
 - Sections: Việc cần làm hôm nay, Ưu tiên xử lý, Lead & khách của tôi, Pipeline & doanh số của tôi, Hoa hồng của tôi, Xu hướng cá nhân, Funnel cá nhân.
 - Reuses date range presets, KPI cards/help labels, SVG area trend style, and trapezoid funnel without adding chart dependencies.
+
+## Sprint 34.1 — Sale Dashboard drilldowns
+- Convert actionable Sale Dashboard KPI cards into keyboard-accessible drilldown shortcuts.
+- Use existing routes with `scope=mine` and date range query params instead of exposing any user/sale/team/department IDs.
+- Keep ratio cards non-clickable until a dedicated safe analysis route exists.

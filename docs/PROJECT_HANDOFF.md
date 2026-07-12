@@ -56,3 +56,10 @@
 - Lead overdue care follows Sprint 33.2 `CLOSED_LEAD_STATUSES` and `next_follow_up_at < now` rule.
 - Personal revenue keeps Sprint 32 attribution: valid contracts joined through Deal owner/current user, never first-touch/uploader/lead creator.
 - Boss Dashboard and Sales Management Dashboard remain separate routes and scopes.
+
+## Sprint 34.1 — Sale Dashboard drilldown links
+- KPI cards on `/dashboard/sale` now act as action shortcuts when a safe destination exists.
+- Drilldown URLs are built on the frontend with `scope=mine` and date range params; they never include `user_id`, `sale_id`, `team_id`, or `department_id`.
+- Linked cards include today/overdue tasks, today/overdue appointments, follow-up lead cards, lead/customer cards, booking/deal/contract/revenue/receipt cards, and personal commission amount cards.
+- Ratio cards remain non-clickable because they represent derived metrics rather than a single safe list destination.
+- Sprint 34.1 does not change Boss Dashboard, Sales Management Dashboard, duplicate lead ownership, or Sprint 32 revenue attribution.

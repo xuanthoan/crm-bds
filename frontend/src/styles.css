@@ -3567,3 +3567,24 @@ th .help-label {
   padding: 7px 12px;
   text-decoration: none;
 }
+
+/* Sprint 34.1 Sale Dashboard drilldown KPI cards */
+.sale-dashboard .summary-card.drilldown-card {
+  cursor: pointer;
+  position: relative;
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+.sale-dashboard .summary-card.drilldown-card:hover,
+.sale-dashboard .summary-card.drilldown-card:focus-visible {
+  border-color: #2563eb;
+  box-shadow: 0 14px 32px rgba(37, 99, 235, .14);
+  outline: none;
+  transform: translateY(-1px);
+}
+.sale-dashboard .drilldown-hint {
+  color: #2563eb;
+  display: block;
+  font-size: .78rem;
+  font-weight: 700;
+  margin-top: .45rem;
+}
