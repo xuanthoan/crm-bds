@@ -38,3 +38,19 @@ Hoàn thành nền tảng dashboard giám đốc v1 thay vì rewrite toàn bộ 
 ## Sprint 33.2 — Sales Management alert cleanup & project revenue verification
 - Cleanup UI: không hiển thị “Lead chưa phân công”, đổi label thành “Lead quá hạn chăm sóc”, giữ Sprint 33.1 KPI/chart/funnel/ranking polish.
 - Backend top project revenue verified with project fallback and valid-contract/deal-owner scoped attribution; no Boss Dashboard or revenue attribution rule changes.
+
+## Sprint 34 — Sale Dashboard
+- Implement personal dashboard `/dashboard/sale` and menu label “Dashboard của tôi”.
+- Scope is strictly current user; no cross-sale/team/department selector in this sprint.
+- Sections: Việc cần làm hôm nay, Ưu tiên xử lý, Lead & khách của tôi, Pipeline & doanh số của tôi, Hoa hồng của tôi, Xu hướng cá nhân, Funnel cá nhân.
+- Reuses date range presets, KPI cards/help labels, SVG area trend style, and trapezoid funnel without adding chart dependencies.
+
+## Sprint 34.1 — Sale Dashboard drilldowns
+- Convert actionable Sale Dashboard KPI cards into keyboard-accessible drilldown shortcuts.
+- Use existing routes with `scope=mine` and date range query params instead of exposing any user/sale/team/department IDs.
+- Keep ratio cards non-clickable until a dedicated safe analysis route exists.
+
+### Sprint 34.2 — Sale Dashboard drilldown filter hydration
+- Fixed the critical drilldown gap where KPI cards changed the URL but destination list pages ignored query filters.
+- Added shared query hydration for frontend list pages and backend `scope=mine` resolution for safe current-user filtering.
+- Covered leads, appointments, customers, bookings, deals, contracts, receipts, and commissions without adding new dashboard modules or chart dependencies.

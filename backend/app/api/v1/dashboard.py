@@ -4,11 +4,17 @@ from app.core.responses import success_response
 from app.db.session import get_db
 from app.models.user import User
 from app.permissions.dependencies import require_auth,user_has_permission
-from app.services.dashboard_service import BOSS_DASHBOARD_PERMISSION,get_boss_dashboard,get_my_work_summary,get_team_work_summary,get_sales_management_dashboard
+from app.services.dashboard_service import BOSS_DASHBOARD_PERMISSION,SALE_DASHBOARD_PERMISSION,get_boss_dashboard,get_my_work_summary,get_team_work_summary,get_sales_management_dashboard,get_sale_dashboard,can_view_sale_dashboard
 router=APIRouter(prefix="/dashboard",tags=["dashboard"])
 @router.get("/my-work")
-@router.get("/sale")
 def my_work(db:Session=Depends(get_db),user:User=Depends(require_auth)):return success_response(get_my_work_summary(db,user),"My work summary retrieved")
+
+@router.get("/sale")
+def sale_dashboard(preset:str|None=None,start_date:str|None=None,end_date:str|None=None,from_date:str|None=None,to_date:str|None=None,db:Session=Depends(get_db),user:User=Depends(require_auth)):
+    try:
+        return success_response(get_sale_dashboard(db,user,preset,start_date or from_date,end_date or to_date),"Sale dashboard retrieved")
+    except ValueError as exc:
+        raise HTTPException(400,str(exc)) from exc
 @router.get("/team-work")
 @router.get("/leader")
 def team_work(db:Session=Depends(get_db),user:User=Depends(require_auth)):return success_response(get_team_work_summary(db,user),"Team work summary retrieved")

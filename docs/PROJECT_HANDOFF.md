@@ -47,3 +47,25 @@
 - Bỏ “Lead chưa phân công” khỏi UI `/dashboard/sales-management`; backend vẫn giữ field tương ứng để không phá client/test cũ.
 - Đổi nhãn/tooltip thành “Lead quá hạn chăm sóc” để làm rõ lead đã đến hạn follow-up nhưng trễ xử lý.
 - Top dự án theo doanh số dùng hợp đồng hợp lệ trong scope Sales Manager/Leader/Admin, group theo project với fallback contract/deal/booking-property/contract-property/deal-property/lead project interest và vẫn theo deal owner, không theo first-touch/uploader.
+
+## Sprint 34 — Sale Dashboard
+- Added personal Sale Dashboard at `/dashboard/sale` focused on “hôm nay cần làm gì” for the authenticated current user only.
+- Backend endpoint `GET /api/v1/dashboard/sale` does not accept `user_id`, `sale_id`, `team_id`, or `department_id`; all lead/task/appointment/deal/contract/commission data is scoped to `current_user`.
+- Permission uses `dashboard.sale.view` with personal dashboard access for sale/leader/sales_manager/admin/director roles without requiring Boss or Sales Management dashboard permissions.
+- Sale Dashboard intentionally does not show “Lead chưa phân công”. Duplicate re-engagement leads are excluded from new lead counts.
+- Lead overdue care follows Sprint 33.2 `CLOSED_LEAD_STATUSES` and `next_follow_up_at < now` rule.
+- Personal revenue keeps Sprint 32 attribution: valid contracts joined through Deal owner/current user, never first-touch/uploader/lead creator.
+- Boss Dashboard and Sales Management Dashboard remain separate routes and scopes.
+
+## Sprint 34.1 — Sale Dashboard drilldown links
+- KPI cards on `/dashboard/sale` now act as action shortcuts when a safe destination exists.
+- Drilldown URLs are built on the frontend with `scope=mine` and date range params; they never include `user_id`, `sale_id`, `team_id`, or `department_id`.
+- Linked cards include today/overdue tasks, today/overdue appointments, follow-up lead cards, lead/customer cards, booking/deal/contract/revenue/receipt cards, and personal commission amount cards.
+- Ratio cards remain non-clickable because they represent derived metrics rather than a single safe list destination.
+- Sprint 34.1 does not change Boss Dashboard, Sales Management Dashboard, duplicate lead ownership, or Sprint 32 revenue attribution.
+
+### Sprint 34.2 — Drilldown filter hydration critical fix
+- Dashboard drilldown URLs now hydrate list-page filters from `window.location.search` through a shared frontend helper, so refresh and browser back/forward preserve filters.
+- List pages for leads, appointments, customers, bookings, deals, contracts, receipts, and commissions pass dashboard query params such as `scope=mine`, status/stage, date ranges, stale, and activity flags to backend APIs instead of showing unfiltered data.
+- Backend list endpoints resolve `scope=mine` from the authenticated user (`current_user`/`actor`) and do not accept raw `user_id`, `sale_id`, `team_id`, or `department_id` from Sale Dashboard drilldown links.
+- No revenue attribution, duplicate lead ownership, Boss Dashboard, or Sales Management Dashboard logic changed.

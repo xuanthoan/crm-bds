@@ -47,7 +47,7 @@ PERMISSION_CODES_BY_MODULE = {'activities': ['activities.view.own',
                'customers.add_activity.team',
                'customers.add_activity.department',
                'customers.add_activity.all'],
- 'dashboard': ['dashboard.view.own', 'dashboard.view.team', 'dashboard.view.all', 'dashboard.boss.view', 'dashboard.sales_manager.view', 'dashboard.leader.view', 'dashboard.team.view', 'dashboard.sales.view.all'],
+ 'dashboard': ['dashboard.view.own', 'dashboard.sale.view', 'dashboard.view.team', 'dashboard.view.all', 'dashboard.boss.view', 'dashboard.sales_manager.view', 'dashboard.leader.view', 'dashboard.team.view', 'dashboard.sales.view.all'],
  'deals': ['deals.view.own',
            'deals.view.team',
            'deals.view.department',
@@ -686,3 +686,10 @@ ROLE_PERMISSION_MAP["admin"] = list(ALL_PERMISSION_CODES)
 for _role in ("director", "sales_manager", "accountant"):
     ROLE_PERMISSION_MAP[_role] += [p for p in COMPANY_COMMISSION_PERMISSIONS if p not in ROLE_PERMISSION_MAP[_role]]
 ROLE_PERMISSION_MAP["leader"] += ["company_commissions.view", "company_commissions.create"]
+
+# Sprint 34: Sale Dashboard is personal and available to authenticated sales roles.
+for _role in ("admin", "director", "sales_manager", "leader", "sale"):
+    if "dashboard.sale.view" not in ROLE_PERMISSION_MAP[_role]:
+        ROLE_PERMISSION_MAP[_role].append("dashboard.sale.view")
+if "dashboard.sale.view" not in ALL_PERMISSION_CODES:
+    ALL_PERMISSION_CODES.append("dashboard.sale.view")

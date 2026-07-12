@@ -191,9 +191,14 @@ def cancel_receipt(db,id,payload:ReceiptCancel,actor):
     if r.status=='confirmed': p.paid_amount=max((p.paid_amount or Decimal('0'))-r.amount,Decimal('0')); _recalc(p)
     r.status='cancelled'; r.cancel_reason=(payload.cancel_reason or payload.note); r.cancelled_at=datetime.now(timezone.utc); r.cancelled_by_id=actor.id; r.note=payload.note or r.note; r.updated_by_id=actor.id; add_contract_activity(db,p.contract,actor,'payment_receipt_cancelled',content=f"Hủy phiếu thu {r.receipt_code} của {p.title}."); db.commit(); db.refresh(r); return r
 def list_receipts(db,schedule_id,actor): return [r for r in _schedule(db,schedule_id).receipts if r.deleted_at is None]
-def list_all_receipts(db,actor,page=1,page_size=20,q=None,status=None):
+def list_all_receipts(db,actor,page=1,page_size=20,q=None,status=None,scope=None,date_from=None,date_to=None):
     cond=[PaymentReceipt.deleted_at.is_(None)]
     if status: cond.append(PaymentReceipt.status==status)
+    if scope == "mine":
+        owned_deals=select(Deal.id).where(Deal.owner_id==actor.id)
+        cond.append(or_(PaymentReceipt.deal_id.in_(owned_deals), PaymentReceipt.payment_schedule.has(PaymentSchedule.deal_id.in_(owned_deals))))
+    if date_from is not None: cond.append(PaymentReceipt.created_at>=date_from)
+    if date_to is not None: cond.append(PaymentReceipt.created_at<=date_to)
     if q:
         term=f'%{q.strip()}%'; cond.append(or_(PaymentReceipt.receipt_code.ilike(term), PaymentReceipt.payment_schedule.has(PaymentSchedule.payment_code.ilike(term)), PaymentReceipt.payment_schedule.has(PaymentSchedule.contract.has(Contract.contract_code.ilike(term))), PaymentReceipt.payment_schedule.has(PaymentSchedule.customer.has(or_(Customer.full_name.ilike(term), Customer.primary_phone.ilike(term))))))
     total=db.scalar(select(func.count(PaymentReceipt.id)).where(*cond)) or 0

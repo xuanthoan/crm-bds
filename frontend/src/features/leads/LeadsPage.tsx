@@ -8,6 +8,7 @@ import type { AdminUser } from "../admin/users/api";
 import { listDepartments, listTeams } from "../organization/api";
 import type { Department, Team } from "../organization/types";
 import { formatApiError } from "../../services/apiClient";
+import { useQueryHydratedFilters } from "../../utils/queryHydration";
 import { navigateTo } from "../../routes/AppRoutes";
 import {
   assignLead,
@@ -48,7 +49,7 @@ export function LeadsPage() {
   const [ownersError, setOwnersError] = useState<string[] | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [filters, setFilters] = useState<Filters>({ page: 1, page_size: 20 });
+  const [filters, setFilters] = useQueryHydratedFilters<Filters>({ page: 1, page_size: 20 }, { search: 'string', status: 'string', priority: 'string', source: 'string', scope: 'string', care_due: 'string', care_status: 'string', next_follow_up: 'string', activity_status: 'string', has_activity: 'boolean', stale: 'boolean', created_from: 'string', created_to: 'string', start_date: 'string', end_date: 'string' });
   const [meta, setMeta] = useState({ page: 1, total_pages: 0, total: 0 });
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState<string[] | null>(null);
@@ -94,7 +95,9 @@ export function LeadsPage() {
     }
   }
   useEffect(() => {
-    void load();
+    void load(filters);
+  }, [JSON.stringify(filters)]);
+  useEffect(() => {
     if (canAssign) void loadEligibleOwners();
     void Promise.all([listDepartments(), listTeams()])
       .then(([d, t]) => {

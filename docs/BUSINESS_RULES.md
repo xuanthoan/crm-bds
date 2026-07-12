@@ -385,3 +385,21 @@ UI Sprint 32.1 chia KPI thành nhóm tinted cards, phóng to chart xu hướng, 
 - “Lead quá hạn chăm sóc” là lead có `next_follow_up_at` đã qua thời điểm hiện tại và chưa ở trạng thái `converted`/`lost`, căn theo logic trang Lead quá hạn hiện có. Khái niệm này khác “Lead chưa có hoạt động” (chưa từng ghi nhận activity) và “Khách lâu chưa tương tác” (quá ngưỡng stale 7 ngày).
 - Top dự án theo doanh số của Sales Management Dashboard được kiểm chứng theo hợp đồng hợp lệ trong khoảng ngày chọn, scope theo deal owner/winning owner, group theo project fallback: `contract.project_id`, `deal.project_id`, property unit từ booking/contract/deal, rồi tên dự án quan tâm từ lead/deal nếu không có project id. Không dùng first_touch, uploader hoặc lead creator để phân bổ doanh số.
 - Sprint 33.2 không đổi Boss Dashboard, không đổi permission/scope nền và không đổi revenue attribution Sprint 32.
+
+## Sprint 34 Sale Dashboard business rules
+- Sale Dashboard is a personal operational dashboard for the authenticated user and must not accept arbitrary `user_id`/`sale_id` query parameters.
+- A sale only sees owned leads, assigned tasks/appointments, owned bookings/deals/contracts, and own sales commissions.
+- “Lead chưa phân công” is not displayed on Sale Dashboard because leads are auto-assigned to the creator when no sale is selected.
+- Lead overdue care uses `next_follow_up_at < now` and excludes Sprint 33.2 closed lead statuses.
+- New lead counts exclude duplicate re-engagement records (`duplicate_detected`/`duplicate_of_customer_id`).
+- Revenue attribution remains Sprint 32 deal-owner/winning-owner based and excludes draft/cancelled contracts.
+
+## Sprint 34.1 Sale Dashboard drilldown rules
+- Sale Dashboard drilldown URLs must use `scope=mine`/current-user semantics and must not include raw `user_id`, `sale_id`, `team_id`, or `department_id` values.
+- Date-dependent KPI drilldowns carry the selected dashboard date range so list pages can apply equivalent filters.
+- Drilldowns are shortcuts only; they do not alter revenue attribution, duplicate lead ownership, or Boss/Sales Management Dashboard scopes.
+
+### Sprint 34.2 Drilldown scope rule
+- Sale Dashboard drilldown links may pass `scope=mine` plus business filters (status/stage/date/activity/stale), but must not pass `user_id`, `sale_id`, `team_id`, or `department_id`.
+- List APIs that receive `scope=mine` must resolve the owner/assignee/sale filter from the authenticated user on the backend.
+- Destination pages must hydrate filters from URL query strings after direct load, refresh, and browser back/forward so KPI drilldowns remain actionable and scoped.
