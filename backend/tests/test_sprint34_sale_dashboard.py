@@ -29,8 +29,8 @@ class Sprint34SaleDashboardSourceTest(unittest.TestCase):
         self.assertIn('dashboard-area-chart', ui)
         self.assertIn('trapezoid-funnel', ui)
         self.assertIn('data.priority.map', ui)
-        self.assertIn('/tasks/today?scope=mine', ui)
-        self.assertIn('/contracts?scope=mine&status=valid', ui)
+        self.assertIn("q('/tasks/today',mine)", ui)
+        self.assertIn("status:'valid',date_from:resolvedStart,date_to:resolvedEnd", ui)
         self.assertNotIn('sale_id=', ui)
         self.assertNotIn('team_id=', ui)
     def test_route_sidebar_permission_and_regression_routes_present(self):

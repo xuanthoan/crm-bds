@@ -13,6 +13,7 @@ class Sprint343DrilldownScopeSourceTest(unittest.TestCase):
             'frontend/src/features/leads/LeadsPage.tsx': ['queryFilters<Filters>'],
             'frontend/src/features/leads/OverdueLeadsPage.tsx': ['queryFilters', 'scope'],
             'frontend/src/features/customers/CustomersPage.tsx': ['queryFilters'],
+            'frontend/src/features/bookings/BookingsPage.tsx': ['queryFilters<Filters>'],
             'frontend/src/features/deals/DealsPage.tsx': ['queryFilters<Filters>'],
             'frontend/src/features/contracts/ContractsPage.tsx': ['queryFilters<Record<string,string>>'],
             'frontend/src/features/receipts/ReceiptsPage.tsx': ['queryFilters<Record<string,string>>'],
@@ -29,7 +30,7 @@ class Sprint343DrilldownScopeSourceTest(unittest.TestCase):
         checks = {
             'backend/app/services/task_service.py': ['f.get("scope") == "mine"', 'Task.assigned_user_id==actor.id', 'Task.task_assignees.any(TaskAssignee.user_id==actor.id)', 'active_only'],
             'backend/app/services/lead_appointment_service.py': ['filters.get("scope") == "mine"', 'LeadAppointment.assigned_to_id==user.id', 'filters.get("status") == "overdue"'],
-            'backend/app/services/lead_service.py': ['scope == "mine"', 'Lead.owner_id == user.id', 'activity_status == "none"', 'has_activity is False', 'care_status == "overdue"'],
+            'backend/app/services/lead_service.py': ['scope == "mine"', 'Lead.owner_id == user.id', 'activity_status == "none"', 'has_activity is False', 'care_status == "overdue"', 'timedelta(days=7)'],
             'backend/app/services/customer_service.py': ['request_scope == "mine"', 'Customer.owner_id == actor.id', 'Lead.owner_id == actor.id'],
             'backend/app/services/booking_service.py': ['request_scope == "mine"', 'Booking.assigned_user_id == actor.id'],
             'backend/app/services/deal_service.py': ['request_scope == "mine"', 'Deal.owner_id == actor.id'],
@@ -46,11 +47,14 @@ class Sprint343DrilldownScopeSourceTest(unittest.TestCase):
         appt_api = read('frontend/src/features/appointments/api.ts')
         lead_api = read('frontend/src/features/leads/api.ts')
         dashboard = read('frontend/src/features/dashboard/SaleDashboard.tsx')
-        self.assertIn('/tasks/overdue?scope=mine', dashboard)
-        self.assertIn('/appointments?scope=mine&status=overdue', dashboard)
-        self.assertIn('/leads?scope=mine&activity_status=none&has_activity=false', dashboard)
+        self.assertIn("q('/tasks/overdue',mine)", dashboard)
+        self.assertIn("q('/appointments',{...mine,status:'overdue'})", dashboard)
+        self.assertIn("q('/leads',{...mine,activity_status:'none',has_activity:'false'})", dashboard)
         self.assertIn('scope?:string', task_api)
         self.assertIn('scope?:string', appt_api)
         self.assertIn('activity_status?: string', lead_api)
         self.assertIn('has_activity?: boolean | string', lead_api)
+        self.assertIn("status:'remaining',date_from:resolvedStart,date_to:resolvedEnd", dashboard)
+        self.assertIn('Funnel Lead → Customer', dashboard)
+        self.assertIn('Funnel Booking → Cọc → Deal → Hợp đồng', dashboard)
 if __name__ == '__main__': unittest.main()

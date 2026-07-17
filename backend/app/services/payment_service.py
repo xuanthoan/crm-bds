@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from math import ceil
 from uuid import UUID
@@ -117,6 +117,10 @@ def list_schedules(db,actor,page=1,page_size=20,q=None,status=None,contract_id=N
     if overdue is True: cond.append(PaymentSchedule.due_date < date.today()); cond.append(PaymentSchedule.status.notin_(['paid','cancelled']))
     for col,val in ((PaymentSchedule.contract_id,contract_id),(PaymentSchedule.deal_id,deal_id),(PaymentSchedule.customer_id,customer_id)):
         if val is not None: cond.append(col==val)
+    if date_from:
+        cond.append(func.coalesce(PaymentReceipt.confirmed_at, PaymentReceipt.created_at) >= datetime.combine(date_from, time.min, tzinfo=timezone.utc))
+    if date_to:
+        cond.append(func.coalesce(PaymentReceipt.confirmed_at, PaymentReceipt.created_at) <= datetime.combine(date_to, time.max, tzinfo=timezone.utc))
     if q:
         term=f"%{q.strip()}%"; cond.append(or_(PaymentSchedule.payment_code.ilike(term),PaymentSchedule.title.ilike(term),PaymentSchedule.contract.has(Contract.contract_code.ilike(term)),PaymentSchedule.deal.has(Deal.deal_code.ilike(term)),PaymentSchedule.customer.has(or_(Customer.full_name.ilike(term),Customer.primary_phone.ilike(term)))))
     query=select(PaymentSchedule).options(selectinload(PaymentSchedule.contract).load_only(Contract.id,Contract.contract_code,Contract.status),selectinload(PaymentSchedule.deal).load_only(Deal.id,Deal.deal_code,Deal.title),selectinload(PaymentSchedule.customer).load_only(Customer.id,Customer.customer_code,Customer.full_name,Customer.primary_phone),selectinload(PaymentSchedule.property_unit).load_only(PropertyUnit.id,PropertyUnit.property_code,PropertyUnit.title),lazyload('*')).where(*cond)
@@ -191,11 +195,15 @@ def cancel_receipt(db,id,payload:ReceiptCancel,actor):
     if r.status=='confirmed': p.paid_amount=max((p.paid_amount or Decimal('0'))-r.amount,Decimal('0')); _recalc(p)
     r.status='cancelled'; r.cancel_reason=(payload.cancel_reason or payload.note); r.cancelled_at=datetime.now(timezone.utc); r.cancelled_by_id=actor.id; r.note=payload.note or r.note; r.updated_by_id=actor.id; add_contract_activity(db,p.contract,actor,'payment_receipt_cancelled',content=f"Hủy phiếu thu {r.receipt_code} của {p.title}."); db.commit(); db.refresh(r); return r
 def list_receipts(db,schedule_id,actor): return [r for r in _schedule(db,schedule_id).receipts if r.deleted_at is None]
-def list_all_receipts(db,actor,page=1,page_size=20,q=None,status=None,scope=None):
+def list_all_receipts(db,actor,page=1,page_size=20,q=None,status=None,scope=None,date_from=None,date_to=None):
     cond=[PaymentReceipt.deleted_at.is_(None)]
     if status: cond.append(PaymentReceipt.status==status)
     if scope == "mine":
         cond.append(PaymentReceipt.payment_schedule.has(PaymentSchedule.contract.has(Contract.deal.has(Deal.owner_id == actor.id))))
+    if date_from:
+        cond.append(func.coalesce(PaymentReceipt.confirmed_at, PaymentReceipt.created_at) >= datetime.combine(date_from, time.min, tzinfo=timezone.utc))
+    if date_to:
+        cond.append(func.coalesce(PaymentReceipt.confirmed_at, PaymentReceipt.created_at) <= datetime.combine(date_to, time.max, tzinfo=timezone.utc))
     if q:
         term=f'%{q.strip()}%'; cond.append(or_(PaymentReceipt.receipt_code.ilike(term), PaymentReceipt.payment_schedule.has(PaymentSchedule.payment_code.ilike(term)), PaymentReceipt.payment_schedule.has(PaymentSchedule.contract.has(Contract.contract_code.ilike(term))), PaymentReceipt.payment_schedule.has(PaymentSchedule.customer.has(or_(Customer.full_name.ilike(term), Customer.primary_phone.ilike(term))))))
     total=db.scalar(select(func.count(PaymentReceipt.id)).where(*cond)) or 0
@@ -233,6 +241,10 @@ def create_invoice(db,schedule_id,payload:InvoiceCreate,actor):
 def list_invoices(db,actor,page=1,page_size=20,q=None,status=None):
     cond=[PaymentInvoice.deleted_at.is_(None)]
     if status: cond.append(PaymentInvoice.status==status)
+    if date_from:
+        cond.append(func.coalesce(PaymentReceipt.confirmed_at, PaymentReceipt.created_at) >= datetime.combine(date_from, time.min, tzinfo=timezone.utc))
+    if date_to:
+        cond.append(func.coalesce(PaymentReceipt.confirmed_at, PaymentReceipt.created_at) <= datetime.combine(date_to, time.max, tzinfo=timezone.utc))
     if q:
         term=f'%{q.strip()}%'; cond.append(or_(PaymentInvoice.invoice_code.ilike(term), PaymentInvoice.payment_schedule.has(PaymentSchedule.payment_code.ilike(term)), PaymentInvoice.payment_schedule.has(PaymentSchedule.contract.has(Contract.contract_code.ilike(term))), PaymentInvoice.payment_schedule.has(PaymentSchedule.customer.has(or_(Customer.full_name.ilike(term), Customer.primary_phone.ilike(term))))))
     total=db.scalar(select(func.count(PaymentInvoice.id)).where(*cond)) or 0

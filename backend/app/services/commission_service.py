@@ -208,7 +208,8 @@ def base_query(db): return db.query(SalesCommission).options(joinedload(SalesCom
 
 def list_commissions(db, page=1, page_size=20, actor=None, **f):
     q=base_query(db).join(Contract, SalesCommission.contract_id==Contract.id).outerjoin(Customer, Contract.customer_id==Customer.id).outerjoin(User, SalesCommission.sale_id==User.id)
-    if f.get('status') == 'partially_paid': q=q.filter(SalesCommission.approved_commission > 0, SalesCommission.paid_amount > 0, SalesCommission.paid_amount < SalesCommission.approved_commission)
+    if f.get('status') == 'remaining': q=q.filter(SalesCommission.approved_commission > SalesCommission.paid_amount)
+    elif f.get('status') == 'partially_paid': q=q.filter(SalesCommission.approved_commission > 0, SalesCommission.paid_amount > 0, SalesCommission.paid_amount < SalesCommission.approved_commission)
     elif f.get('status') == 'paid': q=q.filter(SalesCommission.approved_commission > 0, SalesCommission.paid_amount >= SalesCommission.approved_commission)
     elif f.get('status') == 'approved': q=q.filter(SalesCommission.status=='approved', SalesCommission.approved_commission > 0, SalesCommission.paid_amount <= 0)
     elif f.get('status'): q=q.filter(SalesCommission.status==f['status'])
