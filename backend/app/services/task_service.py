@@ -16,6 +16,7 @@ from app.models.task_collaboration import TaskComment, TaskRelatedLink
 from app.models.user import User
 from app.permissions.dependencies import get_user_permissions
 from app.services.notification_service import create_notification, create_task_notification
+from app.services.drilldown_scope import mine_only
 
 STATUSES={"open","in_progress","done","cancelled"}; PRIORITIES={"low","medium","high","urgent"}; TYPES={"call_customer","follow_up","booking_expiry","contract_signing","payment_due","general"}
 
@@ -175,6 +176,8 @@ def _task_list_load_options():
 
 def list_tasks(db,actor,page=1,page_size=20,**f):
     cond=[Task.deleted_at.is_(None)]
+    if mine_only(f.get("scope")):
+        cond.append(or_(Task.assigned_user_id==actor.id, Task.task_assignees.any(TaskAssignee.user_id==actor.id)))
     if not _has_view_all(actor): cond.append(or_(Task.assigned_user_id==actor.id,Task.created_by_id==actor.id,Task.task_assignees.any(TaskAssignee.user_id==actor.id),Task.task_watchers.any(TaskWatcher.user_id==actor.id)))
     for name,col in (("status",Task.status),("priority",Task.priority),("task_type",Task.task_type),("assigned_user_id",Task.assigned_user_id),("related_lead_id",Task.related_lead_id),("lead_id",Task.related_lead_id),("related_customer_id",Task.related_customer_id),("related_booking_id",Task.related_booking_id),("related_deal_id",Task.related_deal_id),("related_contract_id",Task.related_contract_id)):
         if f.get(name) is not None:
@@ -186,8 +189,12 @@ def list_tasks(db,actor,page=1,page_size=20,**f):
     if f.get("q"):
         term=f"%{f['q'].strip()}%"
         cond.append(or_(Task.task_code.ilike(term),Task.title.ilike(term),Task.task_type.ilike(term),User.full_name.ilike(term),User.email.ilike(term),Booking.booking_code.ilike(term),Deal.deal_code.ilike(term),Contract.contract_code.ilike(term),Customer.customer_code.ilike(term),Customer.full_name.ilike(term),Customer.primary_phone.ilike(term),Lead.code.ilike(term),Lead.full_name.ilike(term),Lead.phone_primary.ilike(term),PropertyUnit.property_code.ilike(term),PropertyUnit.title.ilike(term)))
+    if f.get("active_only"): cond.append(Task.status.in_({"open","in_progress"}))
     if f.get("due_from"): cond.append(Task.due_at>=f["due_from"])
     if f.get("due_to"): cond.append(Task.due_at<=f["due_to"])
+    if f.get("today"):
+        from datetime import datetime, time, timezone, timedelta
+        start=datetime.combine(datetime.now(timezone.utc).date(), time.min, tzinfo=timezone.utc); cond.append(Task.due_at>=start); cond.append(Task.due_at<start+timedelta(days=1))
     if f.get("due_before"): cond.append(Task.due_at<f["due_before"])
     total=db.scalar(query.with_only_columns(func.count(func.distinct(Task.id))).where(*cond)) or 0
     items=list(db.scalars(query.options(*_task_list_load_options()).where(*cond).order_by(Task.due_at.asc().nullslast(),Task.created_at.desc()).offset((page-1)*page_size).limit(page_size)).unique())
@@ -278,21 +285,12 @@ def _today_bounds():
     return start_of_today,start_of_tomorrow
 def get_today_tasks(db,actor,page=1,page_size=200,q=None,with_meta=False):
     start_of_today,start_of_tomorrow=_today_bounds()
-    all_items=list_tasks(db,actor,page=1,page_size=10000,q=q,due_from=start_of_today,due_before=start_of_tomorrow)[0]
-    active=[t for t in all_items if t.status in {"open","in_progress"}]
-    if not with_meta:
-        return active[:page_size]
-    total=len(active); start=(page-1)*page_size; end=start+page_size
-    return active[start:end],{"page":page,"page_size":page_size,"total":total,"total_pages":ceil(total/page_size) if total else 0}
+    items, meta = list_tasks(db,actor,page=page,page_size=page_size,q=q,due_from=start_of_today,due_before=start_of_tomorrow,active_only=True)
+    return (items, meta) if with_meta else items
 def get_overdue_tasks(db,actor,page=1,page_size=200,q=None,with_meta=False):
     start_of_today,_=_today_bounds()
-    # Keep overdue semantics fixed while allowing search/pagination for the dedicated page.
-    all_items=list_tasks(db,actor,page=1,page_size=10000,q=q,due_before=start_of_today)[0]
-    active=[t for t in all_items if t.status in {"open","in_progress"}]
-    if not with_meta:
-        return active[:page_size]
-    total=len(active); start=(page-1)*page_size; end=start+page_size
-    return active[start:end],{"page":page,"page_size":page_size,"total":total,"total_pages":ceil(total/page_size) if total else 0}
+    items, meta = list_tasks(db,actor,page=page,page_size=page_size,q=q,due_before=start_of_today,active_only=True)
+    return (items, meta) if with_meta else items
 
 def auto_task_for_booking_created(db,booking,actor):
     due=booking.reservation_expires_at-timedelta(days=1) if booking.reservation_expires_at else None

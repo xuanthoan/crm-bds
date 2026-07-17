@@ -20,6 +20,7 @@ from app.services.lead_service import can_view_lead, get_lead_by_id, serialize_l
 from app.services.phone_service import normalize_phone as normalize_shared_phone
 from app.services.organization_service import get_accessible_user_ids_for_lead_scope
 from app.services.user_service import get_user_by_id
+from app.services.drilldown_scope import mine_only
 
 CUSTOMER_TYPES = {"individual", "company", "investor", "agent", "other"}
 CUSTOMER_STATUSES = {"active", "inactive", "potential", "vip", "blacklisted"}
@@ -232,7 +233,7 @@ def get_customer_detail(db: Session, customer_id: UUID, actor: User) -> Customer
     return customer
 
 
-def list_customers(db: Session, actor: User, *, page: int, page_size: int, search: str | None = None, customer_status: str | None = None, customer_type: str | None = None, owner_id: UUID | None = None, source: str | None = None, project: str | None = None, next_follow_up_from: date | None = None, next_follow_up_to: date | None = None, gender: str | None = None, province: str | None = None, district: str | None = None, financial_rating: str | None = None, buying_purpose: str | None = None, interested_property_type: str | None = None, buying_timeline: str | None = None, score_label: str | None = None, score_min: int | None = None, score_max: int | None = None):
+def list_customers(db: Session, actor: User, *, page: int, page_size: int, search: str | None = None, customer_status: str | None = None, customer_type: str | None = None, owner_id: UUID | None = None, source: str | None = None, project: str | None = None, next_follow_up_from: date | None = None, next_follow_up_to: date | None = None, gender: str | None = None, province: str | None = None, district: str | None = None, financial_rating: str | None = None, buying_purpose: str | None = None, interested_property_type: str | None = None, buying_timeline: str | None = None, score_label: str | None = None, score_min: int | None = None, score_max: int | None = None, request_scope: str | None = None):
     scope = _scope(actor, "customers.view")
     if not scope:
         raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập khách hàng này")
@@ -241,6 +242,9 @@ def list_customers(db: Session, actor: User, *, page: int, page_size: int, searc
         ids = _ids(db, actor, scope)
         accessible_customer_ids = select(Lead.customer_id).where(Lead.deleted_at.is_(None), Lead.customer_id.is_not(None), or_(Lead.owner_id.in_(ids), Lead.created_by_id.in_(ids)))
         conditions.append(or_(Customer.owner_id.in_(ids), Customer.id.in_(accessible_customer_ids)))
+    if mine_only(request_scope):
+        accessible_customer_ids = select(Lead.customer_id).where(Lead.deleted_at.is_(None), Lead.customer_id.is_not(None), Lead.owner_id == actor.id)
+        conditions.append(or_(Customer.owner_id == actor.id, Customer.id.in_(accessible_customer_ids)))
     if search:
         term = f"%{search.strip()}%"
         conditions.append(or_(Customer.customer_code.ilike(term), Customer.full_name.ilike(term), Customer.primary_phone.ilike(term), Customer.secondary_phone.ilike(term), Customer.email.ilike(term)))

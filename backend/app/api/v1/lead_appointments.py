@@ -10,8 +10,8 @@ from app.schemas.lead_appointment import LeadAppointmentCreate,LeadAppointmentUp
 from app.services.lead_appointment_service import create_appointment,delete_appointment,get_appointment,list_appointments,serialize_appointment,update_appointment,update_appointment_status
 router=APIRouter(prefix="/lead-appointments",tags=["lead-appointments"])
 @router.get("")
-def index(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),status:str|None=None,appointment_type:str|None=None,assigned_to_id:UUID|None=None,lead_id:UUID|None=None,start_from:datetime|None=None,start_to:datetime|None=None,today:bool=False,upcoming:bool=False,db:Session=Depends(get_db),user:User=Depends(require_auth)):
- items,meta=list_appointments(db,user,page,page_size,status=status,appointment_type=appointment_type,assigned_to_id=assigned_to_id,lead_id=lead_id,start_from=start_from,start_to=start_to,today=today,upcoming=upcoming);return success_response([serialize_appointment(x) for x in items],"Appointments retrieved",meta)
+def index(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),status:str|None=None,appointment_type:str|None=None,assigned_to_id:UUID|None=None,lead_id:UUID|None=None,start_from:datetime|None=None,start_to:datetime|None=None,today:bool=False,upcoming:bool=False,scope:str|None=None,db:Session=Depends(get_db),user:User=Depends(require_auth)):
+ items,meta=list_appointments(db,user,page,page_size,status=status,appointment_type=appointment_type,assigned_to_id=assigned_to_id,lead_id=lead_id,start_from=start_from,start_to=start_to,today=today,upcoming=upcoming,scope=scope);return success_response([serialize_appointment(x) for x in items],"Appointments retrieved",meta)
 @router.post("")
 def create(payload:LeadAppointmentCreate,db:Session=Depends(get_db),user:User=Depends(require_permission("lead_appointments.create"))):return success_response(serialize_appointment(create_appointment(db,payload,user)),"Appointment created")
 @router.get("/my/today")

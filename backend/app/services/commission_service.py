@@ -207,10 +207,13 @@ def detail(c, actor=None):
 def base_query(db): return db.query(SalesCommission).options(joinedload(SalesCommission.contract).joinedload(Contract.customer),joinedload(SalesCommission.contract).joinedload(Contract.deal),joinedload(SalesCommission.contract).joinedload(Contract.project),joinedload(SalesCommission.contract).joinedload(Contract.property_unit).joinedload(PropertyUnit.project),joinedload(SalesCommission.sale),joinedload(SalesCommission.events).joinedload(SalesCommissionEvent.actor),joinedload(SalesCommission.approved_by),joinedload(SalesCommission.paid_by))
 
 def list_commissions(db, page=1, page_size=20, actor=None, **f):
+    actor = actor or f.pop("_actor", None)
     q=base_query(db).join(Contract, SalesCommission.contract_id==Contract.id).outerjoin(Customer, Contract.customer_id==Customer.id).outerjoin(User, SalesCommission.sale_id==User.id)
+    if mine_only(f.get("scope")): q=q.filter(SalesCommission.sale_id==actor.id)
     if f.get('status') == 'partially_paid': q=q.filter(SalesCommission.approved_commission > 0, SalesCommission.paid_amount > 0, SalesCommission.paid_amount < SalesCommission.approved_commission)
     elif f.get('status') == 'paid': q=q.filter(SalesCommission.approved_commission > 0, SalesCommission.paid_amount >= SalesCommission.approved_commission)
     elif f.get('status') == 'approved': q=q.filter(SalesCommission.status=='approved', SalesCommission.approved_commission > 0, SalesCommission.paid_amount <= 0)
+    elif f.get('status') == 'remaining': q=q.filter(SalesCommission.approved_commission > SalesCommission.paid_amount)
     elif f.get('status'): q=q.filter(SalesCommission.status==f['status'])
     if f.get('sale_id'): q=q.filter(SalesCommission.sale_id==f['sale_id'])
     if f.get('contract_id'): q=q.filter(SalesCommission.contract_id==f['contract_id'])
@@ -231,9 +234,11 @@ def list_commissions(db, page=1, page_size=20, actor=None, **f):
     return {"items":rows,"total":total}
 
 def summary(db, **f):
+    actor = f.pop("_actor", None)
     summary_filters = dict(f)
     summary_filters.pop('page', None)
     summary_filters.pop('page_size', None)
+    if actor is not None: summary_filters["_actor"] = actor
     items=list_commissions(db,page=1,page_size=10000,**summary_filters)['items']
     return {"total_eligible_commission":sum(i['eligible_commission'] for i in items),"total_approved_commission":sum(i['approved_commission'] for i in items),"total_paid_amount":sum(i['paid_amount'] for i in items),"total_company_commission_received_linked":sum(i.get('company_commission_received_amount') or 0 for i in items),"missing_company_commission_count":sum(not i.get('company_commission_code') for i in items),"blocked_mark_paid_count":sum(i.get('status') in ('approved','partially_paid') and not i.get('can_mark_paid_by_company_commission_policy') for i in items),"pending_count":sum(i['status']=='eligible' for i in items),"approved_count":sum(i['status']=='approved' for i in items),"partially_paid_count":sum(i['status']=='partially_paid' for i in items),"paid_count":sum(i['status']=='paid' for i in items),"on_hold_count":sum(i['status']=='on_hold' for i in items),"cancelled_count":sum(i['status']=='cancelled' for i in items)}
 
@@ -338,7 +343,8 @@ def cancel(db,id,reason,note,actor):
     before=snapshot_model(c); c.status='cancelled'; c.cancel_reason=reason; c.note=note or c.note; _event(db,c,'cancelled','Hủy hoa hồng',reason,actor); after=snapshot_model(c); create_audit_log(db, actor=actor, action='cancel', module='sales_commission', entity_type='sales_commission', entity_id=c.id, entity_label=c.commission_code, before_data=before, after_data=after, changed_fields=diff_dict(before, after), description='Hủy hoa hồng sale', reason=reason); db.commit(); return detail(get_commission(db,id), actor)
 
 def export_csv(db, **f):
-    items=list_commissions(db,page=1,page_size=10000,**f)['items']; out=io.StringIO(); w=csv.writer(out)
+    actor = f.pop("_actor", None)
+    items=list_commissions(db,page=1,page_size=10000,actor=actor,**f)['items']; out=io.StringIO(); w=csv.writer(out)
     w.writerow(['Mã hoa hồng','Mã hợp đồng','Sale','Khách hàng','Giá trị hợp đồng','Đã thu gồm cọc','Còn lại','Tỷ lệ hoa hồng','Hoa hồng đủ điều kiện','Hoa hồng đã duyệt','Đã chi trả','Trạng thái','Ngày duyệt','Ngày chi trả','Lý do tạm giữ','Lý do hủy','Ghi chú'])
     for i in items: w.writerow([i['commission_code'],i['contract_code'],i['sale_name'],i['customer_name'],i['contract_value'],i['total_collected_with_deposit'],i['remaining_amount'],i['commission_rate_percent'],i['eligible_commission'],i['approved_commission'],i['paid_amount'],i['status_label'],i['approved_at'],i['paid_at'],i['hold_reason'],i['cancel_reason'],i['note']])
     return '\ufeff'+out.getvalue()

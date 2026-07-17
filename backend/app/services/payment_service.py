@@ -24,6 +24,7 @@ from app.services.contract_service import add_contract_activity
 from app.services.notification_service import create_notification
 from app.services.organization_service import get_accessible_user_ids_for_lead_scope
 from app.services.task_service import create_auto_task_if_not_exists
+from app.services.drilldown_scope import mine_only
 
 def _next(db, column, prefix):
     codes=db.scalars(select(column).where(column.like(f"{prefix}-%")))
@@ -191,9 +192,12 @@ def cancel_receipt(db,id,payload:ReceiptCancel,actor):
     if r.status=='confirmed': p.paid_amount=max((p.paid_amount or Decimal('0'))-r.amount,Decimal('0')); _recalc(p)
     r.status='cancelled'; r.cancel_reason=(payload.cancel_reason or payload.note); r.cancelled_at=datetime.now(timezone.utc); r.cancelled_by_id=actor.id; r.note=payload.note or r.note; r.updated_by_id=actor.id; add_contract_activity(db,p.contract,actor,'payment_receipt_cancelled',content=f"Hủy phiếu thu {r.receipt_code} của {p.title}."); db.commit(); db.refresh(r); return r
 def list_receipts(db,schedule_id,actor): return [r for r in _schedule(db,schedule_id).receipts if r.deleted_at is None]
-def list_all_receipts(db,actor,page=1,page_size=20,q=None,status=None):
+def list_all_receipts(db,actor,page=1,page_size=20,q=None,status=None,scope=None,date_from=None,date_to=None):
     cond=[PaymentReceipt.deleted_at.is_(None)]
+    if mine_only(scope): cond.append(PaymentReceipt.deal.has(Deal.owner_id==actor.id))
     if status: cond.append(PaymentReceipt.status==status)
+    if date_from: cond.append(PaymentReceipt.created_at>=date_from)
+    if date_to: cond.append(PaymentReceipt.created_at<=date_to)
     if q:
         term=f'%{q.strip()}%'; cond.append(or_(PaymentReceipt.receipt_code.ilike(term), PaymentReceipt.payment_schedule.has(PaymentSchedule.payment_code.ilike(term)), PaymentReceipt.payment_schedule.has(PaymentSchedule.contract.has(Contract.contract_code.ilike(term))), PaymentReceipt.payment_schedule.has(PaymentSchedule.customer.has(or_(Customer.full_name.ilike(term), Customer.primary_phone.ilike(term))))))
     total=db.scalar(select(func.count(PaymentReceipt.id)).where(*cond)) or 0
