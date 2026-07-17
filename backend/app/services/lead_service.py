@@ -599,11 +599,14 @@ def delete_lead(db: Session, lead: Lead, actor: User) -> None:
 def list_overdue_leads(db: Session, user: User, *, page: int, page_size: int, owner_id: UUID | None = None, priority: str | None = None, scope: str | None = None, care_status: str | None = None):
     require_view_permission(user)
     conditions = [Lead.deleted_at.is_(None), Lead.next_follow_up_at < datetime.now(timezone.utc), Lead.status.not_in({"converted", "lost"})]
-    if owner_id: conditions.append(Lead.owner_id == owner_id)
+    if scope == "mine":
+        conditions.append(Lead.owner_id == user.id)
+    elif owner_id:
+        conditions.append(Lead.owner_id == owner_id)
     if priority:
         _validate_priority(priority); conditions.append(Lead.priority == priority)
-    query = apply_view_scope(db, select(Lead).where(*conditions), user)
-    count_query = apply_view_scope(db, select(func.count(Lead.id)).where(*conditions), user)
+    query = select(Lead).where(*conditions) if scope == "mine" else apply_view_scope(db, select(Lead).where(*conditions), user)
+    count_query = select(func.count(Lead.id)).where(*conditions) if scope == "mine" else apply_view_scope(db, select(func.count(Lead.id)).where(*conditions), user)
     total = db.scalar(count_query) or 0
     leads = list(db.scalars(query.order_by(Lead.next_follow_up_at.asc()).offset((page - 1) * page_size).limit(page_size)).unique())
     return leads, {"page": page, "page_size": page_size, "total": total, "total_pages": ceil(total / page_size) if total else 0}

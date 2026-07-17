@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.models.lead import Lead
 from app.models.lead_activity import LeadActivity
 from app.models.lead_task import LeadTask
+from app.models.task import Task, TaskAssignee
 from app.models.lead_appointment import LeadAppointment
 from app.models.user import User
 from app.models.customer import Customer
@@ -177,11 +178,14 @@ def get_sale_dashboard(db: Session, user: User, preset: str | None = None, start
     lead_without_activity = db.scalar(select(func.count()).select_from(Lead).where(*lead_base, ~Lead.activities.any())) or 0
     lead_hot = _count(db, Lead, *lead_base, Lead.priority == "hot")
     stale = _count(db, Lead, *lead_base, Lead.status.notin_(CLOSED_LEAD_STATUSES), func.coalesce(Lead.last_contact_at, Lead.created_at) < stale_before)
-    customers = _count(db, Customer, Customer.deleted_at.is_(None), Customer.owner_id == uid)
-    customer_stale = _count(db, Customer, Customer.deleted_at.is_(None), Customer.owner_id == uid, func.coalesce(Customer.last_contact_at, Customer.created_at) < stale_before) if hasattr(Customer, 'last_contact_at') else 0
-    active_task = LeadTask.status.in_({"pending", "in_progress"})
-    task_today = _count(db, LeadTask, LeadTask.deleted_at.is_(None), LeadTask.assigned_to_id == uid, active_task, LeadTask.due_at >= today_start, LeadTask.due_at < today_end)
-    task_overdue = _count(db, LeadTask, LeadTask.deleted_at.is_(None), LeadTask.assigned_to_id == uid, active_task, LeadTask.due_at < stamp)
+    accessible_customer_ids = select(Lead.customer_id).where(Lead.deleted_at.is_(None), Lead.customer_id.is_not(None), Lead.owner_id == uid)
+    customer_scope = [Customer.deleted_at.is_(None), (Customer.owner_id == uid) | Customer.id.in_(accessible_customer_ids)]
+    customers = _count(db, Customer, *customer_scope)
+    customer_stale = _count(db, Customer, *customer_scope, func.coalesce(Customer.last_contact_at, Customer.created_at) < stale_before) if hasattr(Customer, 'last_contact_at') else 0
+    active_task = Task.status.in_({"open", "in_progress"})
+    task_owner = (Task.assigned_user_id == uid) | Task.task_assignees.any(TaskAssignee.user_id == uid)
+    task_today = _count(db, Task, Task.deleted_at.is_(None), task_owner, active_task, Task.due_at >= today_start, Task.due_at < today_end)
+    task_overdue = _count(db, Task, Task.deleted_at.is_(None), task_owner, active_task, Task.due_at < today_start)
     appt_today = _count(db, LeadAppointment, LeadAppointment.deleted_at.is_(None), LeadAppointment.assigned_to_id == uid, LeadAppointment.start_at >= today_start, LeadAppointment.start_at < today_end)
     appt_overdue = _count(db, LeadAppointment, LeadAppointment.deleted_at.is_(None), LeadAppointment.assigned_to_id == uid, LeadAppointment.status.in_({"scheduled", "rescheduled"}), LeadAppointment.start_at < stamp)
     bookings = _count(db, Booking, Booking.deleted_at.is_(None), Booking.assigned_user_id == uid, Booking.created_at >= start, Booking.created_at < end)
