@@ -25,7 +25,7 @@ def need(*codes):
         return actor
     return dep
 
-def filt(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),status:str|None=None,sale_id:UUID|None=None,contract_id:UUID|None=None,contract_code:str|None=None,keyword:str|None=None,date_from:date|None=None,date_to:date|None=None,approved_from:date|None=None,approved_to:date|None=None,paid_from:date|None=None,paid_to:date|None=None):
+def filt(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),status:str|None=None,sale_id:UUID|None=None,contract_id:UUID|None=None,contract_code:str|None=None,keyword:str|None=None,date_from:date|None=None,date_to:date|None=None,approved_from:date|None=None,approved_to:date|None=None,paid_from:date|None=None,paid_to:date|None=None,scope:str|None=None):
     return locals()
 
 @router.get('')
@@ -33,14 +33,14 @@ def list_commissions(f:dict=Depends(filt),db:Session=Depends(get_db),actor:User=
     return success_response(svc.list_commissions(db,actor=actor,**f))
 @router.get('/summary')
 def summary(f:dict=Depends(filt),db:Session=Depends(get_db),actor:User=Depends(need('commissions.view','commissions.view.all','commissions.view.own','commissions.view.team'))):
-    return success_response(svc.summary(db,**f))
+    return success_response(svc.summary(db,_actor=actor,**f))
 
 @router.get('/eligible-contracts')
 def eligible_contracts(keyword:str|None=None,page:int=Query(1,ge=1),page_size:int=Query(10,ge=1,le=50),db:Session=Depends(get_db),actor:User=Depends(need('commissions.create','commissions.update'))):
     return success_response(svc.search_eligible_contracts(db,keyword,page,page_size))
 @router.get('/export')
 def export(f:dict=Depends(filt),db:Session=Depends(get_db),actor:User=Depends(need('commissions.export'))):
-    content=svc.export_csv(db,**f); return Response(content,media_type='text/csv; charset=utf-8',headers={'Content-Disposition': f'attachment; filename="danh-sach-hoa-hong-{date.today().isoformat()}.csv"'})
+    content=svc.export_csv(db,_actor=actor,**f); return Response(content,media_type='text/csv; charset=utf-8',headers={'Content-Disposition': f'attachment; filename="danh-sach-hoa-hong-{date.today().isoformat()}.csv"'})
 @router.post('/generate')
 def generate(payload:GenerateIn,db:Session=Depends(get_db),actor:User=Depends(need('commissions.create','commissions.update'))):
     return success_response(svc.generate(db,payload.contract_id,payload.commission_rate_percent,payload.note,actor),'Đã tạo hoa hồng.')

@@ -20,6 +20,7 @@ from app.schemas.contract import ContractActivityCreate, ContractCreate, Contrac
 from app.services.audit_service import write_audit_log
 from app.services.organization_service import get_accessible_user_ids_for_lead_scope
 from app.services.task_service import auto_complete_contract_payment_tasks, auto_task_for_contract_payment
+from app.services.drilldown_scope import mine_only
 
 def _scope(user,prefix):
     if user.is_superuser:return "all"
@@ -206,12 +207,13 @@ def serialize_contract(item,detail=False):
     if detail:data.update({k:getattr(item,k) for k in ("effective_date","handover_date","buyer_name","buyer_phone","buyer_email","buyer_id_number","buyer_address","seller_name","seller_phone","seller_email","seller_representative","company_role","actual_seller_type","actual_seller_name","commission_payer_type","commission_payer_name","brokerage_contract_code","brokerage_policy_note","note","updated_at")}); data["booking"]={"id":item.booking.id,"booking_code":item.booking.booking_code,"status":item.booking.status} if item.booking else None; data["payments"]=[serialize_payment(p) for p in item.payments if p.deleted_at is None]; data["activities"]=[{"id":a.id,"activity_type":a.activity_type,"activity_label":CONTRACT_ACTIVITY_LABELS.get(a.activity_type,a.activity_type),"title":a.title,"content":a.content,"old_value":a.old_value,"new_value":a.new_value,"metadata":a.metadata_json,"actor":{"id":a.actor.id,"full_name":a.actor.full_name},"created_at":a.created_at} for a in item.activities]
     return data
 def serialize_payment(p):return {"id":p.id,"payment_code":p.payment_code,"contract_id":p.contract_id,"payment_type":p.payment_type,"payment_type_label":PAYMENT_TYPE_LABELS[p.payment_type],"status":p.status,"status_label":PAYMENT_STATUS_LABELS[p.status],"amount":p.amount,"due_date":p.due_date,"paid_date":p.paid_date,"payment_method":p.payment_method,"payment_method_label":PAYMENT_METHOD_LABELS.get(p.payment_method) if p.payment_method else None,"reference_number":p.reference_number,"note":p.note,"created_at":p.created_at}
-def list_contracts(db,actor,page=1,page_size=20,q=None,status=None,contract_type=None,customer_id=None,property_unit_id=None,project_id=None):
+def list_contracts(db,actor,page=1,page_size=20,q=None,status=None,contract_type=None,customer_id=None,property_unit_id=None,project_id=None,request_scope=None):
     scope=_scope(actor,"contracts.view");
     if not scope:raise HTTPException(403,"Bạn không có quyền xem hợp đồng")
     conditions=[Contract.deleted_at.is_(None)]
     if scope!="all":
         ids=get_accessible_user_ids_for_lead_scope(db,actor,scope); conditions.append(or_(Contract.created_by_id.in_(ids),Contract.deal.has(or_(Deal.owner_id.in_(ids),Deal.created_by_id.in_(ids)))))
+    if mine_only(request_scope):conditions.append(Contract.deal.has(Deal.owner_id==actor.id))
     if q:
         term=f"%{q}%"; conditions.append(or_(Contract.contract_code.ilike(term),Contract.contract_number.ilike(term),Contract.customer.has(or_(Customer.full_name.ilike(term),Customer.primary_phone.ilike(term))),Contract.deal.has(or_(Deal.deal_code.ilike(term),Deal.title.ilike(term)))))
     for col,val in ((Contract.status,status),(Contract.contract_type,contract_type),(Contract.customer_id,customer_id),(Contract.property_unit_id,property_unit_id),(Contract.project_id,project_id)):

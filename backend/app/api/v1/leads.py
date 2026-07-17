@@ -59,10 +59,13 @@ def get_leads(
     created_to: date | None = Query(None),
     next_follow_up_from: date | None = Query(None),
     next_follow_up_to: date | None = Query(None),
+    scope: str | None = Query(None),
+    care_status: str | None = Query(None),
+    stale: bool | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_auth),
 ):
-    leads, meta = list_leads(db, current_user, page=page, page_size=page_size, search=search, lead_status=status_filter, priority=priority, source=source, owner_id=owner_id, department_id=department_id, team_id=team_id, created_from=created_from, created_to=created_to, next_follow_up_from=next_follow_up_from, next_follow_up_to=next_follow_up_to)
+    leads, meta = list_leads(db, current_user, page=page, page_size=page_size, search=search, lead_status=status_filter, priority=priority, source=source, owner_id=owner_id, department_id=department_id, team_id=team_id, created_from=created_from, created_to=created_to, next_follow_up_from=next_follow_up_from, next_follow_up_to=next_follow_up_to, request_scope=scope, care_status=care_status, stale=stale)
     return success_response(data=[serialize_lead(lead, db=db) for lead in leads], message="Leads retrieved", meta=meta)
 
 

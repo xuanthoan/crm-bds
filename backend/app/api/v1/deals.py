@@ -12,8 +12,8 @@ from app.services.deal_service import add_deal_activity, assign_deal_owner, chan
 router=APIRouter(prefix="/deals",tags=["deals"])
 
 @router.get("")
-def get_deals(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),q:str|None=None,customer_id:UUID|None=None,owner_id:UUID|None=None,pipeline_stage:str|None=None,status_filter:str|None=Query(None,alias="status"),priority:str|None=None,deal_type:str|None=None,expected_close_from:datetime|None=None,expected_close_to:datetime|None=None,created_from:datetime|None=None,created_to:datetime|None=None,db:Session=Depends(get_db),actor:User=Depends(require_auth)):
-    items,meta=list_deals(db,actor,page=page,page_size=page_size,q=q,customer_id=customer_id,owner_id=owner_id,pipeline_stage=pipeline_stage,status=status_filter,priority=priority,deal_type=deal_type,expected_close_from=expected_close_from,expected_close_to=expected_close_to,created_from=created_from,created_to=created_to)
+def get_deals(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),q:str|None=None,customer_id:UUID|None=None,owner_id:UUID|None=None,pipeline_stage:str|None=None,status_filter:str|None=Query(None,alias="status"),priority:str|None=None,deal_type:str|None=None,expected_close_from:datetime|None=None,expected_close_to:datetime|None=None,created_from:datetime|None=None,created_to:datetime|None=None,scope:str|None=None,db:Session=Depends(get_db),actor:User=Depends(require_auth)):
+    items,meta=list_deals(db,actor,page=page,page_size=page_size,q=q,customer_id=customer_id,owner_id=owner_id,pipeline_stage=pipeline_stage,status=status_filter,priority=priority,deal_type=deal_type,expected_close_from=expected_close_from,expected_close_to=expected_close_to,created_from=created_from,created_to=created_to,request_scope=scope)
     return success_response([serialize_deal(item) for item in items],meta=meta)
 
 @router.post("",status_code=status.HTTP_201_CREATED)

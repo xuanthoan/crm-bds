@@ -27,8 +27,8 @@ def receipt_post(payment_id:UUID,payload:ReceiptCreate,db:Session=Depends(get_db
 def receipts(payment_id:UUID,db:Session=Depends(get_db),actor:User=Depends(require_auth)): return success_response([serialize_receipt(r) for r in list_receipts(db,payment_id,actor)])
 
 @router.get('/payment-receipts')
-def receipt_list(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),q:str|None=None,status_filter:str|None=Query(None,alias='status'),db:Session=Depends(get_db),actor:User=Depends(require_auth)):
-    items,meta=list_all_receipts(db,actor,page,page_size,q,status_filter); return success_response([serialize_receipt(i) for i in items],meta=meta)
+def receipt_list(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),q:str|None=None,status_filter:str|None=Query(None,alias='status'),scope:str|None=None,date_from:date|None=None,date_to:date|None=None,db:Session=Depends(get_db),actor:User=Depends(require_auth)):
+    items,meta=list_all_receipts(db,actor,page,page_size,q,status_filter,scope,date_from,date_to); return success_response([serialize_receipt(i) for i in items],meta=meta)
 @router.get('/payment-receipts/{receipt_id}')
 def receipt_get(receipt_id:UUID,db:Session=Depends(get_db),actor:User=Depends(require_auth)): return success_response(serialize_receipt(get_receipt(db,receipt_id,actor)))
 @router.post('/payment-receipts/{receipt_id}/confirm')

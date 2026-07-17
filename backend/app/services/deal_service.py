@@ -24,6 +24,7 @@ from app.services.organization_service import get_accessible_user_ids_for_lead_s
 from app.services.user_service import get_user_by_id, user_role_code_set
 from app.services.notification_service import create_notification
 from app.services.task_service import auto_reassign_deal_tasks, auto_task_for_deal_stage
+from app.services.drilldown_scope import mine_only
 
 ELIGIBLE_OWNER_ROLES = {"admin", "director", "sales_manager", "leader", "sale"}
 EFFECTIVE_CONTRACT_STATUSES = {"signed", "active", "completed"}
@@ -245,12 +246,13 @@ def _get(db: Session, deal_id: UUID) -> Deal:
 def get_deal_detail(db: Session, deal_id: UUID, actor: User) -> Deal:
     deal = _get(db, deal_id); _require(db, actor, deal, "deals.view", "Bạn không có quyền truy cập giao dịch này"); return deal
 
-def list_deals(db: Session, actor: User, *, page: int, page_size: int, q: str | None = None, customer_id: UUID | None = None, owner_id: UUID | None = None, pipeline_stage: str | None = None, status: str | None = None, priority: str | None = None, deal_type: str | None = None, expected_close_from: datetime | None = None, expected_close_to: datetime | None = None, created_from: datetime | None = None, created_to: datetime | None = None):
+def list_deals(db: Session, actor: User, *, page: int, page_size: int, q: str | None = None, customer_id: UUID | None = None, owner_id: UUID | None = None, pipeline_stage: str | None = None, status: str | None = None, priority: str | None = None, deal_type: str | None = None, expected_close_from: datetime | None = None, expected_close_to: datetime | None = None, created_from: datetime | None = None, created_to: datetime | None = None, request_scope: str | None = None):
     scope = _scope(actor, "deals.view")
     if not scope: raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập giao dịch này")
     conditions = [Deal.deleted_at.is_(None)]
     if scope != "all":
         ids = _ids(db, actor, scope); conditions.append(or_(Deal.owner_id.in_(ids), Deal.created_by_id.in_(ids)))
+    if mine_only(request_scope): conditions.append(Deal.owner_id == actor.id)
     if q:
         term=f"%{q.strip()}%"
         conditions.append(or_(

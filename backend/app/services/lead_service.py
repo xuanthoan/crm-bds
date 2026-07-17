@@ -29,6 +29,7 @@ from app.services.duplicate_lead_service import detect_duplicate_customer
 from app.services.lead_activity_service import create_activity_record, serialize_activity
 from app.services.phone_service import normalize_phone
 from app.services.user_service import get_user_by_id, user_role_code_set
+from app.services.drilldown_scope import mine_only
 
 
 def _permission_set(user: User) -> set[str]:
@@ -260,18 +261,36 @@ def list_leads(
     created_to: date | None = None,
     next_follow_up_from: date | None = None,
     next_follow_up_to: date | None = None,
+    request_scope: str | None = None,
+    care_status: str | None = None,
+    stale: bool | None = None,
 ) -> tuple[list[Lead], dict]:
     require_view_permission(user)
     query = apply_view_scope(db, select(Lead).where(Lead.deleted_at.is_(None)), user)
     count_query = apply_view_scope(db, select(func.count(Lead.id)).where(Lead.deleted_at.is_(None)), user)
     conditions = []
+    if mine_only(request_scope):
+        conditions.append(Lead.owner_id == user.id)
     if search:
         term = f"%{search.strip()}%"
         conditions.append(or_(Lead.code.ilike(term), Lead.full_name.ilike(term), Lead.phone_primary.ilike(term), Lead.phone_secondary.ilike(term), Lead.email.ilike(term), Lead.zalo.ilike(term), Lead.facebook.ilike(term)))
     if lead_status:
-        if lead_status not in LEAD_STATUSES:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Trạng thái lead không hợp lệ")
-        conditions.append(Lead.status == lead_status)
+        if lead_status == "active":
+            conditions.append(Lead.status.notin_({"converted", "lost"}))
+        else:
+            if lead_status not in LEAD_STATUSES:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Trạng thái lead không hợp lệ")
+            conditions.append(Lead.status == lead_status)
+    if care_status == "overdue":
+        conditions.append(Lead.next_follow_up_at.is_not(None))
+        conditions.append(Lead.next_follow_up_at < datetime.now(timezone.utc))
+        conditions.append(Lead.status.notin_({"converted", "lost"}))
+    elif care_status:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Trạng thái chăm sóc không hợp lệ")
+    if stale is True:
+        from datetime import timedelta
+        conditions.append(Lead.status.notin_({"converted", "lost"}))
+        conditions.append(func.coalesce(Lead.last_contact_at, Lead.created_at) < datetime.now(timezone.utc) - timedelta(days=7))
     if priority:
         _validate_priority(priority)
         conditions.append(Lead.priority == priority)
