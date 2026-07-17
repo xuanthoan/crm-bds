@@ -3567,3 +3567,31 @@ th .help-label {
   padding: 7px 12px;
   text-decoration: none;
 }
+.sale-dashboard .kpi-button {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.sale-dashboard .kpi-button:hover,
+.sale-dashboard .kpi-button:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.14);
+  outline: 2px solid rgba(37, 99, 235, 0.32);
+  outline-offset: 2px;
+}
+.sale-dashboard .summary-icon-badge {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #dbeafe, #ede9fe);
+  color: #1d4ed8;
+  font-weight: 800;
+}
+.sale-dashboard .summary-value {
+  display: block;
+  margin-top: 12px;
+}
