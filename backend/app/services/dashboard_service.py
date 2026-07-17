@@ -306,3 +306,62 @@ def get_sales_management_dashboard(db: Session, user: User, preset: str | None =
     for src, cnt in db.execute(select(Lead.source, func.count()).where(*lead_base, Lead.created_at >= start, Lead.created_at < end).group_by(Lead.source).order_by(func.count().desc()).limit(10)): sources[src or "Chưa xác định"] = {"source": src or "Chưa xác định", "lead_count": cnt}
     summary = {"member_count": len(ids), "lead_new_count": lead_new, "lead_assigned_count": assigned, "lead_unassigned_count": unassigned, "lead_overdue_count": overdue, "lead_without_activity_count": without_activity, "lead_stale_count": stale, "duplicate_reengagement_count": duplicate_count, "task_today_count": task_today, "task_overdue_count": task_overdue, "appointment_today_count": appt_today, "appointment_overdue_count": appt_overdue, "booking_count": bookings, "deposit_count": deposits, "deal_count": deals, "contract_signed_count": contract_count, "revenue_total": revenue, "avg_contract_value": revenue / contract_count if contract_count else None, "sales_commission_approved_total": sc_approved, "sales_commission_paid_total": sc_paid, "sales_commission_outstanding_total": max(sc_approved - sc_paid, 0), "lead_to_customer_rate": _rate(customers, lead_new), "booking_to_contract_rate": _rate(contract_count, bookings)}
     return {"range": _range_public(r), "scope": {k: v for k, v in scope.items() if k != "user_ids"}, "summary": summary, "time_series": {"leads_by_day": list(leads_by_day.values()), "revenue_by_day": list(revenue_by_day.values()), "tasks_overdue_by_day": list(tasks_by_day.values()), "appointments_by_day": list(appts_by_day.values())}, "funnel": {"lead_count": lead_new, "customer_count": customers, "booking_count": bookings, "deposit_count": deposits, "deal_count": deals, "contract_count": contract_count, "lead_to_customer_rate": _rate(customers, lead_new), "booking_to_contract_rate": _rate(contract_count, bookings)}, "rankings": {"top_sales_by_revenue": _top_users(sales, "revenue"), "top_sales_by_contract_count": _top_users(sales, "contract_count"), "top_sales_by_activity_count": _top_users(sales, "activity_count"), "top_sales_with_overdue_leads": _top_users(sales, "overdue_lead_count"), "top_sources_by_lead_count": list(sources.values())[:10], "top_projects_by_revenue": sorted(projects.values(), key=lambda x: x["revenue"], reverse=True)[:10]}, "alerts": {"unassigned_leads": [_lead_alert(x) for x in db.scalars(select(Lead).where(Lead.deleted_at.is_(None), Lead.owner_id.is_(None)).order_by(Lead.created_at.desc()).limit(10)).unique()], "overdue_leads": [_lead_alert(x) for x in db.scalars(select(Lead).where(*lead_base, Lead.next_follow_up_at.is_not(None), Lead.next_follow_up_at < stamp).order_by(Lead.next_follow_up_at).limit(10)).unique()], "stale_leads": [_lead_alert(x) for x in db.scalars(select(Lead).where(*lead_base, func.coalesce(Lead.last_contact_at, Lead.created_at) < stale_before).order_by(func.coalesce(Lead.last_contact_at, Lead.created_at)).limit(10)).unique()], "overdue_tasks": [_task_alert(x) for x in db.scalars(select(LeadTask).where(LeadTask.deleted_at.is_(None), _task_scope_condition(scope), active_task, LeadTask.due_at < stamp).order_by(LeadTask.due_at).limit(10)).unique()], "today_appointments": [_appt_alert(x) for x in db.scalars(select(LeadAppointment).where(LeadAppointment.deleted_at.is_(None), _appt_scope_condition(scope), LeadAppointment.start_at >= today_start, LeadAppointment.start_at < today_end).order_by(LeadAppointment.start_at).limit(10)).unique()]}}
+
+SALE_DASHBOARD_PERMISSION = "dashboard.sale.view"
+
+def _sale_task_scope_condition(current_user):
+    return LeadTask.assigned_to_id == current_user.id  # scope=mine => assigned_user_id=current_user.id
+
+def _sale_appt_scope_condition(current_user):
+    return LeadAppointment.assigned_to_id == current_user.id  # scope=mine => assigned_to=current_user.id
+
+def _sale_lead_scope_condition(current_user):
+    return Lead.owner_id.__eq__(current_user.id)  # scope=mine => owner_id=current_user.id
+
+def _sale_deal_scope_condition(current_user):
+    return Deal.owner_id == current_user.id  # scope=mine => Deal.owner_id=current_user.id
+
+def _sale_contract_scope_condition(current_user):
+    return Deal.owner_id == current_user.id  # scope=mine => join Deal.owner_id=current_user.id
+
+def _sale_receipt_scope_condition(current_user):
+    return Deal.owner_id == current_user.id  # scope=mine => receipt qua deal owner
+
+def _sale_commission_scope_condition(current_user):
+    return SalesCommission.sale_id == current_user.id  # scope=mine => SalesCommission.sale_id=current_user.id
+
+def get_sale_dashboard(db: Session, current_user: User, preset: str | None = None, start_date: date | str | None = None, end_date: date | str | None = None) -> dict:
+    from fastapi import HTTPException
+    if not (current_user.is_superuser or SALE_DASHBOARD_PERMISSION in permissions(current_user) or "dashboard.view.all" in permissions(current_user)):
+        raise HTTPException(403, "Bạn không có quyền xem dashboard sale")
+    # Current User Scope: do not accept user_id, sale_id, team_id, department_id; owner is always current_user.
+    r = resolve_dashboard_date_range(preset or "last_7_days", start_date, end_date); start, end = r["_start"], r["_end"]
+    today_start, today_end = _bounds(); stamp = now(); stale_before = stamp - timedelta(days=STALE_LEAD_DAYS)
+    active_task = LeadTask.status.in_({"pending", "in_progress"})
+    lead_base = [Lead.deleted_at.is_(None), _sale_lead_scope_condition(current_user)]
+    task_today = _count(db, LeadTask, LeadTask.deleted_at.is_(None), _sale_task_scope_condition(current_user), active_task, LeadTask.due_at >= today_start, LeadTask.due_at < today_end)
+    task_overdue = _count(db, LeadTask, LeadTask.deleted_at.is_(None), _sale_task_scope_condition(current_user), active_task, LeadTask.due_at < stamp)
+    appt_today = _count(db, LeadAppointment, LeadAppointment.deleted_at.is_(None), _sale_appt_scope_condition(current_user), LeadAppointment.start_at >= today_start, LeadAppointment.start_at < today_end)
+    appt_overdue = _count(db, LeadAppointment, LeadAppointment.deleted_at.is_(None), _sale_appt_scope_condition(current_user), LeadAppointment.status.in_({"scheduled", "rescheduled"}), LeadAppointment.start_at < stamp)
+    lead_new = _count(db, Lead, *lead_base, Lead.created_at >= start, Lead.created_at < end, Lead.duplicate_of_customer_id.is_(None))  # Duplicate re-engagement không tính Lead mới
+    lead_active = _count(db, Lead, *lead_base, Lead.status.not_in(CLOSED_LEAD_STATUSES))
+    lead_without_activity = _count(db, Lead, *lead_base, ~Lead.id.in_(select(LeadActivity.lead_id)))
+    lead_care_today = _count(db, Lead, *lead_base, Lead.next_follow_up_at >= today_start, Lead.next_follow_up_at < today_end)
+    lead_overdue = _count(db, Lead, *lead_base, Lead.next_follow_up_at.is_not(None), Lead.next_follow_up_at < stamp)
+    customer_count = _count(db, Customer, Customer.deleted_at.is_(None), Customer.owner_id == current_user.id)
+    customer_stale = _count(db, Lead, *lead_base, func.coalesce(Lead.last_contact_at, Lead.created_at) < stale_before)
+    bookings = _count(db, Booking, Booking.deleted_at.is_(None), Booking.assigned_user_id == current_user.id, Booking.created_at >= start, Booking.created_at < end)
+    deposits = _count(db, Deal, Deal.deleted_at.is_(None), _sale_deal_scope_condition(current_user), Deal.stage == "deposit")
+    deals = _count(db, Deal, Deal.deleted_at.is_(None), _sale_deal_scope_condition(current_user))
+    contract_stmt = select(Contract).join(Deal, Contract.deal_id == Deal.id).where(*_valid_contracts(start, end), Deal.deleted_at.is_(None), _sale_contract_scope_condition(current_user))
+    contract_count = db.scalar(select(func.count()).select_from(contract_stmt.subquery())) or 0
+    revenue = _money(db.scalar(select(func.coalesce(func.sum(Contract.contract_value), 0)).join(Deal, Contract.deal_id == Deal.id).where(*_valid_contracts(start, end), Deal.deleted_at.is_(None), _sale_contract_scope_condition(current_user))))
+    customer_paid = _money(db.scalar(select(func.coalesce(func.sum(PaymentReceipt.amount), 0)).join(Deal, PaymentReceipt.deal_id == Deal.id).where(PaymentReceipt.deleted_at.is_(None), PaymentReceipt.status.in_({"confirmed", "paid"}), _sale_receipt_scope_condition(current_user))))
+    sc_approved = _money(db.scalar(select(func.coalesce(func.sum(SalesCommission.approved_commission), 0)).where(_sale_commission_scope_condition(current_user), SalesCommission.status.in_(SALES_COMMISSION_INCLUDED_STATUSES))))
+    sc_paid = _money(db.scalar(select(func.coalesce(func.sum(SalesCommission.paid_amount), 0)).where(_sale_commission_scope_condition(current_user), SalesCommission.status.in_(SALES_COMMISSION_INCLUDED_STATUSES))))
+    leads_by_day = {d: {"date": d, "label": d[-2:], "count": 0} for d in _dates(start, end)}; revenue_by_day = {d: {"date": d, "label": d[-2:], "amount": 0} for d in _dates(start, end)}
+    for day, count in db.execute(select(func.date(Lead.created_at), func.count()).where(*lead_base, Lead.created_at >= start, Lead.created_at < end, Lead.duplicate_of_customer_id.is_(None)).group_by(func.date(Lead.created_at))): leads_by_day[str(day)]["count"] = count
+    for c in db.scalars(contract_stmt): revenue_by_day[(c.effective_date or c.signed_date or c.created_at).date().isoformat()]["amount"] += _money(c.contract_value)
+    summary = {"task_today_count": task_today, "task_overdue_count": task_overdue, "appointment_today_count": appt_today, "appointment_overdue_count": appt_overdue, "lead_care_today_count": lead_care_today, "lead_overdue_count": lead_overdue, "lead_new_count": lead_new, "lead_active_count": lead_active, "lead_without_activity_count": lead_without_activity, "customer_count": customer_count, "customer_stale_count": customer_stale, "booking_count": bookings, "deposit_count": deposits, "deal_count": deals, "contract_signed_count": contract_count, "revenue_total": revenue, "customer_paid_total": customer_paid, "sales_commission_approved_total": sc_approved, "sales_commission_paid_total": sc_paid, "sales_commission_outstanding_total": max(sc_approved - sc_paid, 0), "lead_to_customer_rate": _rate(customer_count, lead_new), "sales_commission_payment_rate": _rate(sc_paid, sc_approved)}
+    alert = lambda title, url: {"title": title, "url": url, "action": "Open"}
+    return {"range": _range_public(r), "scope": {"scope": "mine", "user_id": str(current_user.id)}, "summary": summary, "time_series": {"revenue_by_day": list(revenue_by_day.values()), "leads_by_day": list(leads_by_day.values())}, "funnel": {"lead_count": lead_new, "customer_count": customer_count, "booking_count": bookings, "deposit_count": deposits, "deal_count": deals, "contract_count": contract_count, "lead_to_customer_rate": _rate(customer_count, lead_new)}, "priority": [alert("Task overdue", "/tasks/overdue?scope=mine"), alert("Task today", "/tasks/today?scope=mine"), alert("Appointment today", "/appointments/today?scope=mine"), alert("Lead overdue", "/leads/overdue?scope=mine&care_status=overdue"), alert("Lead hot", "/leads?scope=mine&temperature=hot"), alert("Lead stale", "/leads?scope=mine&stale=true"), alert("Khách lâu chưa tương tác", "/leads?scope=mine&stale=true")]}
