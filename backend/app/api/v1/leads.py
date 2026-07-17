@@ -59,16 +59,23 @@ def get_leads(
     created_to: date | None = Query(None),
     next_follow_up_from: date | None = Query(None),
     next_follow_up_to: date | None = Query(None),
+    scope: str | None = Query(None),
+    activity_status: str | None = Query(None),
+    has_activity: bool | None = Query(None),
+    care_status: str | None = Query(None),
+    care_due: str | None = Query(None),
+    next_follow_up: str | None = Query(None),
+    stale: bool | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_auth),
 ):
-    leads, meta = list_leads(db, current_user, page=page, page_size=page_size, search=search, lead_status=status_filter, priority=priority, source=source, owner_id=owner_id, department_id=department_id, team_id=team_id, created_from=created_from, created_to=created_to, next_follow_up_from=next_follow_up_from, next_follow_up_to=next_follow_up_to)
+    leads, meta = list_leads(db, current_user, page=page, page_size=page_size, search=search, lead_status=status_filter, priority=priority, source=source, owner_id=owner_id, department_id=department_id, team_id=team_id, created_from=created_from, created_to=created_to, next_follow_up_from=next_follow_up_from, next_follow_up_to=next_follow_up_to, scope=scope, activity_status=activity_status, has_activity=has_activity, care_status=care_status, care_due=care_due, next_follow_up=next_follow_up, stale=stale)
     return success_response(data=[serialize_lead(lead, db=db) for lead in leads], message="Leads retrieved", meta=meta)
 
 
 @router.get("/overdue")
-def get_overdue_leads(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), owner_id: UUID | None = None, priority: str | None = None, db: Session = Depends(get_db), current_user: User = Depends(require_auth)):
-    leads, meta = list_overdue_leads(db, current_user, page=page, page_size=page_size, owner_id=owner_id, priority=priority)
+def get_overdue_leads(page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), owner_id: UUID | None = None, priority: str | None = None, scope: str | None = None, care_status: str | None = None, db: Session = Depends(get_db), current_user: User = Depends(require_auth)):
+    leads, meta = list_overdue_leads(db, current_user, page=page, page_size=page_size, owner_id=owner_id, priority=priority, scope=scope, care_status=care_status)
     return success_response(data=[serialize_lead(lead, db=db) for lead in leads], message="Overdue leads retrieved", meta=meta)
 
 

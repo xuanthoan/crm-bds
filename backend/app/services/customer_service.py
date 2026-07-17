@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from math import ceil
 from uuid import UUID
@@ -232,12 +232,15 @@ def get_customer_detail(db: Session, customer_id: UUID, actor: User) -> Customer
     return customer
 
 
-def list_customers(db: Session, actor: User, *, page: int, page_size: int, search: str | None = None, customer_status: str | None = None, customer_type: str | None = None, owner_id: UUID | None = None, source: str | None = None, project: str | None = None, next_follow_up_from: date | None = None, next_follow_up_to: date | None = None, gender: str | None = None, province: str | None = None, district: str | None = None, financial_rating: str | None = None, buying_purpose: str | None = None, interested_property_type: str | None = None, buying_timeline: str | None = None, score_label: str | None = None, score_min: int | None = None, score_max: int | None = None):
+def list_customers(db: Session, actor: User, *, page: int, page_size: int, search: str | None = None, customer_status: str | None = None, customer_type: str | None = None, owner_id: UUID | None = None, source: str | None = None, project: str | None = None, next_follow_up_from: date | None = None, next_follow_up_to: date | None = None, gender: str | None = None, province: str | None = None, district: str | None = None, financial_rating: str | None = None, buying_purpose: str | None = None, interested_property_type: str | None = None, buying_timeline: str | None = None, score_label: str | None = None, score_min: int | None = None, score_max: int | None = None, request_scope: str | None = None, stale: bool | None = None):
     scope = _scope(actor, "customers.view")
     if not scope:
         raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập khách hàng này")
     conditions = [Customer.deleted_at.is_(None)]
-    if scope != "all":
+    if request_scope == "mine":
+        accessible_customer_ids = select(Lead.customer_id).where(Lead.deleted_at.is_(None), Lead.customer_id.is_not(None), Lead.owner_id == actor.id)
+        conditions.append(or_(Customer.owner_id == actor.id, Customer.id.in_(accessible_customer_ids)))
+    elif scope != "all":
         ids = _ids(db, actor, scope)
         accessible_customer_ids = select(Lead.customer_id).where(Lead.deleted_at.is_(None), Lead.customer_id.is_not(None), or_(Lead.owner_id.in_(ids), Lead.created_by_id.in_(ids)))
         conditions.append(or_(Customer.owner_id.in_(ids), Customer.id.in_(accessible_customer_ids)))
@@ -259,6 +262,7 @@ def list_customers(db: Session, actor: User, *, page: int, page_size: int, searc
     if score_label: conditions.append(Customer.score_label == score_label)
     if score_min is not None: conditions.append(Customer.score_total >= score_min)
     if score_max is not None: conditions.append(Customer.score_total <= score_max)
+    if stale: conditions.append(func.coalesce(Customer.last_contact_at, Customer.created_at) < datetime.now(timezone.utc) - timedelta(days=7))
     if next_follow_up_from: conditions.append(Customer.next_follow_up_at >= datetime.combine(next_follow_up_from, time.min, tzinfo=timezone.utc))
     if next_follow_up_to: conditions.append(Customer.next_follow_up_at <= datetime.combine(next_follow_up_to, time.max, tzinfo=timezone.utc))
     total = db.scalar(select(func.count(Customer.id)).where(*conditions)) or 0

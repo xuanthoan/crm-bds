@@ -2,7 +2,7 @@ import { apiRequest } from '../../services/apiClient';
 import type { AdminUser } from '../admin/users/api';
 import type { DuplicateInfo, Lead, LeadActivity, LeadActivityType, LeadPayload, LeadStatus } from './types';
 
-export type LeadFilters = { page?: number; page_size?: number; search?: string; status?: string; priority?: string; source?: string; owner_id?: string; department_id?: string; team_id?: string; created_from?: string; created_to?: string };
+export type LeadFilters = { page?: number; page_size?: number; search?: string; status?: string; priority?: string; source?: string; owner_id?: string; department_id?: string; team_id?: string; created_from?: string; created_to?: string; scope?: string; activity_status?: string; has_activity?: boolean | string; care_status?: string; care_due?: string; next_follow_up?: string; stale?: boolean | string };
 
 export function listLeads(filters: LeadFilters = {}) {
   const params = new URLSearchParams();
@@ -19,7 +19,7 @@ export const changeLeadStatus = (id: string, payload: { status: LeadStatus; lost
 export const assignLead = (id: string, ownerId: string, note?: string) => apiRequest<Lead>(`/api/v1/leads/${id}/assign`, { method: 'POST', body: JSON.stringify({ owner_id: ownerId, note }) });
 export const addLeadActivity = (id: string, payload: { activity_type: LeadActivityType; title?: string; content: string }) => apiRequest<LeadActivity>(`/api/v1/leads/${id}/activities`, { method: 'POST', body: JSON.stringify(payload) });
 export const deleteLead = (id: string) => apiRequest<null>(`/api/v1/leads/${id}`, { method: 'DELETE' });
-export const listOverdueLeads = (filters: {page?:number;page_size?:number;owner_id?:string;priority?:string}={}) => { const p=new URLSearchParams();p.set('page',String(filters.page??1));p.set('page_size',String(filters.page_size??20));if(filters.owner_id)p.set('owner_id',filters.owner_id);if(filters.priority)p.set('priority',filters.priority);return apiRequest<Lead[]>(`/api/v1/leads/overdue?${p}`); };
+export const listOverdueLeads = (filters: {page?:number;page_size?:number;owner_id?:string;priority?:string;scope?:string;care_status?:string}={}) => { const p=new URLSearchParams();p.set('page',String(filters.page??1));p.set('page_size',String(filters.page_size??20));if(filters.owner_id)p.set('owner_id',filters.owner_id);if(filters.priority)p.set('priority',filters.priority);if(filters.scope)p.set('scope',filters.scope);if(filters.care_status)p.set('care_status',filters.care_status);return apiRequest<Lead[]>(`/api/v1/leads/overdue?${p}`); };
 export const transferLead = (id:string,newOwnerId:string,reason:string) => apiRequest<Lead>(`/api/v1/leads/${id}/transfer`,{method:'POST',body:JSON.stringify({new_owner_id:newOwnerId,reason})});
 export const reclaimLead = (id:string,newOwnerId:string|undefined,reason:string) => apiRequest<Lead>(`/api/v1/leads/${id}/reclaim`,{method:'POST',body:JSON.stringify({new_owner_id:newOwnerId||null,reason})});
 

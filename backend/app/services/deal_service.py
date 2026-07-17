@@ -245,11 +245,13 @@ def _get(db: Session, deal_id: UUID) -> Deal:
 def get_deal_detail(db: Session, deal_id: UUID, actor: User) -> Deal:
     deal = _get(db, deal_id); _require(db, actor, deal, "deals.view", "Bạn không có quyền truy cập giao dịch này"); return deal
 
-def list_deals(db: Session, actor: User, *, page: int, page_size: int, q: str | None = None, customer_id: UUID | None = None, owner_id: UUID | None = None, pipeline_stage: str | None = None, status: str | None = None, priority: str | None = None, deal_type: str | None = None, expected_close_from: datetime | None = None, expected_close_to: datetime | None = None, created_from: datetime | None = None, created_to: datetime | None = None):
+def list_deals(db: Session, actor: User, *, page: int, page_size: int, q: str | None = None, customer_id: UUID | None = None, owner_id: UUID | None = None, pipeline_stage: str | None = None, status: str | None = None, priority: str | None = None, deal_type: str | None = None, expected_close_from: datetime | None = None, expected_close_to: datetime | None = None, created_from: datetime | None = None, created_to: datetime | None = None, request_scope: str | None = None, stage: str | None = None):
     scope = _scope(actor, "deals.view")
     if not scope: raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập giao dịch này")
     conditions = [Deal.deleted_at.is_(None)]
-    if scope != "all":
+    if request_scope == "mine":
+        conditions.append(Deal.owner_id == actor.id)
+    elif scope != "all":
         ids = _ids(db, actor, scope); conditions.append(or_(Deal.owner_id.in_(ids), Deal.created_by_id.in_(ids)))
     if q:
         term=f"%{q.strip()}%"
@@ -262,6 +264,8 @@ def list_deals(db: Session, actor: User, *, page: int, page_size: int, q: str | 
             Deal.project.has(Project.name.ilike(term)),
             Deal.owner.has(or_(User.full_name.ilike(term), User.email.ilike(term))),
         ))
+    if stage and not pipeline_stage:
+        pipeline_stage = stage
     for column, value in ((Deal.customer_id, customer_id), (Deal.owner_id, owner_id), (Deal.pipeline_stage, pipeline_stage), (Deal.status, status), (Deal.priority, priority), (Deal.deal_type, deal_type)):
         if value is not None: conditions.append(column == value)
     if expected_close_from: conditions.append(Deal.expected_close_date >= expected_close_from)

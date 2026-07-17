@@ -39,13 +39,18 @@ def serialize_appointment(item):
     return {"id":item.id,"lead":lead_dict(item.lead),"lead_id":item.lead_id,"title":item.title,"description":item.description,"appointment_type":item.appointment_type,"status":item.status,"start_at":item.start_at,"end_at":item.end_at,"location":item.location,"meeting_link":item.meeting_link,"assigned_to":user_dict(item.assigned_to),"assigned_to_id":item.assigned_to_id,"created_by":user_dict(item.created_by),"completed_by":user_dict(item.completed_by),"completed_at":item.completed_at,"result_note":item.result_note,"created_at":item.created_at,"updated_at":item.updated_at,"is_overdue":item.status in {"scheduled","rescheduled"} and item.start_at<now()}
 def list_appointments(db,user,page=1,page_size=20,**filters):
     q=_view_query(db,user,_base())
+    if filters.get("scope") == "mine":
+        q=q.where(LeadAppointment.assigned_to_id==user.id)
     for key in ("status","appointment_type","assigned_to_id","lead_id"):
+        if key == "status" and filters.get(key) == "overdue":
+            continue
         if filters.get(key) is not None:q=q.where(getattr(LeadAppointment,key)==filters[key])
     if filters.get("start_from"):q=q.where(LeadAppointment.start_at>=filters["start_from"])
     if filters.get("start_to"):q=q.where(LeadAppointment.start_at<=filters["start_to"])
     start=datetime.combine(date.today(),time.min,tzinfo=timezone.utc)
     if filters.get("today"):q=q.where(LeadAppointment.start_at>=start,LeadAppointment.start_at<start+timedelta(days=1))
     if filters.get("upcoming"):q=q.where(LeadAppointment.status.in_({"scheduled","rescheduled"}),LeadAppointment.start_at>=now(),LeadAppointment.start_at<now()+timedelta(days=7))
+    if filters.get("status") == "overdue":q=q.where(LeadAppointment.status.in_({"scheduled","rescheduled"}),LeadAppointment.start_at<now())
     total=db.scalar(select(func.count()).select_from(q.order_by(None).subquery())) or 0
     items=list(db.scalars(q.order_by(LeadAppointment.start_at).offset((page-1)*page_size).limit(page_size)).unique())
     return items,{"page":page,"page_size":page_size,"total":total,"total_pages":ceil(total/page_size) if total else 0}
