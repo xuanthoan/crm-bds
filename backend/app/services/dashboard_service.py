@@ -159,6 +159,47 @@ def get_boss_dashboard(db: Session, preset: str | None = None, from_date: date |
     range_public = {k:v for k,v in r.items() if not k.startswith("_")}
     return {"range": range_public, "summary": summary, "funnel": funnel, "time_series": {"leads_by_day": list(day_map.values()), "revenue_by_day": list(revenue_day.values()), "contracts_by_day": list(contracts_day.values()), "bookings_by_day": list(bookings_day.values())}, "breakdowns": {"lead_by_source": lead_by_source, "lead_by_project": [], "revenue_by_project": top_projects, "booking_by_project": [], "contract_by_project": []}, "rankings": {"top_sales_7_days": sales7, "top_sales_30_days": sales30, "top_teams_7_days": teams7, "top_teams_30_days": teams30, "top_projects": top_projects, "top_sources": [{"source": row["source"], "lead_count": row["count"], "booking_count": 0, "contract_count": 0, "revenue": 0, "ads_cost": 0, "roi": None} for row in lead_by_source], "top_sales_in_range": sales_range, "top_teams_in_range": teams_range}}
 
+
+SALE_DASHBOARD_PERMISSION = "dashboard.sale.view"
+
+def resolve_sale_dashboard_scope(current_user: User) -> dict:
+    return {"user_ids": {current_user.id}, "scope_type": "mine", "member_count": 1, "can_view_all": False}
+
+def get_sale_dashboard(db: Session, user: User, preset: str | None = None, start_date: date | str | None = None, end_date: date | str | None = None) -> dict:
+    r = resolve_dashboard_date_range(preset or "last_7_days", start_date, end_date)
+    start, end = r["_start"], r["_end"]; today_start, today_end = _bounds(); stamp = now(); stale_before = stamp - timedelta(days=STALE_LEAD_DAYS)
+    uid = user.id; ids = {uid}
+    lead_base = [Lead.deleted_at.is_(None), getattr(Lead, "owner_id") == uid]
+    lead_new = _count(db, Lead, *lead_base, Lead.created_at >= start, Lead.created_at < end, Lead.duplicate_detected.is_(False), Lead.duplicate_of_customer_id.is_(None))
+    lead_active = _count(db, Lead, *lead_base, Lead.status.notin_(CLOSED_LEAD_STATUSES))
+    lead_care_today = _count(db, Lead, *lead_base, Lead.next_follow_up_at >= today_start, Lead.next_follow_up_at < today_end, Lead.status.notin_(CLOSED_LEAD_STATUSES))
+    lead_overdue = _count(db, Lead, *lead_base, Lead.next_follow_up_at.is_not(None), Lead.next_follow_up_at < stamp, Lead.status.notin_(CLOSED_LEAD_STATUSES))
+    lead_without_activity = db.scalar(select(func.count()).select_from(Lead).where(*lead_base, ~Lead.activities.any())) or 0
+    lead_hot = _count(db, Lead, *lead_base, Lead.priority == "hot")
+    stale = _count(db, Lead, *lead_base, Lead.status.notin_(CLOSED_LEAD_STATUSES), func.coalesce(Lead.last_contact_at, Lead.created_at) < stale_before)
+    customers = _count(db, Customer, Customer.deleted_at.is_(None), Customer.owner_id == uid)
+    customer_stale = _count(db, Customer, Customer.deleted_at.is_(None), Customer.owner_id == uid, func.coalesce(Customer.last_contact_at, Customer.created_at) < stale_before) if hasattr(Customer, 'last_contact_at') else 0
+    active_task = LeadTask.status.in_({"pending", "in_progress"})
+    task_today = _count(db, LeadTask, LeadTask.deleted_at.is_(None), LeadTask.assigned_to_id == uid, active_task, LeadTask.due_at >= today_start, LeadTask.due_at < today_end)
+    task_overdue = _count(db, LeadTask, LeadTask.deleted_at.is_(None), LeadTask.assigned_to_id == uid, active_task, LeadTask.due_at < stamp)
+    appt_today = _count(db, LeadAppointment, LeadAppointment.deleted_at.is_(None), LeadAppointment.assigned_to_id == uid, LeadAppointment.start_at >= today_start, LeadAppointment.start_at < today_end)
+    appt_overdue = _count(db, LeadAppointment, LeadAppointment.deleted_at.is_(None), LeadAppointment.assigned_to_id == uid, LeadAppointment.status.in_({"scheduled", "rescheduled"}), LeadAppointment.start_at < stamp)
+    bookings = _count(db, Booking, Booking.deleted_at.is_(None), Booking.assigned_user_id == uid, Booking.created_at >= start, Booking.created_at < end)
+    deposits = _count(db, Booking, Booking.deleted_at.is_(None), Booking.assigned_user_id == uid, Booking.status.in_(DEPOSIT_BOOKING_STATUSES), func.coalesce(Booking.deposit_date, Booking.created_at) >= start, func.coalesce(Booking.deposit_date, Booking.created_at) < end)
+    deals = _count(db, Deal, Deal.deleted_at.is_(None), Deal.owner_id == uid, Deal.created_at >= start, Deal.created_at < end)
+    contract_rows = db.execute(select(Contract, Deal).join(Deal, Contract.deal_id == Deal.id).where(*_valid_contracts(start, end), Deal.deleted_at.is_(None), Deal.owner_id == uid)).all()
+    contract_count = len(contract_rows); revenue = sum(_money(c.contract_value) for c, _d in contract_rows)
+    receipt_total = _money(db.scalar(select(func.coalesce(func.sum(PaymentReceipt.amount), 0)).join(Contract, PaymentReceipt.contract_id == Contract.id).join(Deal, Contract.deal_id == Deal.id).where(PaymentReceipt.deleted_at.is_(None), PaymentReceipt.status.in_({"confirmed", "paid"}), Deal.owner_id == uid, func.coalesce(PaymentReceipt.confirmed_at, PaymentReceipt.created_at) >= start, func.coalesce(PaymentReceipt.confirmed_at, PaymentReceipt.created_at) < end)))
+    comm_q = [SalesCommission.sale_id == uid, SalesCommission.status.in_(SALES_COMMISSION_INCLUDED_STATUSES), SalesCommission.created_at >= start, SalesCommission.created_at < end]
+    sc_approved = _money(db.scalar(select(func.coalesce(func.sum(SalesCommission.approved_commission), 0)).where(*comm_q))); sc_paid = _money(db.scalar(select(func.coalesce(func.sum(SalesCommission.paid_amount), 0)).where(*comm_q)))
+    days = _dates(start, end); leads_by_day = {d: {"date": d, "label": d[-2:], "count": 0} for d in days}; revenue_by_day = {d: {"date": d, "label": d[-2:], "amount": 0} for d in days}
+    for day, count in db.execute(select(func.date(Lead.created_at), func.count()).where(*lead_base, Lead.created_at >= start, Lead.created_at < end, Lead.duplicate_detected.is_(False), Lead.duplicate_of_customer_id.is_(None)).group_by(func.date(Lead.created_at))): leads_by_day[str(day)]["count"] = count
+    for c, d in contract_rows:
+        key = (c.effective_date or c.signed_date or c.created_at).date().isoformat(); revenue_by_day[key]["amount"] += _money(c.contract_value)
+    summary = {"task_today_count": task_today, "task_overdue_count": task_overdue, "appointment_today_count": appt_today, "appointment_overdue_count": appt_overdue, "lead_care_today_count": lead_care_today, "lead_overdue_count": lead_overdue, "lead_new_count": lead_new, "lead_active_count": lead_active, "lead_without_activity_count": lead_without_activity, "customer_count": customers, "customer_stale_count": customer_stale, "booking_count": bookings, "deposit_count": deposits, "deal_count": deals, "contract_signed_count": contract_count, "revenue_total": revenue, "receipt_total": receipt_total, "sales_commission_approved_total": sc_approved, "sales_commission_paid_total": sc_paid, "sales_commission_outstanding_total": max(sc_approved - sc_paid, 0), "lead_to_customer_rate": _rate(customers, lead_new), "sales_commission_payment_rate": _rate(sc_paid, sc_approved), "lead_hot_count": lead_hot, "lead_stale_count": stale}
+    priority = [{"key":"task_overdue","label":"Task overdue","count":task_overdue,"url":"/tasks/overdue?scope=mine"},{"key":"task_today","label":"Task today","count":task_today,"url":"/tasks/today?scope=mine"},{"key":"appointment_today","label":"Appointment today","count":appt_today,"url":"/appointments/today?scope=mine"},{"key":"lead_overdue","label":"Lead overdue","count":lead_overdue,"url":"/leads/overdue?scope=mine&care_status=overdue"},{"key":"lead_hot","label":"Lead hot","count":lead_hot,"url":"/leads?scope=mine&priority=hot"},{"key":"lead_stale","label":"Lead stale","count":stale,"url":"/leads?scope=mine&stale=true"},{"key":"customer_stale","label":"Khách lâu chưa tương tác","count":customer_stale,"url":"/customers?scope=mine&stale=true"}]
+    return {"range": _range_public(r), "scope": {k: v for k, v in resolve_sale_dashboard_scope(user).items() if k != "user_ids"}, "summary": summary, "time_series": {"leads_by_day": list(leads_by_day.values()), "revenue_by_day": list(revenue_by_day.values())}, "funnel": {"lead_count": lead_new, "customer_count": customers, "booking_count": bookings, "deposit_count": deposits, "deal_count": deals, "contract_count": contract_count, "lead_to_customer_rate": _rate(customers, lead_new)}, "priority": priority}
+
 SALES_MANAGEMENT_PERMISSIONS = {"dashboard.sales_manager.view", "dashboard.leader.view", "dashboard.team.view", "dashboard.sales.view.all"}
 STALE_LEAD_DAYS = 7
 CLOSED_LEAD_STATUSES = {"converted", "lost"}  # aligned with lead_service.list_overdue_leads
