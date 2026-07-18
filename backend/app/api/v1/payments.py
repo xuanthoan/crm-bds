@@ -10,8 +10,8 @@ from app.schemas.payment import InvoiceAction, InvoiceCreate, PaymentScheduleCre
 from app.services.payment_service import apply_penalty, cancel_invoice, cancel_receipt, cancel_schedule, confirm_receipt, create_invoice, create_receipt, create_schedule, get_invoice, get_receipt, get_schedule, issue_invoice, list_all_receipts, list_invoices, list_receipts, list_schedules, payment_summary, serialize_invoice, serialize_receipt, serialize_schedule, update_schedule
 router=APIRouter(tags=['payments'])
 @router.get('/payment-schedules')
-def all(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),q:str|None=None,status_filter:str|None=Query(None,alias='status'),contract_id:UUID|None=None,deal_id:UUID|None=None,customer_id:UUID|None=None,overdue:bool|None=None,db:Session=Depends(get_db),actor:User=Depends(require_auth)):
-    items,meta=list_schedules(db,actor,page,page_size,q,status_filter,contract_id,deal_id,customer_id,overdue); return success_response([serialize_schedule(i) for i in items],meta=meta)
+def all(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),q:str|None=None,status_filter:str|None=Query(None,alias='status'),contract_id:UUID|None=None,deal_id:UUID|None=None,customer_id:UUID|None=None,overdue:bool|None=None,date_from:date|None=None,date_to:date|None=None,db:Session=Depends(get_db),actor:User=Depends(require_auth)):
+    items,meta=list_schedules(db,actor,page,page_size,q,status_filter,contract_id,deal_id,customer_id,overdue,date_from,date_to); return success_response([serialize_schedule(i) for i in items],meta=meta)
 @router.post('/payment-schedules',status_code=status.HTTP_201_CREATED)
 def post(payload:PaymentScheduleCreate,db:Session=Depends(get_db),actor:User=Depends(require_auth)): return success_response(serialize_schedule(create_schedule(db,payload,actor),True),'Tạo lịch thanh toán thành công')
 @router.get('/payment-schedules/{payment_id}')
@@ -38,7 +38,7 @@ def receipt_confirm_alias(receipt_id:UUID,payload:ReceiptConfirm,db:Session=Depe
 def receipt_cancel_alias(receipt_id:UUID,payload:ReceiptCancel,db:Session=Depends(get_db),actor:User=Depends(require_auth)): return success_response(serialize_receipt(cancel_receipt(db,receipt_id,payload,actor)),'Hủy phiếu thu thành công')
 @router.get('/invoices')
 def invoice_list(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),q:str|None=None,status_filter:str|None=Query(None,alias='status'),scope:str|None=None,date_from:date|None=None,date_to:date|None=None,db:Session=Depends(get_db),actor:User=Depends(require_auth)):
-    items,meta=list_invoices(db,actor,page,page_size,q,status_filter); return success_response([serialize_invoice(i) for i in items],meta=meta)
+    items,meta=list_invoices(db,actor,page,page_size,q,status_filter,date_from,date_to); return success_response([serialize_invoice(i) for i in items],meta=meta)
 @router.get('/invoices/{invoice_id}')
 def invoice_get(invoice_id:UUID,db:Session=Depends(get_db),actor:User=Depends(require_auth)): return success_response(serialize_invoice(get_invoice(db,invoice_id,actor)))
 @router.post('/invoices',status_code=status.HTTP_201_CREATED)
@@ -58,6 +58,6 @@ def receipt_cancel(receipt_id:UUID,payload:ReceiptCancel,db:Session=Depends(get_
 def invoice(payment_id:UUID,payload:InvoiceCreate,db:Session=Depends(get_db),actor:User=Depends(require_auth)): return success_response(serialize_invoice(create_invoice(db,payment_id,payload,actor)),'Tạo hóa đơn nháp thành công')
 @router.get('/contracts/{contract_id}/payment-schedules')
 def by_contract(contract_id:UUID,db:Session=Depends(get_db),actor:User=Depends(require_auth)):
-    items,_=list_schedules(db,actor,1,100,None,None,contract_id,None,None,None); return success_response([serialize_schedule(i) for i in items])
+    items,_=list_schedules(db,actor,page=1,page_size=100,contract_id=contract_id); return success_response([serialize_schedule(i) for i in items])
 @router.get('/contracts/{contract_id}/payment-summary')
 def summary(contract_id:UUID,db:Session=Depends(get_db),actor:User=Depends(require_auth)): return success_response(payment_summary(db,contract_id))
