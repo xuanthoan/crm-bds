@@ -23,7 +23,9 @@
 
 ## Chart and Funnel
 - Trend charts use existing self-built SVG area chart primitives.
-- Funnel uses the existing trapezoid funnel style: Lead → Customer → Booking → Deposit → Deal → Contract.
+- Funnel uses two existing trapezoid funnel blocks: Lead → Customer and Booking → Cọc → Deal → Hợp đồng.
+- Lead → Customer is a conversion-cohort funnel: Lead is scoped new leads in the selected range; Customer is the subset of those leads with one successful conversion (`converted_customer_id`) so the rate cannot exceed 100%. Failed duplicate-phone conversion attempts do not create customers.
+- Booking → Cọc → Deal → Hợp đồng uses authenticated-user scope only. Booking cohort includes bookings assigned to the sale with booking/deposit activity in range or linked sale-owned deal/valid-contract activity in range; Cọc includes deposit status, deposit amount/date, inherited booking deposits on contracts, or deal deposit amount; Deal uses sale-owned linked deals; Hợp đồng uses valid contracts attributed through `Deal.owner_id` and valid contract date.
 - No chart dependency was added.
 
 ## Priority

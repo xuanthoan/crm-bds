@@ -33,6 +33,23 @@ class Sprint34SaleDashboardSourceTest(unittest.TestCase):
         self.assertIn("status:'valid',date_from:resolvedStart,date_to:resolvedEnd", ui)
         self.assertNotIn('sale_id=', ui)
         self.assertNotIn('team_id=', ui)
+    def test_funnel_conversion_cohort_and_booking_flow_logic(self):
+        svc = read('backend/app/services/dashboard_service.py')
+        customer_service = read('backend/app/services/customer_service.py')
+        self.assertIn('Lead.converted_customer_id.is_not(None)', svc)
+        self.assertIn('Lead.status == "converted"', svc)
+        self.assertIn('funnel_customer_converted', svc)
+        self.assertIn('"customer_count": funnel_customer_converted', svc)
+        self.assertIn('_rate(funnel_customer_converted, lead_new)', svc)
+        self.assertIn('if lead.converted_customer_id or lead.status == "converted"', customer_service)
+        self.assertIn('_validate_phone(db, lead.phone_primary, lead.phone_secondary)', customer_service)
+        self.assertIn('booking_event_in_range', svc)
+        self.assertIn('Booking.assigned_user_id == uid', svc)
+        self.assertIn('Booking.deposit_amount > 0', svc)
+        self.assertIn('Contract.deposit_value > 0', svc)
+        self.assertIn('Contract.status.in_(VALID_CONTRACT_REVENUE_STATUSES)', svc)
+        self.assertIn('Deal.owner_id == uid', svc)
+
     def test_route_sidebar_permission_and_regression_routes_present(self):
         routes = read('frontend/src/routes/AppRoutes.tsx')
         layout = read('frontend/src/layouts/AppLayout.tsx')
