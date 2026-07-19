@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';import { queryFilters } from '../../utils/urlFilters';
 import { Pagination } from '../../components/common/Pagination';
 import { navigateTo } from '../../routes/AppRoutes';
 import { formatApiError } from '../../services/apiClient';
@@ -9,7 +9,7 @@ import { tooltipTexts } from '../help/helpContent';
 const money=(v:number)=>new Intl.NumberFormat('vi-VN').format(v||0);
 const initialFilters:Record<string,string>={page:'1',page_size:'20',q:'',status:'',payment_method:'',payment_date_from:'',payment_date_to:''};
 export function CommissionPaymentVouchersPage(){
- const [items,setItems]=useState<Voucher[]>([]); const [draft,setDraft]=useState<Record<string,string>>(initialFilters); const [f,setF]=useState<Record<string,string>>(initialFilters); const [loading,setLoading]=useState(false); const [error,setError]=useState(''); const [meta,setMeta]=useState({page:1,total_pages:1,total:0});
+ const url=queryFilters<Record<string,string>>({}); const hydrated={...initialFilters,...url,payment_date_from:url.date_from||url.payment_date_from||'',payment_date_to:url.date_to||url.payment_date_to||''}; const [items,setItems]=useState<Voucher[]>([]); const [draft,setDraft]=useState<Record<string,string>>(hydrated); const [f,setF]=useState<Record<string,string>>(hydrated); const [loading,setLoading]=useState(false); const [error,setError]=useState(''); const [meta,setMeta]=useState({page:1,total_pages:1,total:0});
  const set=(k:string,v:string)=>setDraft(current=>({...current,[k]:v}));
  const apply=()=>setF({...draft,page:'1'}); const reset=()=>{setDraft(initialFilters);setF(initialFilters)};
  useEffect(()=>{let active=true;setLoading(true);setError(''); listVouchers(f).then(r=>{if(!active)return; const total=Number(r.data.total||0); const pageSize=Number(f.page_size||20); setItems(Array.isArray(r.data.items)?r.data.items:[]); setMeta({page:Number(f.page||1),total_pages:Math.max(1,Math.ceil(total/pageSize)),total});}).catch(e=>{if(!active)return;setItems([]);setMeta({page:Number(f.page||1),total_pages:1,total:0});setError(formatApiError(e,'Không thể tải danh sách phiếu chi hoa hồng.').join('\n'))}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[f]);
