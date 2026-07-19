@@ -25,7 +25,7 @@ def need(*codes):
         return actor
     return dep
 
-def filt(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),status:str|None=None,sale_id:UUID|None=None,contract_id:UUID|None=None,contract_code:str|None=None,keyword:str|None=None,date_from:date|None=None,date_to:date|None=None,approved_from:date|None=None,approved_to:date|None=None,paid_from:date|None=None,paid_to:date|None=None,scope:str|None=None):
+def filt(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),status:str|None=None,sale_id:UUID|None=None,contract_id:UUID|None=None,contract_code:str|None=None,keyword:str|None=None,date_from:date|None=None,date_to:date|None=None,approved_from:date|None=None,approved_to:date|None=None,paid_from:date|None=None,paid_to:date|None=None,approved_in_period:bool|None=None,paid_in_period:bool|None=None,as_of:date|None=None,scope:str|None=None):
     return locals()
 
 @router.get('')

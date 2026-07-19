@@ -3,7 +3,7 @@ from decimal import Decimal
 from math import ceil
 from uuid import UUID
 from fastapi import HTTPException
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, lazyload, load_only, selectinload
 from app.contracts.constants import CONTRACT_STATUS_LABELS
 from app.models.contract import Contract
