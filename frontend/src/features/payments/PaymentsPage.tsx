@@ -7,15 +7,17 @@ import { listPayments } from './api';
 import { PaymentBadge } from './PaymentBadge';
 import { PaymentScheduleForm } from './PaymentForms';
 import { PAYMENT_STATUS_LABELS } from './constants';
+import { queryFilters } from '../../utils/urlFilters';
 import type { PaymentSchedule } from './types';
 
 const money = (value: number) => new Intl.NumberFormat('vi-VN').format(value || 0) + 'đ';
 const pageSize = 20;
 
 export function PaymentsPage() {
+  const urlFilters = queryFilters<Record<string, string>>({});
   const [items, setItems] = useState<PaymentSchedule[]>([]);
-  const [q, setQ] = useState('');
-  const [status, setStatus] = useState('');
+  const [q, setQ] = useState(urlFilters.q || '');
+  const [status, setStatus] = useState(urlFilters.status || '');
   const [page, setPage] = useState(1);
   const [meta, setMeta] = useState({ page: 1, total: 0, total_pages: 1 });
   const [loading, setLoading] = useState(false);
@@ -24,7 +26,7 @@ export function PaymentsPage() {
   const load = useCallback(async (nextPage = page, nextFilters = { q, status }) => {
     setLoading(true);
     try {
-      const filters: Record<string, string> = { page: String(nextPage), page_size: String(pageSize) };
+      const filters: Record<string, string> = { ...urlFilters, page: String(nextPage), page_size: String(pageSize) };
       if (nextFilters.q) filters.q = nextFilters.q;
       if (nextFilters.status) filters.status = nextFilters.status;
       const response = await listPayments(filters);

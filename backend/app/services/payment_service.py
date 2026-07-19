@@ -142,7 +142,7 @@ def list_schedules(db,actor,page=1,page_size=20,q=None,status=None,contract_id=N
     if scope!='all':
         ids=get_accessible_user_ids_for_lead_scope(db,actor,scope); cond.append(PaymentSchedule.contract.has(or_(Contract.created_by_id.in_(ids),Contract.deal.has(or_(Deal.owner_id.in_(ids),Deal.created_by_id.in_(ids))))))
     if status: cond.append(PaymentSchedule.status==status)
-    if overdue is True: cond.append(PaymentSchedule.due_date < date.today()); cond.append(PaymentSchedule.status.notin_(['paid','cancelled']))
+    if overdue is True: cond.extend([PaymentSchedule.due_date < date.today(), PaymentSchedule.remaining_amount > 0, PaymentSchedule.status.notin_(['paid','cancelled'])])
     for col,val in ((PaymentSchedule.contract_id,contract_id),(PaymentSchedule.deal_id,deal_id),(PaymentSchedule.customer_id,customer_id)):
         if val is not None: cond.append(col==val)
     if date_from:

@@ -10,7 +10,7 @@ from app.schemas.payment import InvoiceAction, InvoiceCreate, PaymentScheduleCre
 from app.services.payment_service import apply_penalty, cancel_invoice, cancel_receipt, cancel_schedule, confirm_receipt, create_invoice, create_receipt, create_schedule, get_invoice, get_receipt, get_schedule, issue_invoice, list_all_receipts, list_invoices, list_receipts, list_schedules, payment_summary, serialize_invoice, serialize_receipt, serialize_schedule, update_schedule
 router=APIRouter(tags=['payments'])
 @router.get('/payment-schedules')
-def all(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),q:str|None=None,status_filter:str|None=Query(None,alias='status'),contract_id:UUID|None=None,deal_id:UUID|None=None,customer_id:UUID|None=None,overdue:bool|None=None,date_from:date|None=None,date_to:date|None=None,db:Session=Depends(get_db),actor:User=Depends(require_auth)):
+def all(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),q:str|None=None,status_filter:str|None=Query(None,alias='status'),contract_id:UUID|None=None,deal_id:UUID|None=None,customer_id:UUID|None=None,overdue:bool|None=None,due:bool|None=None,date_from:date|None=None,date_to:date|None=None,db:Session=Depends(get_db),actor:User=Depends(require_auth)):
     items,meta=list_schedules(db,actor,page,page_size,q,status_filter,contract_id,deal_id,customer_id,overdue,date_from,date_to); return success_response([serialize_schedule(i) for i in items],meta=meta)
 @router.post('/payment-schedules',status_code=status.HTTP_201_CREATED)
 def post(payload:PaymentScheduleCreate,db:Session=Depends(get_db),actor:User=Depends(require_auth)): return success_response(serialize_schedule(create_schedule(db,payload,actor),True),'Tạo lịch thanh toán thành công')
