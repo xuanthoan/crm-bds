@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { queryFilters } from '../../utils/urlFilters';
 
 import { Pagination } from '../../components/common/Pagination';
 import { FormError } from '../../components/FormError';
@@ -12,7 +13,7 @@ import type { Contract } from './types';
 
 export function ContractsPage() {
   const [items, setItems] = useState<Contract[]>([]);
-  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [filters, setFilters] = useState<Record<string, string>>(()=>queryFilters<Record<string,string>>({}));
   const [page, setPage] = useState(1);
   const [meta, setMeta] = useState<Record<string, number>>({});
   const [showCreate, setShowCreate] = useState(false);

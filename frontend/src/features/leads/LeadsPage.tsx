@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { queryFilters } from "../../utils/urlFilters";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { FormError } from "../../components/FormError";
 import { Pagination } from "../../components/common/Pagination";
@@ -48,7 +49,7 @@ export function LeadsPage() {
   const [ownersError, setOwnersError] = useState<string[] | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [filters, setFilters] = useState<Filters>({ page: 1, page_size: 20 });
+  const [filters, setFilters] = useState<Filters>(() => queryFilters<Filters>({ page: 1, page_size: 20 }));
   const [meta, setMeta] = useState({ page: 1, total_pages: 0, total: 0 });
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState<string[] | null>(null);

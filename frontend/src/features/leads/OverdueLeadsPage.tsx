@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { queryFilters } from "../../utils/urlFilters";
 import { FormError } from "../../components/FormError";
 import { Pagination } from "../../components/common/Pagination";
 import { GuideBox } from "../../components/help/GuideBox";
@@ -15,8 +16,9 @@ const days = (v: string | null) =>
     ? Math.max(0, Math.floor((Date.now() - new Date(v).getTime()) / 86400000))
     : 0;
 export function OverdueLeadsPage() {
+  const urlFilters = queryFilters<{scope?: string; care_status?: string; priority?: string}>({});
   const [items, setItems] = useState<Lead[]>([]),
-    [priority, setPriority] = useState(""),
+    [priority, setPriority] = useState(urlFilters.priority ?? ""),
     [page, setPage] = useState(1),
     [meta, setMeta] = useState({ page: 1, total: 0, total_pages: 1 }),
     [errors, setErrors] = useState<string[] | null>(null),
@@ -24,7 +26,7 @@ export function OverdueLeadsPage() {
   async function load(nextPage = page, nextPriority = priority) {
     setLoading(true);
     try {
-      const response = await listOverdueLeads({ page: nextPage, page_size: 20, priority: nextPriority });
+      const response = await listOverdueLeads({ page: nextPage, page_size: 20, priority: nextPriority, scope: urlFilters.scope, care_status: urlFilters.care_status });
       setItems(Array.isArray(response.data) ? response.data : []);
       setMeta({
         page: Number(response.meta.page || nextPage),

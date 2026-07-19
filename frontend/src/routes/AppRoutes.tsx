@@ -21,6 +21,7 @@ import { MyWorkDashboard } from '../features/dashboard/MyWorkDashboard';
 import { TeamWorkDashboard } from '../features/dashboard/TeamWorkDashboard';
 import { BossDashboard } from '../features/dashboard/BossDashboard';
 import { SalesManagementDashboard } from '../features/dashboard/SalesManagementDashboard';
+import { SaleDashboard } from '../features/dashboard/SaleDashboard';
 import { AppLayout } from '../layouts/AppLayout';
 import { CustomersPage } from '../features/customers/CustomersPage';
 import { CustomerDetailPage } from '../features/customers/CustomerDetailPage';
@@ -81,6 +82,7 @@ const protectedPages: Record<string, ProtectedPage> = {
   '/dashboard/my-work': { element: <MyWorkDashboard />, permission: ['dashboard.view.own', 'dashboard.view.team', 'dashboard.view.all'] },
   '/dashboard/team-work': { element: <TeamWorkDashboard />, permission: ['dashboard.view.team', 'dashboard.view.all'] },
   '/dashboard/boss': { element: <BossDashboard />, permission: ['dashboard.boss.view', 'dashboard.view.all', 'reports.view.ceo_dashboard'] },
+  '/dashboard/sale': { element: <SaleDashboard />, permission: ['dashboard.sale.view', 'dashboard.view.all'] },
   '/dashboard/sales-management': { element: <SalesManagementDashboard />, permission: ['dashboard.sales_manager.view', 'dashboard.leader.view', 'dashboard.team.view', 'dashboard.sales.view.all', 'dashboard.view.all'] },
   '/tasks': { element: <TasksPage />, permission: ['tasks.view', 'tasks.view_all'] },
   '/tasks/today': { element: <TodayTasksPage />, permission: ['tasks.view', 'tasks.view_all'] },

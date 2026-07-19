@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from math import ceil
 from uuid import UUID
@@ -29,13 +29,41 @@ def _next(db, column, prefix):
     codes=db.scalars(select(column).where(column.like(f"{prefix}-%")))
     nums=[int(c.split('-')[-1]) for c in codes if c and c.split('-')[-1].isdigit()]
     return f"{prefix}-{max(nums,default=0)+1:06d}"
+def _role_codes(user): return {getattr(role, 'code', None) for role in getattr(user, 'roles', []) if getattr(role, 'code', None)}
 def _scope(user):
     if user.is_superuser: return 'all'
     perms=set(get_user_permissions(user))
     for s in ('all','department','team','own'):
         if f'payments.view.{s}' in perms or (s=='all' and ('payments.view_all' in perms or 'payments.view' in perms)): return s
+    roles = _role_codes(user)
+    if roles & {'admin', 'director'}: return 'all'
+    if 'sales_manager' in roles: return 'department'
+    if 'leader' in roles: return 'team'
+    if 'sale' in roles: return 'own'
     return None
 def _can_write(user, code): return user.is_superuser or code in set(get_user_permissions(user)) or 'payments.update' in set(get_user_permissions(user))
+def _payment_write_scope(user, code):
+    if _can_write(user, code): return 'all'
+    roles = _role_codes(user)
+    if roles & {'admin', 'director'}: return 'all'
+    if 'sales_manager' in roles: return 'department'
+    if 'leader' in roles: return 'team'
+    if 'sale' in roles: return 'own'
+    return None
+def _contract_responsible_ids(contract):
+    ids = {contract.created_by_id}
+    if contract.deal:
+        ids.update({contract.deal.owner_id, contract.deal.created_by_id})
+    if contract.booking:
+        ids.update({contract.booking.assigned_user_id, contract.booking.created_by_id})
+    return {value for value in ids if value}
+def _require_schedule_write_access(db, actor, contract, code='payments.create'):
+    scope = _payment_write_scope(actor, code)
+    if not scope: raise HTTPException(403, 'Bạn không có quyền tạo lịch thanh toán')
+    if scope == 'all': return
+    ids = get_accessible_user_ids_for_lead_scope(db, actor, scope)
+    if not (_contract_responsible_ids(contract) & ids):
+        raise HTTPException(403, 'Bạn không có quyền tạo lịch thanh toán')
 def _contract(db,id):
     c=db.scalar(select(Contract).where(Contract.id==id,Contract.deleted_at.is_(None)))
     if not c: raise HTTPException(404,'Hợp đồng không tồn tại')
@@ -107,7 +135,7 @@ def payment_summary(db,contract_id):
     rows=list(db.scalars(select(PaymentSchedule).where(PaymentSchedule.contract_id==contract_id,PaymentSchedule.deleted_at.is_(None))))
     for p in rows: _recalc(p)
     active=[p for p in rows if p.status!='cancelled']; return {'total_expected':sum((p.expected_amount for p in active),Decimal('0')),'total_paid':sum((p.paid_amount for p in active),Decimal('0')),'total_remaining':sum((p.remaining_amount for p in active),Decimal('0')),'overdue_count':sum(1 for p in active if p.status=='overdue')}
-def list_schedules(db,actor,page=1,page_size=20,q=None,status=None,contract_id=None,deal_id=None,customer_id=None,overdue=None):
+def list_schedules(db,actor,page=1,page_size=20,q=None,status=None,contract_id=None,deal_id=None,customer_id=None,overdue=None,date_from=None,date_to=None):
     scope=_scope(actor)
     if not scope: raise HTTPException(403,'Bạn không có quyền xem thanh toán')
     cond=[PaymentSchedule.deleted_at.is_(None)]
@@ -117,6 +145,10 @@ def list_schedules(db,actor,page=1,page_size=20,q=None,status=None,contract_id=N
     if overdue is True: cond.append(PaymentSchedule.due_date < date.today()); cond.append(PaymentSchedule.status.notin_(['paid','cancelled']))
     for col,val in ((PaymentSchedule.contract_id,contract_id),(PaymentSchedule.deal_id,deal_id),(PaymentSchedule.customer_id,customer_id)):
         if val is not None: cond.append(col==val)
+    if date_from:
+        cond.append(PaymentSchedule.due_date >= date_from)
+    if date_to:
+        cond.append(PaymentSchedule.due_date <= date_to)
     if q:
         term=f"%{q.strip()}%"; cond.append(or_(PaymentSchedule.payment_code.ilike(term),PaymentSchedule.title.ilike(term),PaymentSchedule.contract.has(Contract.contract_code.ilike(term)),PaymentSchedule.deal.has(Deal.deal_code.ilike(term)),PaymentSchedule.customer.has(or_(Customer.full_name.ilike(term),Customer.primary_phone.ilike(term)))))
     query=select(PaymentSchedule).options(selectinload(PaymentSchedule.contract).load_only(Contract.id,Contract.contract_code,Contract.status),selectinload(PaymentSchedule.deal).load_only(Deal.id,Deal.deal_code,Deal.title),selectinload(PaymentSchedule.customer).load_only(Customer.id,Customer.customer_code,Customer.full_name,Customer.primary_phone),selectinload(PaymentSchedule.property_unit).load_only(PropertyUnit.id,PropertyUnit.property_code,PropertyUnit.title),lazyload('*')).where(*cond)
@@ -129,8 +161,8 @@ def list_schedules(db,actor,page=1,page_size=20,q=None,status=None,contract_id=N
     return items,{'page':page,'page_size':page_size,'total':total,'total_pages':ceil(total/page_size) if total else 0}
 def get_schedule(db,id,actor): p=_schedule(db,id); _refresh_overdue(db,p,actor); db.commit(); db.refresh(p); return p
 def create_schedule(db,payload:PaymentScheduleCreate,actor):
-    if not _can_write(actor,'payments.create'): raise HTTPException(403,'Bạn không có quyền tạo lịch thanh toán')
     c=_contract(db,payload.contract_id)
+    _require_schedule_write_access(db, actor, c, 'payments.create')
     # Sprint 16 compatibility: c.status=='cancelled' / Không thể tạo lịch thanh toán cho hợp đồng đã hủy. remains blocked; Sprint 17 also blocks completed.
     if c.status in {'cancelled','completed'}: raise HTTPException(400,'Không thể tạo lịch thanh toán cho hợp đồng đã hủy hoặc đã hoàn tất.')
     _validate_contract_schedule_capacity(db, c, payload.expected_amount)
@@ -191,9 +223,15 @@ def cancel_receipt(db,id,payload:ReceiptCancel,actor):
     if r.status=='confirmed': p.paid_amount=max((p.paid_amount or Decimal('0'))-r.amount,Decimal('0')); _recalc(p)
     r.status='cancelled'; r.cancel_reason=(payload.cancel_reason or payload.note); r.cancelled_at=datetime.now(timezone.utc); r.cancelled_by_id=actor.id; r.note=payload.note or r.note; r.updated_by_id=actor.id; add_contract_activity(db,p.contract,actor,'payment_receipt_cancelled',content=f"Hủy phiếu thu {r.receipt_code} của {p.title}."); db.commit(); db.refresh(r); return r
 def list_receipts(db,schedule_id,actor): return [r for r in _schedule(db,schedule_id).receipts if r.deleted_at is None]
-def list_all_receipts(db,actor,page=1,page_size=20,q=None,status=None):
+def list_all_receipts(db,actor,page=1,page_size=20,q=None,status=None,scope=None,date_from=None,date_to=None):
     cond=[PaymentReceipt.deleted_at.is_(None)]
     if status: cond.append(PaymentReceipt.status==status)
+    if scope == "mine":
+        cond.append(PaymentReceipt.payment_schedule.has(PaymentSchedule.contract.has(Contract.deal.has(Deal.owner_id == actor.id))))
+    if date_from:
+        cond.append(func.coalesce(PaymentReceipt.confirmed_at, PaymentReceipt.created_at) >= datetime.combine(date_from, time.min, tzinfo=timezone.utc))
+    if date_to:
+        cond.append(func.coalesce(PaymentReceipt.confirmed_at, PaymentReceipt.created_at) <= datetime.combine(date_to, time.max, tzinfo=timezone.utc))
     if q:
         term=f'%{q.strip()}%'; cond.append(or_(PaymentReceipt.receipt_code.ilike(term), PaymentReceipt.payment_schedule.has(PaymentSchedule.payment_code.ilike(term)), PaymentReceipt.payment_schedule.has(PaymentSchedule.contract.has(Contract.contract_code.ilike(term))), PaymentReceipt.payment_schedule.has(PaymentSchedule.customer.has(or_(Customer.full_name.ilike(term), Customer.primary_phone.ilike(term))))))
     total=db.scalar(select(func.count(PaymentReceipt.id)).where(*cond)) or 0
@@ -228,9 +266,13 @@ def create_invoice(db,schedule_id,payload:InvoiceCreate,actor):
     if status=='issued': issue_invoice(db,inv.id,InvoiceAction(issue_date=payload.issued_date),actor,commit=False)
     db.commit(); db.refresh(inv); return inv
 
-def list_invoices(db,actor,page=1,page_size=20,q=None,status=None):
+def list_invoices(db,actor,page=1,page_size=20,q=None,status=None,date_from=None,date_to=None):
     cond=[PaymentInvoice.deleted_at.is_(None)]
     if status: cond.append(PaymentInvoice.status==status)
+    if date_from:
+        cond.append(PaymentInvoice.created_at >= datetime.combine(date_from, time.min, tzinfo=timezone.utc))
+    if date_to:
+        cond.append(PaymentInvoice.created_at <= datetime.combine(date_to, time.max, tzinfo=timezone.utc))
     if q:
         term=f'%{q.strip()}%'; cond.append(or_(PaymentInvoice.invoice_code.ilike(term), PaymentInvoice.payment_schedule.has(PaymentSchedule.payment_code.ilike(term)), PaymentInvoice.payment_schedule.has(PaymentSchedule.contract.has(Contract.contract_code.ilike(term))), PaymentInvoice.payment_schedule.has(PaymentSchedule.customer.has(or_(Customer.full_name.ilike(term), Customer.primary_phone.ilike(term))))))
     total=db.scalar(select(func.count(PaymentInvoice.id)).where(*cond)) or 0

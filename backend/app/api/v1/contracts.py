@@ -1,3 +1,4 @@
+from datetime import date
 from uuid import UUID
 from fastapi import APIRouter,Depends,Query,status
 from sqlalchemy.orm import Session
@@ -9,8 +10,8 @@ from app.schemas.contract import ContractActivityCreate,ContractCreate,ContractP
 from app.services.contract_service import add_contract_activity,change_contract_status,confirm_contract_payment,create_contract,create_contract_payment,get_contract_detail,list_contract_payments,list_contracts,serialize_contract,serialize_payment,soft_delete_contract,soft_delete_contract_payment,update_contract,update_contract_payment
 router=APIRouter(prefix="/contracts",tags=["contracts"])
 @router.get("")
-def get_all(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),q:str|None=None,status_filter:str|None=Query(None,alias="status"),contract_type:str|None=None,customer_id:UUID|None=None,property_unit_id:UUID|None=None,project_id:UUID|None=None,db:Session=Depends(get_db),actor:User=Depends(require_auth)):
- items,meta=list_contracts(db,actor,page,page_size,q,status_filter,contract_type,customer_id,property_unit_id,project_id);return success_response([serialize_contract(i) for i in items],meta=meta)
+def get_all(page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),q:str|None=None,status_filter:str|None=Query(None,alias="status"),contract_type:str|None=None,customer_id:UUID|None=None,property_unit_id:UUID|None=None,project_id:UUID|None=None,scope:str|None=None,date_from:date|None=None,date_to:date|None=None,db:Session=Depends(get_db),actor:User=Depends(require_auth)):
+ items,meta=list_contracts(db,actor,page,page_size,q,status_filter,contract_type,customer_id,property_unit_id,project_id,scope,date_from,date_to);return success_response([serialize_contract(i) for i in items],meta=meta)
 @router.post("",status_code=status.HTTP_201_CREATED)
 def post(payload:ContractCreate,db:Session=Depends(get_db),actor:User=Depends(require_permission("contracts.create"))):return success_response(serialize_contract(create_contract(db,payload,actor),True),"Tạo hợp đồng thành công")
 @router.get("/{contract_id}")

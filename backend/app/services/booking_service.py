@@ -329,11 +329,13 @@ def get_booking_detail(db: Session, booking_id: UUID, actor: User) -> Booking:
     _require(db, actor, value, "bookings.view", "Bạn không có quyền xem booking này")
     return value
 
-def list_bookings(db: Session, actor: User, *, page: int = 1, page_size: int = 20, q: str | None = None, customer_id: UUID | None = None, property_unit_id: UUID | None = None, assigned_user_id: UUID | None = None, status: str | None = None, created_from: datetime | None = None, created_to: datetime | None = None, expires_from: datetime | None = None, expires_to: datetime | None = None):
+def list_bookings(db: Session, actor: User, *, page: int = 1, page_size: int = 20, q: str | None = None, customer_id: UUID | None = None, property_unit_id: UUID | None = None, assigned_user_id: UUID | None = None, status: str | None = None, created_from: datetime | None = None, created_to: datetime | None = None, expires_from: datetime | None = None, expires_to: datetime | None = None, request_scope: str | None = None):
     scope = _scope(actor, "bookings.view")
     if not scope: raise HTTPException(status_code=403, detail="Bạn không có quyền xem booking")
     conditions = [Booking.deleted_at.is_(None)]
-    if scope != "all":
+    if request_scope == "mine":
+        conditions.append(Booking.assigned_user_id == actor.id)
+    elif scope != "all":
         ids = _ids(db, actor, scope); conditions.append(or_(Booking.assigned_user_id.in_(ids), Booking.created_by_id.in_(ids)))
     if q:
         term = f"%{q.strip()}%"; conditions.append(or_(Booking.booking_code.ilike(term), Booking.customer.has(Customer.full_name.ilike(term)), Booking.property_unit.has(or_(PropertyUnit.property_code.ilike(term), PropertyUnit.title.ilike(term)))))

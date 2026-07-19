@@ -208,11 +208,13 @@ def base_query(db): return db.query(SalesCommission).options(joinedload(SalesCom
 
 def list_commissions(db, page=1, page_size=20, actor=None, **f):
     q=base_query(db).join(Contract, SalesCommission.contract_id==Contract.id).outerjoin(Customer, Contract.customer_id==Customer.id).outerjoin(User, SalesCommission.sale_id==User.id)
-    if f.get('status') == 'partially_paid': q=q.filter(SalesCommission.approved_commission > 0, SalesCommission.paid_amount > 0, SalesCommission.paid_amount < SalesCommission.approved_commission)
+    if f.get('status') == 'remaining': q=q.filter(SalesCommission.approved_commission > SalesCommission.paid_amount)
+    elif f.get('status') == 'partially_paid': q=q.filter(SalesCommission.approved_commission > 0, SalesCommission.paid_amount > 0, SalesCommission.paid_amount < SalesCommission.approved_commission)
     elif f.get('status') == 'paid': q=q.filter(SalesCommission.approved_commission > 0, SalesCommission.paid_amount >= SalesCommission.approved_commission)
     elif f.get('status') == 'approved': q=q.filter(SalesCommission.status=='approved', SalesCommission.approved_commission > 0, SalesCommission.paid_amount <= 0)
     elif f.get('status'): q=q.filter(SalesCommission.status==f['status'])
-    if f.get('sale_id'): q=q.filter(SalesCommission.sale_id==f['sale_id'])
+    if f.get('scope') == 'mine' and actor is not None: q=q.filter(SalesCommission.sale_id==actor.id)
+    elif f.get('sale_id'): q=q.filter(SalesCommission.sale_id==f['sale_id'])
     if f.get('contract_id'): q=q.filter(SalesCommission.contract_id==f['contract_id'])
     kw=f.get('keyword') or f.get('contract_code')
     if kw: q=q.filter(or_(SalesCommission.commission_code.ilike(f'%{kw}%'), Contract.contract_code.ilike(f'%{kw}%'), Customer.full_name.ilike(f'%{kw}%')))

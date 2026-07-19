@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from math import ceil
 from uuid import UUID
@@ -260,24 +260,41 @@ def list_leads(
     created_to: date | None = None,
     next_follow_up_from: date | None = None,
     next_follow_up_to: date | None = None,
+    scope: str | None = None,
+    activity_status: str | None = None,
+    has_activity: bool | None = None,
+    care_status: str | None = None,
+    care_due: str | None = None,
+    next_follow_up: str | None = None,
+    stale: bool | None = None,
 ) -> tuple[list[Lead], dict]:
     require_view_permission(user)
     query = apply_view_scope(db, select(Lead).where(Lead.deleted_at.is_(None)), user)
     count_query = apply_view_scope(db, select(func.count(Lead.id)).where(Lead.deleted_at.is_(None)), user)
     conditions = []
+    if scope == "mine":
+        conditions.append(Lead.owner_id == user.id)
     if search:
         term = f"%{search.strip()}%"
         conditions.append(or_(Lead.code.ilike(term), Lead.full_name.ilike(term), Lead.phone_primary.ilike(term), Lead.phone_secondary.ilike(term), Lead.email.ilike(term), Lead.zalo.ilike(term), Lead.facebook.ilike(term)))
     if lead_status:
-        if lead_status not in LEAD_STATUSES:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Trạng thái lead không hợp lệ")
-        conditions.append(Lead.status == lead_status)
+        if lead_status == "active":
+            conditions.append(Lead.status.notin_({"converted", "lost"}))
+        else:
+            if lead_status not in LEAD_STATUSES:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Trạng thái lead không hợp lệ")
+            conditions.append(Lead.status == lead_status)
     if priority:
-        _validate_priority(priority)
-        conditions.append(Lead.priority == priority)
+        if priority == "hot":
+            conditions.append(Lead.priority.in_({"urgent", "high"}))
+        else:
+            _validate_priority(priority)
+            conditions.append(Lead.priority == priority)
     if source:
         conditions.append(Lead.source == source)
-    if owner_id:
+    if scope == "mine":
+        conditions.append(Lead.owner_id == user.id)
+    elif owner_id:
         conditions.append(Lead.owner_id == owner_id)
     if department_id or team_id:
         from app.models.user_organization_membership import UserOrganizationMembership
@@ -293,6 +310,16 @@ def list_leads(
         conditions.append(Lead.next_follow_up_at >= datetime.combine(next_follow_up_from, time.min, tzinfo=timezone.utc))
     if next_follow_up_to:
         conditions.append(Lead.next_follow_up_at <= datetime.combine(next_follow_up_to, time.max, tzinfo=timezone.utc))
+    today_start = datetime.combine(date.today(), time.min, tzinfo=timezone.utc)
+    today_end = datetime.combine(date.today(), time.max, tzinfo=timezone.utc)
+    if care_due == "today" or next_follow_up == "today":
+        conditions.extend([Lead.next_follow_up_at >= today_start, Lead.next_follow_up_at <= today_end])
+    if care_status == "overdue":
+        conditions.extend([Lead.next_follow_up_at.is_not(None), Lead.next_follow_up_at < datetime.now(timezone.utc)])
+    if activity_status == "none" or has_activity is False:
+        conditions.append(~Lead.activities.any())
+    if stale:
+        conditions.append(func.coalesce(Lead.last_contact_at, Lead.created_at) < datetime.now(timezone.utc) - timedelta(days=7))
     for condition in conditions:
         query = query.where(condition)
         count_query = count_query.where(condition)
@@ -569,14 +596,17 @@ def delete_lead(db: Session, lead: Lead, actor: User) -> None:
     db.commit()
 
 
-def list_overdue_leads(db: Session, user: User, *, page: int, page_size: int, owner_id: UUID | None = None, priority: str | None = None):
+def list_overdue_leads(db: Session, user: User, *, page: int, page_size: int, owner_id: UUID | None = None, priority: str | None = None, scope: str | None = None, care_status: str | None = None):
     require_view_permission(user)
     conditions = [Lead.deleted_at.is_(None), Lead.next_follow_up_at < datetime.now(timezone.utc), Lead.status.not_in({"converted", "lost"})]
-    if owner_id: conditions.append(Lead.owner_id == owner_id)
+    if scope == "mine":
+        conditions.append(Lead.owner_id == user.id)
+    elif owner_id:
+        conditions.append(Lead.owner_id == owner_id)
     if priority:
         _validate_priority(priority); conditions.append(Lead.priority == priority)
-    query = apply_view_scope(db, select(Lead).where(*conditions), user)
-    count_query = apply_view_scope(db, select(func.count(Lead.id)).where(*conditions), user)
+    query = select(Lead).where(*conditions) if scope == "mine" else apply_view_scope(db, select(Lead).where(*conditions), user)
+    count_query = select(func.count(Lead.id)).where(*conditions) if scope == "mine" else apply_view_scope(db, select(func.count(Lead.id)).where(*conditions), user)
     total = db.scalar(count_query) or 0
     leads = list(db.scalars(query.order_by(Lead.next_follow_up_at.asc()).offset((page - 1) * page_size).limit(page_size)).unique())
     return leads, {"page": page, "page_size": page_size, "total": total, "total_pages": ceil(total / page_size) if total else 0}

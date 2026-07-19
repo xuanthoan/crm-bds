@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { queryFilters } from '../../utils/urlFilters';
 import { can } from '../auth/authStore';
 import { navigateTo } from '../../routes/AppRoutes';
 import { approveCommission, cancelCommission, commissionSummary, generateCommission, holdCommission, listCommissions, type Commission } from './api';
@@ -20,7 +21,7 @@ type ActionState = { type: 'approve' | 'hold' | 'cancel' | 'paid'; c: Commission
 export function CommissionsPage() {
   const [items, setItems] = useState<Commission[]>([]);
   const [summary, setSummary] = useState<Record<string, number>>({});
-  const [filters, setFilters] = useState<Record<string, string>>({ page: '1', page_size: '20' });
+  const [filters, setFilters] = useState<Record<string, string>>(()=>queryFilters<Record<string,string>>({ page: '1', page_size: '20' }));
   const [guide, setGuide] = useState(false);
   const [gen, setGen] = useState(false);
   const [action, setAction] = useState<ActionState | null>(null);

@@ -3567,3 +3567,14 @@ th .help-label {
   padding: 7px 12px;
   text-decoration: none;
 }
+.dashboard-kpi-button {
+  border: 0;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+  font: inherit;
+}
+.dashboard-kpi-button:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 3px;
+}

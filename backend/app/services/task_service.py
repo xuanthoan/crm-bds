@@ -175,7 +175,8 @@ def _task_list_load_options():
 
 def list_tasks(db,actor,page=1,page_size=20,**f):
     cond=[Task.deleted_at.is_(None)]
-    if not _has_view_all(actor): cond.append(or_(Task.assigned_user_id==actor.id,Task.created_by_id==actor.id,Task.task_assignees.any(TaskAssignee.user_id==actor.id),Task.task_watchers.any(TaskWatcher.user_id==actor.id)))
+    if f.get("scope") == "mine": cond.append(or_(Task.assigned_user_id==actor.id,Task.task_assignees.any(TaskAssignee.user_id==actor.id)))
+    elif not _has_view_all(actor): cond.append(or_(Task.assigned_user_id==actor.id,Task.created_by_id==actor.id,Task.task_assignees.any(TaskAssignee.user_id==actor.id),Task.task_watchers.any(TaskWatcher.user_id==actor.id)))
     for name,col in (("status",Task.status),("priority",Task.priority),("task_type",Task.task_type),("assigned_user_id",Task.assigned_user_id),("related_lead_id",Task.related_lead_id),("lead_id",Task.related_lead_id),("related_customer_id",Task.related_customer_id),("related_booking_id",Task.related_booking_id),("related_deal_id",Task.related_deal_id),("related_contract_id",Task.related_contract_id)):
         if f.get(name) is not None:
             if name=="assigned_user_id":
@@ -189,6 +190,7 @@ def list_tasks(db,actor,page=1,page_size=20,**f):
     if f.get("due_from"): cond.append(Task.due_at>=f["due_from"])
     if f.get("due_to"): cond.append(Task.due_at<=f["due_to"])
     if f.get("due_before"): cond.append(Task.due_at<f["due_before"])
+    if f.get("active_only"): cond.append(Task.status.in_({"open","in_progress"}))
     total=db.scalar(query.with_only_columns(func.count(func.distinct(Task.id))).where(*cond)) or 0
     items=list(db.scalars(query.options(*_task_list_load_options()).where(*cond).order_by(Task.due_at.asc().nullslast(),Task.created_at.desc()).offset((page-1)*page_size).limit(page_size)).unique())
     return items,{"page":page,"page_size":page_size,"total":total,"total_pages":ceil(total/page_size) if total else 0}
@@ -276,23 +278,14 @@ def _today_bounds():
     start_of_today=datetime.combine(_now().date(),time.min,tzinfo=timezone.utc)
     start_of_tomorrow=start_of_today+timedelta(days=1)
     return start_of_today,start_of_tomorrow
-def get_today_tasks(db,actor,page=1,page_size=200,q=None,with_meta=False):
+def get_today_tasks(db,actor,page=1,page_size=200,q=None,scope=None,with_meta=False):
     start_of_today,start_of_tomorrow=_today_bounds()
-    all_items=list_tasks(db,actor,page=1,page_size=10000,q=q,due_from=start_of_today,due_before=start_of_tomorrow)[0]
-    active=[t for t in all_items if t.status in {"open","in_progress"}]
-    if not with_meta:
-        return active[:page_size]
-    total=len(active); start=(page-1)*page_size; end=start+page_size
-    return active[start:end],{"page":page,"page_size":page_size,"total":total,"total_pages":ceil(total/page_size) if total else 0}
-def get_overdue_tasks(db,actor,page=1,page_size=200,q=None,with_meta=False):
+    items, meta = list_tasks(db,actor,page=page,page_size=page_size,q=q,scope=scope,due_from=start_of_today,due_before=start_of_tomorrow,active_only=True)
+    return (items, meta) if with_meta else items
+def get_overdue_tasks(db,actor,page=1,page_size=200,q=None,scope=None,with_meta=False):
     start_of_today,_=_today_bounds()
-    # Keep overdue semantics fixed while allowing search/pagination for the dedicated page.
-    all_items=list_tasks(db,actor,page=1,page_size=10000,q=q,due_before=start_of_today)[0]
-    active=[t for t in all_items if t.status in {"open","in_progress"}]
-    if not with_meta:
-        return active[:page_size]
-    total=len(active); start=(page-1)*page_size; end=start+page_size
-    return active[start:end],{"page":page,"page_size":page_size,"total":total,"total_pages":ceil(total/page_size) if total else 0}
+    items, meta = list_tasks(db,actor,page=page,page_size=page_size,q=q,scope=scope,due_before=start_of_today,active_only=True)
+    return (items, meta) if with_meta else items
 
 def auto_task_for_booking_created(db,booking,actor):
     due=booking.reservation_expires_at-timedelta(days=1) if booking.reservation_expires_at else None

@@ -30,6 +30,7 @@ export function PaymentScheduleForm({ contractId, contractLabel, contractValue, 
   const remainingSchedulable = Math.max(schedulableAmount - selectedScheduledTotal, 0);
   const hasSelectedContract = Boolean(form.contract_id);
   const hasFullyScheduledContract = hasSelectedContract && effectiveContractValue > 0 && remainingSchedulable <= 0;
+  const createDenied = errors.some((error) => error.includes('không có quyền tạo lịch thanh toán'));
 
   const loadContracts = useCallback(async () => {
     if (contractId) return;
@@ -102,7 +103,7 @@ export function PaymentScheduleForm({ contractId, contractLabel, contractValue, 
         </>
       )}
       {effectiveContractValue > 0 && <dl className="info-grid"><div><dt>Giá trị hợp đồng</dt><dd>{money(effectiveContractValue)}</dd></div><div><dt>Tiền cọc đã ghi nhận</dt><dd>{money(effectiveDepositAmount)}</dd></div><div><dt>Còn phải lập lịch</dt><dd>{money(schedulableAmount)}</dd></div><div><dt>Tổng đã lập lịch</dt><dd>{money(selectedScheduledTotal)}</dd></div><div><dt>Còn có thể lập lịch</dt><dd>{money(remainingSchedulable)}</dd></div></dl>}
-      {hasFullyScheduledContract ? <div className="form-warning">Hợp đồng này đã lập đủ lịch thanh toán.</div> : <>
+      {createDenied ? <div className="form-warning">Bạn không có quyền tạo lịch thanh toán cho hợp đồng này.</div> : hasFullyScheduledContract ? <div className="form-warning">Hợp đồng này đã lập đủ lịch thanh toán.</div> : <>
         <input type="number" placeholder="Số thứ tự đợt" value={form.sequence_no} onChange={(event) => setForm({ ...form, sequence_no: event.target.value })} />
         <input placeholder="Tên đợt thanh toán" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
         <input type="date" value={form.due_date} onChange={(event) => setForm({ ...form, due_date: event.target.value })} />

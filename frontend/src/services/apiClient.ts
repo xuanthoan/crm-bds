@@ -33,7 +33,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || (window.location.hostname =
 const ACCESS_TOKEN_KEY = 'crm_bds_access_token';
 const RAW_OBJECT_ERROR_MESSAGE = String({});
 const SESSION_EXPIRED_MESSAGE = 'Phiên đăng nhập đã hết hạn hoặc bạn chưa đăng nhập. Vui lòng đăng nhập lại.';
-const NETWORK_ERROR_MESSAGE = 'Không kết nối được máy chủ. Kiểm tra VITE_API_URL hoặc backend port 8000.';
+const NETWORK_ERROR_MESSAGE = 'Không thể gọi API. Vui lòng thử lại hoặc xem chi tiết lỗi trong console/network tab.';
 const SERVER_ERROR_MESSAGE = 'Có lỗi máy chủ khi xử lý yêu cầu. Vui lòng thử lại hoặc gửi log cho admin.';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
