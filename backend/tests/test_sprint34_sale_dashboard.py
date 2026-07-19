@@ -49,6 +49,12 @@ class Sprint34SaleDashboardSourceTest(unittest.TestCase):
         self.assertIn('Contract.deposit_value > 0', svc)
         self.assertIn('Contract.status.in_(VALID_CONTRACT_REVENUE_STATUSES)', svc)
         self.assertIn('Deal.owner_id == uid', svc)
+        self.assertIn('funnel_deal_scope', svc)
+        self.assertIn('Deal.booking_id.is_not(None)', svc)
+        self.assertIn('Deal.booking.has(and_(Booking.deleted_at.is_(None), Booking.assigned_user_id == uid, booking_event_in_range))', svc)
+        self.assertIn('"contract_count": funnel_contracts', svc)
+        self.assertIn('_rate(funnel_contracts, funnel_bookings)', svc)
+        self.assertNotIn('or_(and_(Deal.created_at >= start, Deal.created_at < end), Deal.booking.has(', svc)
 
     def test_route_sidebar_permission_and_regression_routes_present(self):
         routes = read('frontend/src/routes/AppRoutes.tsx')
