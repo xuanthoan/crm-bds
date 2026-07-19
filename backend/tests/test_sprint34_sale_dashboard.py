@@ -29,6 +29,8 @@ class Sprint34SaleDashboardSourceTest(unittest.TestCase):
         self.assertIn('dashboard-area-chart', ui)
         self.assertIn('trapezoid-funnel', ui)
         self.assertIn('data.priority.map', ui)
+        self.assertIn('<h2>Cảnh báo ưu tiên</h2>', ui)
+        self.assertNotIn('<h2>Priority</h2>', ui)
         self.assertIn("q('/tasks/today',mine)", ui)
         self.assertIn("status:'valid',date_from:resolvedStart,date_to:resolvedEnd", ui)
         self.assertNotIn('sale_id=', ui)
@@ -55,6 +57,16 @@ class Sprint34SaleDashboardSourceTest(unittest.TestCase):
         self.assertIn('"contract_count": funnel_contracts', svc)
         self.assertIn('_rate(funnel_contracts, funnel_bookings)', svc)
         self.assertNotIn('or_(and_(Deal.created_at >= start, Deal.created_at < end), Deal.booking.has(', svc)
+
+    def test_priority_alerts_are_vietnamese_and_exclude_daily_duplicates(self):
+        svc = read('backend/app/services/dashboard_service.py')
+        priority = svc[svc.index('    priority ='):svc.index('    return {"range"', svc.index('    priority ='))]
+        for label in ('Công việc quá hạn', 'Lịch hẹn quá hạn', 'Lead quá hạn chăm sóc', 'Lead nóng', 'Lead lâu chưa tương tác', 'Khách lâu chưa tương tác'):
+            self.assertIn(label, priority)
+        self.assertNotIn('Task today', priority)
+        self.assertNotIn('Appointment today', priority)
+        self.assertNotIn('Task overdue', priority)
+        self.assertNotIn('Appointment overdue', priority)
 
     def test_route_sidebar_permission_and_regression_routes_present(self):
         routes = read('frontend/src/routes/AppRoutes.tsx')

@@ -29,7 +29,9 @@
 - No chart dependency was added.
 
 ## Priority
-- Priority actions include task overdue, task today, appointment today, lead overdue, lead hot, lead stale and stale customers.
+- The bottom risk section is titled **Cảnh báo ưu tiên**. It contains only Vietnamese urgent/risk alerts: overdue tasks and appointments, overdue/hot/stale leads, and stale customers.
+- Daily workload cards remain exclusively in **Việc cần làm hôm nay**; the priority section intentionally excludes the duplicated “Công việc hôm nay” and “Lịch hẹn hôm nay” cards.
+- Priority actions include overdue tasks and appointments, overdue/hot/stale leads, and stale customers.
 
 ## Drilldown
 - Clickable KPI cards are real `<button type="button" role="link">` controls.
