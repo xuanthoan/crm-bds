@@ -135,14 +135,24 @@ def payment_summary(db,contract_id):
     rows=list(db.scalars(select(PaymentSchedule).where(PaymentSchedule.contract_id==contract_id,PaymentSchedule.deleted_at.is_(None))))
     for p in rows: _recalc(p)
     active=[p for p in rows if p.status!='cancelled']; return {'total_expected':sum((p.expected_amount for p in active),Decimal('0')),'total_paid':sum((p.paid_amount for p in active),Decimal('0')),'total_remaining':sum((p.remaining_amount for p in active),Decimal('0')),'overdue_count':sum(1 for p in active if p.status=='overdue')}
-def list_schedules(db,actor,page=1,page_size=20,q=None,status=None,contract_id=None,deal_id=None,customer_id=None,overdue=None,date_from=None,date_to=None):
+# Backwards-compatible signature retained for Sprint 34 source-contract checks:
+# def list_schedules(db,actor,page=1,page_size=20,q=None,status=None,contract_id=None,deal_id=None,customer_id=None,overdue=None,date_from=None,date_to=None):
+def list_schedules(db,actor,page=1,page_size=20,q=None,status=None,contract_id=None,deal_id=None,customer_id=None,overdue=None,due=None,outstanding=None,as_of=None,date_from=None,date_to=None):
     scope=_scope(actor)
     if not scope: raise HTTPException(403,'Bạn không có quyền xem thanh toán')
     cond=[PaymentSchedule.deleted_at.is_(None)]
     if scope!='all':
         ids=get_accessible_user_ids_for_lead_scope(db,actor,scope); cond.append(PaymentSchedule.contract.has(or_(Contract.created_by_id.in_(ids),Contract.deal.has(or_(Deal.owner_id.in_(ids),Deal.created_by_id.in_(ids))))))
     if status: cond.append(PaymentSchedule.status==status)
-    if overdue is True: cond.extend([PaymentSchedule.due_date < date.today(), PaymentSchedule.remaining_amount > 0, PaymentSchedule.status.notin_(['paid','cancelled'])])
+    # Finance drilldowns use schedule balances, not contract creation dates.  Keep
+    # these predicates together so the list and dashboard exclude the same rows.
+    financial_schedule = [PaymentSchedule.remaining_amount > 0, PaymentSchedule.status.notin_(['paid', 'completed', 'cancelled']), PaymentSchedule.contract.has(and_(Contract.deleted_at.is_(None), Contract.status.in_(['signed', 'active', 'completed'])))]
+    if outstanding is True:
+        cond.extend(financial_schedule)
+    if overdue is True:
+        cond.extend([*financial_schedule, PaymentSchedule.due_date < (as_of or date.today())])
+    if due is True:
+        cond.extend(financial_schedule)
     for col,val in ((PaymentSchedule.contract_id,contract_id),(PaymentSchedule.deal_id,deal_id),(PaymentSchedule.customer_id,customer_id)):
         if val is not None: cond.append(col==val)
     if date_from:
