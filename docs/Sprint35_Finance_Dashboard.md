@@ -1,0 +1,3 @@
+# Sprint 35 — Finance / Accountant Dashboard
+
+`/dashboard/finance` gives accountants, directors and administrators a financial overview. It uses the shared dashboard date presets and recognizes revenue only from non-deleted signed, active, and completed contracts. Collections include only confirmed/paid, non-deleted receipts; cancelled/deleted records are excluded. Outstanding schedules must have a positive remaining amount and must not be paid or cancelled. The dashboard includes revenue, collections, receivables, due/overdue schedules, receipts, invoices, commissions, risk alerts, daily series, and drilldowns that retain date filters.
