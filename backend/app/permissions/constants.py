@@ -17,6 +17,7 @@ PERMISSION_CODES_BY_MODULE = {'activities': ['activities.view.own',
                 'activities.delete'],
  'audit_logs': ['audit_logs.view', 'audit_logs.export'],
  'company_commissions': ['company_commissions.view', 'company_commissions.create', 'company_commissions.approve', 'company_commissions.receive', 'company_commissions.hold', 'company_commissions.cancel', 'company_commissions.export'],
+ 'dashboard_finance': ['dashboard.finance.view'],
  'commission_payment_vouchers': ['commissions.payment_vouchers.view', 'commissions.payment_vouchers.create', 'commissions.payment_vouchers.update', 'commissions.payment_vouchers.mark_paid', 'commissions.payment_vouchers.cancel', 'commissions.payment_vouchers.cancel_paid', 'commissions.payment_vouchers.export'],
  'commissions': ['commissions.view',
                  'commissions.create',
@@ -690,4 +691,6 @@ ALL_PERMISSION_CODES = sorted({code for codes in PERMISSION_CODES_BY_MODULE.valu
 ROLE_PERMISSION_MAP["admin"] = list(ALL_PERMISSION_CODES)
 for _role in ("director", "sales_manager", "accountant"):
     ROLE_PERMISSION_MAP[_role] += [p for p in COMPANY_COMMISSION_PERMISSIONS if p not in ROLE_PERMISSION_MAP[_role]]
+for _role in ("director", "accountant"):
+    if "dashboard.finance.view" not in ROLE_PERMISSION_MAP[_role]: ROLE_PERMISSION_MAP[_role].append("dashboard.finance.view")
 ROLE_PERMISSION_MAP["leader"] += ["company_commissions.view", "company_commissions.create"]

@@ -16,6 +16,9 @@ from app.models.project import Project
 from app.models.sales_commission import SalesCommission
 from app.models.company_commission import CompanyCommissionReceivable
 from app.models.payment_receipt import PaymentReceipt
+from app.models.payment_schedule import PaymentSchedule
+from app.models.payment_invoice import PaymentInvoice
+from app.models.commission_payment_voucher import SalesCommissionPaymentVoucher
 from app.models.user_organization_membership import UserOrganizationMembership
 from app.models.team import Team
 from app.models.department import Department
@@ -162,6 +165,57 @@ def get_boss_dashboard(db: Session, preset: str | None = None, from_date: date |
 
 
 SALE_DASHBOARD_PERMISSION = "dashboard.sale.view"
+FINANCE_DASHBOARD_PERMISSION = "dashboard.finance.view"
+
+def get_finance_dashboard(db: Session, preset: str | None = None, from_date: date | str | None = None, to_date: date | str | None = None) -> dict:
+    """Financial overview; intentionally uses no salesperson ownership scope."""
+    r = resolve_dashboard_date_range(preset, from_date, to_date); start, end = r["_start"], r["_end"]
+    # Balance metrics are evaluated at the end of the selected period.  They are
+    # deliberately not constrained by a record's creation date.
+    as_of = (end - timedelta(days=1)).date()
+    valid = [Contract.deleted_at.is_(None), Contract.status.in_({"signed", "active", "completed"})]
+    ranged_valid = [*valid, _valid_contract_date() >= start, _valid_contract_date() < end]
+    receipt_live = [PaymentReceipt.deleted_at.is_(None), PaymentReceipt.status.in_({"confirmed", "paid"})]
+    revenue = _money(db.scalar(select(func.coalesce(func.sum(Contract.contract_value), 0)).where(*ranged_valid)))
+    collected = _money(db.scalar(select(func.coalesce(func.sum(PaymentReceipt.amount), 0)).where(*receipt_live, func.coalesce(PaymentReceipt.confirmed_at, PaymentReceipt.created_at) >= start, func.coalesce(PaymentReceipt.confirmed_at, PaymentReceipt.created_at) < end)))
+    schedule_live = [PaymentSchedule.deleted_at.is_(None), PaymentSchedule.status.notin_({"paid", "completed", "cancelled"}), PaymentSchedule.remaining_amount > 0, PaymentSchedule.contract.has(and_(Contract.deleted_at.is_(None), Contract.status.in_({"signed", "active", "completed"})))]
+    outstanding = _money(db.scalar(select(func.coalesce(func.sum(PaymentSchedule.remaining_amount), 0)).join(Contract, PaymentSchedule.contract_id == Contract.id).where(*schedule_live, *valid)))
+    due = [*schedule_live, PaymentSchedule.due_date >= start.date(), PaymentSchedule.due_date <= as_of]
+    overdue = [*schedule_live, PaymentSchedule.due_date < as_of]
+    pending_receipt = [PaymentReceipt.deleted_at.is_(None), PaymentReceipt.status.in_({"draft", "pending", "unconfirmed"}), PaymentReceipt.created_at >= start, PaymentReceipt.created_at < end]
+    draft_invoice = [PaymentInvoice.deleted_at.is_(None), PaymentInvoice.status == "draft", PaymentInvoice.created_at >= start, PaymentInvoice.created_at < end]
+    issued_invoice = [PaymentInvoice.deleted_at.is_(None), PaymentInvoice.status.in_({"issued", "confirmed"}), func.coalesce(PaymentInvoice.issued_at, PaymentInvoice.created_at) >= start, func.coalesce(PaymentInvoice.issued_at, PaymentInvoice.created_at) < end]
+    commissions = [SalesCommission.status.notin_({"cancelled", "rejected"})]
+    approved = _money(db.scalar(select(func.coalesce(func.sum(SalesCommission.approved_commission), 0)).where(*commissions, SalesCommission.approved_commission > 0, func.coalesce(SalesCommission.approved_at, SalesCommission.created_at) >= start, func.coalesce(SalesCommission.approved_at, SalesCommission.created_at) < end)))
+    paid = _money(db.scalar(select(func.coalesce(func.sum(SalesCommission.paid_amount), 0)).where(*commissions, SalesCommission.paid_amount > 0, func.coalesce(SalesCommission.paid_at, SalesCommission.created_at) >= start, func.coalesce(SalesCommission.paid_at, SalesCommission.created_at) < end)))
+    def n(model, *conds): return _count(db, model, *conds)
+    voucher_pending = [SalesCommissionPaymentVoucher.status == "draft", SalesCommissionPaymentVoucher.payment_date >= start.date(), SalesCommissionPaymentVoucher.payment_date < end.date()]
+    commission_outstanding = _money(db.scalar(select(func.coalesce(func.sum(SalesCommission.approved_commission - SalesCommission.paid_amount), 0)).where(*commissions, SalesCommission.approved_commission > SalesCommission.paid_amount)))
+    summary = {"contract_revenue": revenue, "collected_amount": collected, "outstanding_amount": outstanding, "collection_rate": _rate(collected, revenue), "due_schedule_count": n(PaymentSchedule, *due), "overdue_schedule_count": n(PaymentSchedule, *overdue), "overdue_amount": _money(db.scalar(select(func.coalesce(func.sum(PaymentSchedule.remaining_amount), 0)).where(*overdue))), "pending_receipt_count": n(PaymentReceipt, *pending_receipt), "confirmed_receipt_count": n(PaymentReceipt, *receipt_live, func.coalesce(PaymentReceipt.confirmed_at, PaymentReceipt.created_at) >= start, func.coalesce(PaymentReceipt.confirmed_at, PaymentReceipt.created_at) < end), "draft_invoice_count": n(PaymentInvoice, *draft_invoice), "issued_invoice_count": n(PaymentInvoice, *issued_invoice), "commission_approved": approved, "commission_paid": paid, "commission_outstanding": commission_outstanding, "pending_commission_voucher_count": n(SalesCommissionPaymentVoucher, *voucher_pending)}
+    days = _dates(start, end); revenue_by_day = {d: {"date": d, "amount": 0} for d in days}; collected_by_day = {d: {"date": d, "amount": 0} for d in days}
+    for d, amount in db.execute(select(func.date(_valid_contract_date()), func.sum(Contract.contract_value)).where(*ranged_valid).group_by(func.date(_valid_contract_date()))): revenue_by_day[str(d)]["amount"] = _money(amount)
+    for d, amount in db.execute(select(func.date(func.coalesce(PaymentReceipt.confirmed_at, PaymentReceipt.created_at)), func.sum(PaymentReceipt.amount)).where(*receipt_live, func.coalesce(PaymentReceipt.confirmed_at, PaymentReceipt.created_at) >= start, func.coalesce(PaymentReceipt.confirmed_at, PaymentReceipt.created_at) < end).group_by(func.date(func.coalesce(PaymentReceipt.confirmed_at, PaymentReceipt.created_at)))): collected_by_day[str(d)]["amount"] = _money(amount)
+    def schedule_row(s):
+        c, customer = db.get(Contract, s.contract_id), db.get(Customer, s.customer_id)
+        return {"id": str(s.id), "payment_code": s.payment_code, "contract_code": c.contract_code if c else "—", "customer_name": customer.full_name if customer else "—", "due_date": s.due_date.isoformat(), "expected_amount": _money(s.expected_amount), "paid_amount": _money(s.paid_amount), "remaining_amount": _money(s.remaining_amount), "status": s.status}
+    overdue_rows = [schedule_row(s) for s in db.scalars(select(PaymentSchedule).where(*overdue).order_by(PaymentSchedule.due_date).limit(10))]
+    pending_rows = []
+    for x in db.scalars(select(PaymentReceipt).where(*pending_receipt).order_by(PaymentReceipt.created_at.desc()).limit(10)):
+        c, customer, creator = db.get(Contract, x.contract_id), db.get(Customer, x.customer_id), db.get(User, x.created_by_id)
+        pending_rows.append({"id": str(x.id), "receipt_code": x.receipt_code, "contract_code": c.contract_code if c else "—", "customer_name": customer.full_name if customer else "—", "payment_date": x.payment_date.isoformat() if x.payment_date else None, "amount": _money(x.amount), "creator_name": creator.full_name if creator else "—", "status": x.status})
+    outstanding_rows = []
+    outstanding_by_contract = {}
+    for schedule in db.scalars(select(PaymentSchedule).join(Contract, PaymentSchedule.contract_id == Contract.id).where(*schedule_live, *valid)):
+        item = outstanding_by_contract.setdefault(schedule.contract_id, {"contract": db.get(Contract, schedule.contract_id), "paid": Decimal("0"), "remaining": Decimal("0")})
+        item["paid"] += schedule.paid_amount or Decimal("0")
+        item["remaining"] += schedule.remaining_amount or Decimal("0")
+    for item in sorted(outstanding_by_contract.values(), key=lambda x: x["remaining"], reverse=True)[:10]:
+        c = item["contract"]
+        outstanding_rows.append({"id": str(c.id), "contract_code": c.contract_code, "customer_name": (db.get(Customer, c.customer_id).full_name if db.get(Customer, c.customer_id) else "—"), "contract_value": _money(c.contract_value), "paid_amount": _money(item["paid"]), "remaining_amount": _money(item["remaining"]), "status": c.status})
+    debt_status = [{"status": "overdue", "count": summary["overdue_schedule_count"]}, {"status": "due", "count": summary["due_schedule_count"]}, {"status": "paid", "count": n(PaymentSchedule, PaymentSchedule.deleted_at.is_(None), PaymentSchedule.status.in_({"paid", "completed"}))}, {"status": "partially_paid", "count": n(PaymentSchedule, PaymentSchedule.deleted_at.is_(None), PaymentSchedule.status == "partially_paid")}]
+    commission_status = [{"status": status, "count": n(SalesCommission, SalesCommission.status == status)} for status in ("pending", "approved", "paid", "rejected")]
+    public_range = {k: v for k, v in r.items() if not k.startswith("_")}
+    return {"range": public_range, "summary": summary, "time_series": {"revenue_by_day": list(revenue_by_day.values()), "collected_by_day": list(collected_by_day.values())}, "breakdowns": {"receivables_by_status": debt_status, "commissions_by_status": commission_status}, "alerts": [{"key": "overdue", "label": "Thanh toán quá hạn", "count": summary["overdue_schedule_count"]}, {"key": "pending_receipts", "label": "Phiếu thu chờ xác nhận", "count": summary["pending_receipt_count"]}, {"key": "draft_invoices", "label": "Hóa đơn nháp chưa phát hành", "count": summary["draft_invoice_count"]}, {"key": "commission_due", "label": "Hoa hồng đã duyệt chưa chi", "count": n(SalesCommission, *commissions, SalesCommission.approved_commission > SalesCommission.paid_amount)}], "tables": {"overdue_payments": overdue_rows, "pending_receipts": pending_rows, "outstanding_contracts": outstanding_rows}}
 
 def resolve_sale_dashboard_scope(current_user: User) -> dict:
     return {"user_ids": {current_user.id}, "scope_type": "mine", "member_count": 1, "can_view_all": False}

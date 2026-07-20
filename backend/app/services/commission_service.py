@@ -1,5 +1,5 @@
 from __future__ import annotations
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
 import csv, io
@@ -208,18 +208,25 @@ def base_query(db): return db.query(SalesCommission).options(joinedload(SalesCom
 
 def list_commissions(db, page=1, page_size=20, actor=None, **f):
     q=base_query(db).join(Contract, SalesCommission.contract_id==Contract.id).outerjoin(Customer, Contract.customer_id==Customer.id).outerjoin(User, SalesCommission.sale_id==User.id)
-    if f.get('status') == 'remaining': q=q.filter(SalesCommission.approved_commission > SalesCommission.paid_amount)
+    special_period = f.get('approved_in_period') or f.get('paid_in_period')
+    if f.get('status') == 'remaining': q=q.filter(SalesCommission.status.notin_(['cancelled','rejected']), SalesCommission.approved_commission > SalesCommission.paid_amount)
     elif f.get('status') == 'partially_paid': q=q.filter(SalesCommission.approved_commission > 0, SalesCommission.paid_amount > 0, SalesCommission.paid_amount < SalesCommission.approved_commission)
     elif f.get('status') == 'paid': q=q.filter(SalesCommission.approved_commission > 0, SalesCommission.paid_amount >= SalesCommission.approved_commission)
-    elif f.get('status') == 'approved': q=q.filter(SalesCommission.status=='approved', SalesCommission.approved_commission > 0, SalesCommission.paid_amount <= 0)
+    elif f.get('status') == 'approved' and not special_period: q=q.filter(SalesCommission.status=='approved', SalesCommission.approved_commission > 0, SalesCommission.paid_amount <= 0)
     elif f.get('status'): q=q.filter(SalesCommission.status==f['status'])
     if f.get('scope') == 'mine' and actor is not None: q=q.filter(SalesCommission.sale_id==actor.id)
     elif f.get('sale_id'): q=q.filter(SalesCommission.sale_id==f['sale_id'])
     if f.get('contract_id'): q=q.filter(SalesCommission.contract_id==f['contract_id'])
     kw=f.get('keyword') or f.get('contract_code')
     if kw: q=q.filter(or_(SalesCommission.commission_code.ilike(f'%{kw}%'), Contract.contract_code.ilike(f'%{kw}%'), Customer.full_name.ilike(f'%{kw}%')))
+    if f.get('approved_in_period'):
+        q=q.filter(SalesCommission.status.notin_(['cancelled','rejected']), SalesCommission.approved_commission > 0)
+    if f.get('paid_in_period'):
+        q=q.filter(SalesCommission.status.notin_(['cancelled','rejected']), SalesCommission.paid_amount > 0)
     for key,col,op in [('date_from',SalesCommission.created_at,lambda c,v:c>=v),('date_to',SalesCommission.created_at,lambda c,v:c<=v),('approved_from',SalesCommission.approved_at,lambda c,v:c>=v),('approved_to',SalesCommission.approved_at,lambda c,v:c<=v),('paid_from',SalesCommission.paid_at,lambda c,v:c>=v),('paid_to',SalesCommission.paid_at,lambda c,v:c<=v)]:
-        if f.get(key): q=q.filter(op(col, f[key]))
+        if f.get(key):
+            value=datetime.combine(f[key], time.max if key.endswith('_to') else time.min, tzinfo=timezone.utc)
+            q=q.filter(op(col, value))
     total=q.count(); items=q.order_by(SalesCommission.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
     ccr_by_contract=get_company_commissions_by_contract_ids(db, [c.contract_id for c in items])
     rows=[]
